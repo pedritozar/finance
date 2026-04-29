@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -242,9 +243,24 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     </div>
     <div class="dv-hdr-r">
       <button class="hdr-btn" onclick="exportCSV()">↓ CSV</button>
+      <button class="hdr-btn" onclick="openImport()">↑ Import</button>
       <button class="hdr-btn pri" onclick="openPanel()">+ Registrar</button>
     </div>
   </header>
+
+  <!-- Import Modal -->
+  <div id="import-ov" style="display:none;position:fixed;inset:0;background:rgba(12,17,23,.4);z-index:300;align-items:center;justify-content:center;">
+    <div style="background:var(--white);border-radius:16px;padding:28px;width:460px;box-shadow:0 20px 60px rgba(0,0,0,.15);">
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px;">Importar CSV</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:16px;">Pegá el contenido del CSV (columnas: fecha,tipo,monto,moneda,categoria,nota)</div>
+      <textarea id="import-txt" rows="10" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:11px;resize:vertical;outline:none;color:var(--text);" placeholder="fecha,tipo,monto,moneda,categoria,nota&#10;2026-04-01,ingreso,1800000,ARS,salario,Salario abril&#10;2026-04-05,gasto,769000,ARS,servicios,Renta abril"></textarea>
+      <div id="import-status" style="font-size:12px;color:var(--blue);margin-top:8px;min-height:18px;"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;">
+        <button onclick="closeImport()" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--white);cursor:pointer;font-family:var(--font);font-size:13px;">Cancelar</button>
+        <button onclick="importCSV()" style="padding:8px 18px;border:none;border-radius:8px;background:var(--blue);color:white;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:600;">Importar</button>
+      </div>
+    </div>
+  </div>
 
   <nav class="dv-tabs">
     <div class="tab-btn on" data-tab="dash"  onclick="showTab('dash')">Dashboard</div>
@@ -528,6 +544,13 @@ onAuthStateChanged(auth, user => {
       r[`${y}-${m}`] = {gastos:gs.val()||{},ingresos:is.val()||{}};
     }));
     return r;
+  };
+
+  window._writeDate = async (type, monto, moneda, cat, nota, fecha) => {
+    const [y,m] = fecha.split('-');
+    await push(ref(db, `${type}s/${uid}/${y}/${m}`), {
+      fecha, monto: +monto, moneda, categoria: cat, nota: nota||'', timestamp: serverTimestamp()
+    });
   };
 
   window._fbOK = true;
@@ -842,6 +865,39 @@ function calcIPC(){
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────
+function openImport(){
+  const ov=$('import-ov'); if(ov){ ov.style.display='flex'; $('import-txt').value=''; $('import-status').textContent=''; }
+}
+function closeImport(){
+  const ov=$('import-ov'); if(ov) ov.style.display='none';
+}
+async function importCSV(){
+  const raw=$('import-txt').value.trim();
+  if(!raw){ $('import-status').textContent='Pegá el CSV primero.'; return; }
+  const lines=raw.split('\n').filter(l=>l.trim()&&!l.startsWith('fecha'));
+  if(!lines.length){ $('import-status').textContent='Sin datos para importar.'; return; }
+  if(!window._write){ $('import-status').textContent='Firebase no conectado aún. Esperá un segundo y reintentá.'; return; }
+  $('import-status').textContent=`Importando ${lines.length} registros...`;
+  let ok=0,err=0;
+  for(const line of lines){
+    try{
+      const cols=line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
+      const [fecha,tipo,monto,moneda,categoria,nota='']=cols;
+      if(!fecha||!tipo||!monto) continue;
+      // Parse date to get year/month and override timestamp
+      const [y,m]=fecha.split('-');
+      const db=(await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js'));
+      const {ref,push,serverTimestamp}=db;
+      const {getDatabase}=db;
+      // Use existing _write but with custom date handling
+      await window._writeDate(tipo==='ingreso'?'ingreso':'gasto', +monto, moneda||'ARS', categoria||'varios', nota, fecha);
+      ok++;
+    }catch(e){ err++; console.error(e); }
+  }
+  $('import-status').textContent=`✅ ${ok} importados${err>0?' · ⚠️ '+err+' errores':''} — recargá el dashboard`;
+  setTimeout(()=>{ closeImport(); loadPeriod(S.year+'-'+S.month); },2000);
+}
+
 function exportCSV(){
   const rows=[['fecha','tipo','monto','moneda','categoria','nota']];
   fl(S.data.gastos).forEach(e=>rows.push([e.fecha,'gasto',e.monto,e.moneda,e.categoria,e.nota||'']));
