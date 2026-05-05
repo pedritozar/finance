@@ -29,6 +29,15 @@
 html{height:100%;background:var(--bg);}
 body{font-family:var(--font);color:var(--text);font-size:14px;line-height:1.5;min-height:100%;}
 
+/* ── NUEVOS ESTILOS AUTH ── */
+#auth-ov { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 20px; }
+.login-card { background: var(--white); padding: 40px; border-radius: 20px; box-shadow: var(--sh); text-align: center; max-width: 340px; border: 1px solid var(--border); }
+.login-btn { background: var(--white); border: 1.5px solid var(--border); padding: 12px 24px; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 600; cursor: pointer; transition: all .2s; width: 100%; font-family: var(--font); color: var(--text); }
+.login-btn:hover { border-color: var(--blue); background: var(--blue-l); transform: translateY(-1px); }
+.g-icon { width: 18px; height: 18px; }
+#user-info { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); margin-right: 15px; }
+.u-img { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border); }
+
 /* ── MOBILE (default) ── */
 #mv{display:flex;flex-direction:column;height:100dvh;max-width:430px;margin:0 auto;background:var(--white);}
 #dv{display:none;}
@@ -186,6 +195,18 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
 </style>
 </head>
 <body>
+
+<!-- Pantalla de Login (Auth Overlay) -->
+<div id="auth-ov">
+  <div class="login-card">
+    <div class="brand" style="font-size: 20px; margin-bottom: 12px;">ZAR <b>Finance</b></div>
+    <p style="color: var(--text2); font-size: 13px; margin-bottom: 24px;">Ingresá para gestionar tu patrimonio bimonetario con seguridad de Google.</p>
+    <button class="login-btn" onclick="loginWithGoogle()">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="g-icon">
+      Ingresar con Google
+    </button>
+  </div>
+</div>
 
 <!-- ══ MOBILE ══════════════════════════════════════════════════════════════ -->
 <div id="mv">
@@ -488,33 +509,77 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
 <!-- ══ FIREBASE ════════════════════════════════════════════════════════════ -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, push, onValue, get, serverTimestamp }
-  from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-import { getAuth, signInAnonymously, onAuthStateChanged }
-  from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import { getDatabase, ref, push, onValue, get, set, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
-// ── ⚠️  REEMPLAZÁ CON TU CONFIG DE FIREBASE ─────────────────────────────────
 const FB_CFG = {
-  apiKey:            "AIzaSyBDkqXKdtFRs1On4kw0lP3Bk897esslmoM",
-  authDomain:        "zarfinance.firebaseapp.com",
-  databaseURL:       "https://zarfinance-default-rtdb.firebaseio.com",
-  projectId:         "zarfinance",
-  storageBucket:     "zarfinance.firebasestorage.app",
+  apiKey: "AIzaSyBDkqXKdtFRs1On4kw0lP3Bk897esslmoM",
+  authDomain: "zarfinance.firebaseapp.com",
+  databaseURL: "https://zarfinance-default-rtdb.firebaseio.com",
+  projectId: "zarfinance",
+  storageBucket: "zarfinance.appspot.com",
   messagingSenderId: "210001894365",
-  appId:             "1:210001894365:web:1d9b27f0c3340ed71ef434"
+  appId: "1:210001894365:web:1d9b27f0c3340ed71ef434"
 };
-// Finnhub key
 window.FHKEY = 'd74v8h1r01qg1eo710m0d74v8h1r01qg1eo710mg';
-// ─────────────────────────────────────────────────────────────────────────────
 
-const app  = initializeApp(FB_CFG);
-const db   = getDatabase(app);
+const app = initializeApp(FB_CFG);
+const db = getDatabase(app);
 const auth = getAuth(app);
-signInAnonymously(auth).catch(console.error);
+const provider = new GoogleAuthProvider();
 
-onAuthStateChanged(auth, user => {
-  if (!user) return;
+window.loginWithGoogle = () => {
+  if (auth.currentUser && auth.currentUser.isAnonymous) {
+    localStorage.setItem('zar_old_uid', auth.currentUser.uid);
+  }
+  signInWithPopup(auth, provider).catch(console.error);
+};
+
+window.logout = () => signOut(auth).then(() => location.reload());
+
+onAuthStateChanged(auth, async (user) => {
+  const authOv = document.getElementById('auth-ov');
+  const mv = document.getElementById('mv');
+  const dv = document.getElementById('dv');
+
+  if (!user || user.isAnonymous) {
+    authOv.style.display = 'flex';
+    mv.style.display = 'none';
+    dv.style.display = 'none';
+    return;
+  }
+
+  authOv.style.display = 'none';
+  if (window.innerWidth < 768) mv.style.display = 'flex'; else dv.style.display = 'flex';
+  
   const uid = user.uid;
+
+  // MIGRACIÓN
+  const oldUid = localStorage.getItem('zar_old_uid');
+  if (oldUid && !localStorage.getItem('zar_migrated_' + uid)) {
+    try {
+      const types = ['gastos', 'ingresos'];
+      for (const type of types) {
+        const oldRef = ref(db, `${type}/${oldUid}`);
+        const snapshot = await get(oldRef);
+        if (snapshot.exists()) {
+          await set(ref(db, `${type}/${uid}`), snapshot.val());
+        }
+      }
+      localStorage.setItem('zar_migrated_' + uid, 'true');
+      localStorage.removeItem('zar_old_uid');
+    } catch (e) { console.error("Error migración:", e); }
+  }
+
+  const hdrR = document.querySelector('.dv-hdr-r');
+  if (hdrR && !document.getElementById('user-info')) {
+    hdrR.insertAdjacentHTML('afterbegin', `
+      <div id="user-info">
+        <img src="${user.photoURL}" class="u-img">
+        <span>${user.displayName.split(' ')[0]}</span>
+      </div>
+    `);
+  }
 
   window._write = async (type, monto, moneda, cat, nota) => {
     const d = new Date(), y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0');
@@ -559,7 +624,6 @@ onAuthStateChanged(auth, user => {
 
 <!-- ══ APP ═════════════════════════════════════════════════════════════════ -->
 <script>
-// ── Config ────────────────────────────────────────────────────────────────────
 const TC = 1420, ING_REF = 1650000, CUO_TOT = 1329139.33;
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const COLORS = ['#0066FF','#10B981','#F59E0B','#8B5CF6','#EF4444','#06B6D4','#EC4899','#84CC16','#F97316','#6B7280'];
@@ -597,11 +661,9 @@ const CM = {
 const CG = ['alimentacion','transporte','servicios','streaming','salud','ropa','judo','ocio','inversiones','finanzas','varios'];
 const CI = ['salario','bono','trading','otro'];
 
-// ── State ─────────────────────────────────────────────────────────────────────
 const S = { type:'g', cur:'ARS', cat:null, year:'', month:'', data:{gastos:{},ingresos:{}}, hist:{} };
 let pieChart, barChart;
 
-// ── Util ──────────────────────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
 const $$ = s  => document.querySelectorAll(s);
 const fl = o  => o ? Object.values(o).filter(Boolean) : [];
@@ -611,7 +673,6 @@ const fmtK = n => n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':St
 const set  = (id,t) => { const e=$(id); if(e) e.textContent=t; };
 const fD   = s => s?s.split('-').reverse().join('/'):'';
 
-// ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   buildPeriodSel();
   renderCatGrid('mv'); renderCatGrid('p');
@@ -627,7 +688,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function onReady(){ loadPeriod(S.year+'-'+S.month); loadHist(); loadMarket(); }
 
-// ── Period ────────────────────────────────────────────────────────────────────
 function buildPeriodSel(){
   const sel = $('period-sel'), now = new Date();
   for(let i=0;i<12;i++){
@@ -646,7 +706,6 @@ function loadPeriod(val){
   window._listen(S.year,S.month,data=>{ S.data=data; renderDash(); });
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
 function renderDash(){
   const gas=fl(S.data.gastos), ing=fl(S.data.ingresos);
   const tG=sARS(gas), tI=sARS(ing), sal=tI-tG, tasa=tI>0?sal/tI*100:0;
@@ -657,7 +716,6 @@ function renderDash(){
   updatePie(gas); renderTx(); populateCatFilter();
 }
 
-// ── Charts ────────────────────────────────────────────────────────────────────
 function initCharts(){
   pieChart = new Chart($('pie-ch').getContext('2d'),{
     type:'doughnut',
@@ -713,7 +771,6 @@ function updateBar(){
   barChart.update();
 }
 
-// ── Transactions ──────────────────────────────────────────────────────────────
 function renderTx(){
   const f=$('cat-filter')?.value||'';
   const all=[...fl(S.data.gastos).map(e=>({...e,_t:'g'})),...fl(S.data.ingresos).map(e=>({...e,_t:'i'}))]
@@ -736,7 +793,6 @@ function populateCatFilter(){
   sel.innerHTML='<option value="">Todas</option>'+[...cats].map(c=>{const m=CM[c];return`<option value="${c}"${c===cur?' selected':''}>${m?.e||''} ${m?.n||c}</option>`;}).join('');
 }
 
-// ── Histórico tab ─────────────────────────────────────────────────────────────
 function renderHistTab(){
   const tb=$('hist-tb'); if(!tb) return;
   const ks=Object.keys(S.hist).sort(); let ti=0,tg=0;
@@ -753,7 +809,6 @@ function renderHistTab(){
   tb.innerHTML=rows.join('')+`<tr style="font-weight:700;"><td>Total</td><td style="color:var(--green);">${fmt(ti)}</td><td style="color:var(--red);">${fmt(tg)}</td><td style="color:${st>=0?'var(--green)':'var(--red)'};">${(st>=0?'+':'')+fmt(st)}</td><td colspan="2"></td></tr>`;
 }
 
-// ── Debt & DTI ────────────────────────────────────────────────────────────────
 function renderDebtTable(){
   const tb=$('debt-tb'); if(!tb) return;
   tb.innerHTML=DEUDAS.map(d=>`<tr>
@@ -788,7 +843,6 @@ function renderDTIProj(){
   }).join('');
 }
 
-// ── Inversiones ───────────────────────────────────────────────────────────────
 function renderInvSnap(){
   const el=$('inv-snap'); if(!el) return;
   el.innerHTML=INV_SNAP.map(i=>
@@ -801,7 +855,6 @@ function renderInvSnap(){
   </div><div style="font-size:11px;color:var(--text3);margin-top:2px;">≈ USD ${Math.round(1222702/TC).toLocaleString('es-AR')} · t/c $${TC.toLocaleString('es-AR')}</div>`;
 }
 
-// ── Finnhub ───────────────────────────────────────────────────────────────────
 async function loadMarket(){
   const el=$('tickers'); if(!el) return;
   el.innerHTML=TICKERS.map(t=>`<div class="ticker-item" id="tk-${t.s.replace(/\W/g,'_')}">
@@ -824,7 +877,6 @@ async function loadMarket(){
   set('mkt-ts','Act. '+new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}));
 }
 
-// ── Simuladores ───────────────────────────────────────────────────────────────
 function simRow(l,v,col){return`<div class="sim-row"><span class="lbl">${l}</span><span class="val"${col?` style="color:${col};"`:''}>${v}</span></div>`;}
 
 function calcInf(){
@@ -864,7 +916,6 @@ function calcIPC(){
     <div style="font-size:12px;color:var(--text3);margin-top:4px;">Salario real ${g?'subió':'cayó'} ${fmt(Math.abs(diff))} este mes</div>`;
 }
 
-// ── Export ────────────────────────────────────────────────────────────────────
 function openImport(){
   const ov=$('import-ov'); if(ov){ ov.style.display='flex'; $('import-txt').value=''; $('import-status').textContent=''; }
 }
@@ -884,12 +935,7 @@ async function importCSV(){
       const cols=line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
       const [fecha,tipo,monto,moneda,categoria,nota='']=cols;
       if(!fecha||!tipo||!monto) continue;
-      // Parse date to get year/month and override timestamp
-      const [y,m]=fecha.split('-');
-      const db=(await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js'));
-      const {ref,push,serverTimestamp}=db;
-      const {getDatabase}=db;
-      // Use existing _write but with custom date handling
+      const [y,m] = fecha.split('-');
       await window._writeDate(tipo==='ingreso'?'ingreso':'gasto', +monto, moneda||'ARS', categoria||'varios', nota, fecha);
       ok++;
     }catch(e){ err++; console.error(e); }
@@ -907,7 +953,6 @@ function exportCSV(){
   a.download=`zarfinance_${S.year}_${S.month}.csv`; a.click();
 }
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
 function showTab(name){
   $$('.tab-pane').forEach(e=>e.classList.remove('on'));
   $$('.tab-btn').forEach(e=>e.classList.remove('on'));
@@ -916,11 +961,9 @@ function showTab(name){
   if(t) t.classList.add('on');
 }
 
-// ── Panel ─────────────────────────────────────────────────────────────────────
 function openPanel(){ $('panel-ov').classList.add('on'); $('panel').classList.add('on'); renderCatGrid('p'); }
 function closePanel(){ $('panel').classList.remove('on'); setTimeout(()=>$('panel-ov').classList.remove('on'),280); }
 
-// ── Form (shared mobile + panel) ─────────────────────────────────────────────
 function renderCatGrid(pfx){
   const cats=S.type==='g'?CG:CI, isP=pfx==='p';
   const grid=$(isP?'p-cg':'mv-cg'); if(!grid) return;
@@ -934,12 +977,10 @@ function renderCatGrid(pfx){
 
 function setType(t){
   S.type=t; S.cat=null;
-  // mobile
   const mg=$('mv-tg'),mi=$('mv-ti');
   if(mg) mg.className='tog-btn'+(t==='g'?' ag':'');
   if(mi) mi.className='tog-btn'+(t==='i'?' ai':'');
   const ma=$('mv-ad'); if(ma) ma.className='amt-num '+(t==='g'?'g':'i');
-  // panel
   const pg=$('p-tg'),pi=$('p-ti');
   if(pg) pg.className='tog-btn'+(t==='g'?' ag':'');
   if(pi) pi.className='tog-btn'+(t==='i'?' ai':'');
