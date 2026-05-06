@@ -193,8 +193,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
 .panel-sub:active{transform:scale(.98);}
 .panel-sub:disabled{opacity:.5;cursor:not-allowed;}
 </style>
-</head>
-<body>
+</head><body>
 
 <!-- Pantalla de Login (Auth Overlay) -->
 <div id="auth-ov">
@@ -349,7 +348,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div class="dti-scale"><span>0%</span><span>36%</span><span>50%</span><span>100%</span></div>
             <div class="divider" style="margin:12px 0;"></div>
             <div style="font-size:12px;display:flex;flex-direction:column;gap:6px;">
-              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Total cuotas/mes</span><span style="font-weight:700;color:var(--red);">$1.329.139</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Total cuotas/mes</span><span style="font-weight:700;color:var(--red);">$2.085.233</span></div>
               <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Ingresos ref.</span><span style="font-weight:600;">$1.650.000</span></div>
               <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Umbral saludable</span><span style="color:var(--green);font-weight:600;">&lt; $594.000/mes</span></div>
             </div>
@@ -369,7 +368,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             </table>
             <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border2);display:flex;justify-content:space-between;font-size:13px;">
               <span style="color:var(--text2);">Total saldo</span>
-              <span style="font-weight:700;">$5.271.558</span>
+              <span style="font-weight:700;">$5.463.725</span>
             </div>
           </div>
           <div class="card">
@@ -504,9 +503,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     </div>
   </div>
 
-</div><!-- /dv -->
-
-<!-- ══ FIREBASE ════════════════════════════════════════════════════════════ -->
+</div><!-- /dv --><!-- ══ FIREBASE ════════════════════════════════════════════════════════════ -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, get, set, serverTimestamp, goOffline, goOnline } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
@@ -528,7 +525,7 @@ const db = getDatabase(app);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
-// Funciones Dinámicas (Evitan Stale Closures del UID)
+// FIX: Función dinámica para evitar Stale Closure
 const getUid = () => {
   if (!auth.currentUser || auth.currentUser.isAnonymous) throw new Error("Usuario no autenticado con Google");
   return auth.currentUser.uid;
@@ -555,7 +552,7 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  // Force WebSocket Reconnect post-auth para limpiar sockets muertos
+  // FIX: Force WebSocket Reconnect post-auth
   goOffline(db);
   goOnline(db);
 
@@ -564,7 +561,7 @@ onAuthStateChanged(auth, async (user) => {
   
   const currentUid = user.uid;
 
-  // MIGRACIÓN
+  // SCRIPT DE MIGRACIÓN AUTOMÁTICA
   const oldUid = localStorage.getItem('zar_old_uid');
   if (oldUid && !localStorage.getItem('zar_migrated_' + currentUid)) {
     try {
@@ -578,7 +575,7 @@ onAuthStateChanged(auth, async (user) => {
       }
       localStorage.setItem('zar_migrated_' + currentUid, 'true');
       localStorage.removeItem('zar_old_uid');
-    } catch (e) { console.error("Error migración:", e); }
+    } catch (e) { console.error("Error migración automática:", e); }
   }
 
   const hdrR = document.querySelector('.dv-hdr-r');
@@ -591,7 +588,7 @@ onAuthStateChanged(auth, async (user) => {
     `);
   }
 
-  // Lógica Firebase Dinámica
+  // FIX: Todas las llamadas a DB usan getUid() dinámico
   window._write = async (type, monto, moneda, cat, nota) => {
     const d = new Date(), y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0');
     await push(ref(db, `${type}s/${getUid()}/${y}/${m}`), {
@@ -617,14 +614,18 @@ onAuthStateChanged(auth, async (user) => {
 
   window._hist = async months => {
     const r = {};
-    const uid = getUid();
-    await Promise.all(months.map(async ({y,m}) => {
-      const [gs,is] = await Promise.all([
-        get(ref(db,`gastos/${uid}/${y}/${m}`)),
-        get(ref(db,`ingresos/${uid}/${y}/${m}`))
-      ]);
-      r[`${y}-${m}`] = {gastos:gs.val()||{},ingresos:is.val()||{}};
-    }));
+    try {
+      const uid = getUid();
+      await Promise.all(months.map(async ({y,m}) => {
+        const [gs,is] = await Promise.all([
+          get(ref(db,`gastos/${uid}/${y}/${m}`)),
+          get(ref(db,`ingresos/${uid}/${y}/${m}`))
+        ]);
+        r[`${y}-${m}`] = {gastos:gs.val()||{},ingresos:is.val()||{}};
+      }));
+    } catch (error) {
+       console.warn("Historial abortado:", error.message);
+    }
     return r;
   };
 
@@ -638,24 +639,29 @@ onAuthStateChanged(auth, async (user) => {
   window._fbOK = true;
   document.dispatchEvent(new Event('fb-ok'));
   
-  // Forzamos un re-render por si el DOMContentLoaded disparó en falso antes del auth
+  // FIX: Forzar re-render post-auth
   if (typeof onReady === "function") onReady();
 });
 </script>
 
 <!-- ══ APP ═════════════════════════════════════════════════════════════════ -->
 <script>
-const TC = 1420, ING_REF = 1650000, CUO_TOT = 1329139.33;
+// FIX: CUO_TOT actualizado a $2.085.233 según nuevas deudas
+const TC = 1420, ING_REF = 1650000, CUO_TOT = 2085233;
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const COLORS = ['#0066FF','#10B981','#F59E0B','#8B5CF6','#EF4444','#06B6D4','#EC4899','#84CC16','#F97316','#6B7280'];
 
+// FIX: Array DEUDAS actualizado
 const DEUDAS = [
-  {n:'Plan V — 3c (TNA 67.25%)',  s:1774171.78, c:887085.89,  r:2,    v:'05/2026',b:'y'},
-  {n:'Plan V — 6c (TNA 62.74%)',  s:2652320.64, c:442053.44,  r:6,    v:'09/2026',b:'r'},
-  {n:'MercadoPago / tiendas',     s:344951.65,  c:null,        r:null, v:'06/2026',b:'r'},
-  {n:'Saldo USD (U$S 117.66)',    s:167077.20,  c:null,        r:null, v:'04/2026',b:'r'},
-  {n:'Saldo rotativo / imp.',     s:333036.86,  c:null,        r:null, v:'04/2026',b:'r'},
+  {n:'Plan V 3c (TNA 67.25%)',       s:1774172, c:887086, r:1, v:'05/2026', b:'y'},
+  {n:'Plan V 6c (TNA 62.74%)',       s:2652321, c:442053, r:6, v:'09/2026', b:'r'},
+  {n:'Plan V nuevo 3c (TNA 70.89%)', s:1544597, c:575995, r:3, v:'07/2026', b:'b'},
+  {n:'Cuotas ML camperas x3',        s:270672,  c:135336, r:2, v:'06/2026', b:'b'},
+  {n:'Cuotas ML Stanley+Perchero',   s:89526,   c:44763,  r:2, v:'06/2026', b:'b'},
+  {n:'MercadoPago/tiendas',          s:344952,  c:null,   r:null, v:'06/2026', b:'r'},
+  {n:'Saldo rotativo',               s:333037,  c:null,   r:null, v:'—',       b:'r'}
 ];
+
 const INV_SNAP = [
   {c:'Acciones (PAMP+)',   m:540225,    p:44.2,b:'b'},
   {c:'Bonos soberanos',    m:522293.78, p:42.7,b:'g'},
