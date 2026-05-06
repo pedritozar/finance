@@ -509,7 +509,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
 <!-- ══ FIREBASE ════════════════════════════════════════════════════════════ -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, push, onValue, get, set, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { getDatabase, ref, push, onValue, get, set, serverTimestamp, goOffline, goOnline } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
 const FB_CFG = {
@@ -527,6 +527,12 @@ const app = initializeApp(FB_CFG);
 const db = getDatabase(app);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
+
+// Funciones Dinámicas (Evitan Stale Closures del UID)
+const getUid = () => {
+  if (!auth.currentUser || auth.currentUser.isAnonymous) throw new Error("Usuario no autenticado con Google");
+  return auth.currentUser.uid;
+};
 
 window.loginWithGoogle = () => {
   if (auth.currentUser && auth.currentUser.isAnonymous) {
@@ -549,24 +555,28 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
+  // Force WebSocket Reconnect post-auth para limpiar sockets muertos
+  goOffline(db);
+  goOnline(db);
+
   authOv.style.display = 'none';
   if (window.innerWidth < 768) mv.style.display = 'flex'; else dv.style.display = 'flex';
   
-  const uid = user.uid;
+  const currentUid = user.uid;
 
   // MIGRACIÓN
   const oldUid = localStorage.getItem('zar_old_uid');
-  if (oldUid && !localStorage.getItem('zar_migrated_' + uid)) {
+  if (oldUid && !localStorage.getItem('zar_migrated_' + currentUid)) {
     try {
       const types = ['gastos', 'ingresos'];
       for (const type of types) {
         const oldRef = ref(db, `${type}/${oldUid}`);
         const snapshot = await get(oldRef);
         if (snapshot.exists()) {
-          await set(ref(db, `${type}/${uid}`), snapshot.val());
+          await set(ref(db, `${type}/${currentUid}`), snapshot.val());
         }
       }
-      localStorage.setItem('zar_migrated_' + uid, 'true');
+      localStorage.setItem('zar_migrated_' + currentUid, 'true');
       localStorage.removeItem('zar_old_uid');
     } catch (e) { console.error("Error migración:", e); }
   }
@@ -575,15 +585,16 @@ onAuthStateChanged(auth, async (user) => {
   if (hdrR && !document.getElementById('user-info')) {
     hdrR.insertAdjacentHTML('afterbegin', `
       <div id="user-info">
-        <img src="${user.photoURL}" class="u-img">
+        <img src="${user.photoURL}" class="u-img" referrerpolicy="no-referrer">
         <span>${user.displayName.split(' ')[0]}</span>
       </div>
     `);
   }
 
+  // Lógica Firebase Dinámica
   window._write = async (type, monto, moneda, cat, nota) => {
     const d = new Date(), y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0');
-    await push(ref(db, `${type}s/${uid}/${y}/${m}`), {
+    await push(ref(db, `${type}s/${getUid()}/${y}/${m}`), {
       fecha: d.toISOString().split('T')[0], monto: +monto,
       moneda, categoria: cat, nota: nota||'', timestamp: serverTimestamp()
     });
@@ -591,15 +602,22 @@ onAuthStateChanged(auth, async (user) => {
 
   window._listen = (y, m, cb) => {
     let d = {gastos:{},ingresos:{}}, n = 0;
-    ['gastos','ingresos'].forEach(k =>
-      onValue(ref(db, `${k}/${uid}/${y}/${m}`), s => {
-        d[k] = s.val()||{}; if (++n >= 2) cb(d);
-      })
-    );
+    try {
+      const uid = getUid();
+      ['gastos','ingresos'].forEach(k =>
+        onValue(ref(db, `${k}/${uid}/${y}/${m}`), s => {
+          d[k] = s.val()||{}; 
+          if (++n >= 2) cb(d);
+        })
+      );
+    } catch (error) {
+      console.warn("Listen abortado:", error.message);
+    }
   };
 
   window._hist = async months => {
     const r = {};
+    const uid = getUid();
     await Promise.all(months.map(async ({y,m}) => {
       const [gs,is] = await Promise.all([
         get(ref(db,`gastos/${uid}/${y}/${m}`)),
@@ -612,13 +630,16 @@ onAuthStateChanged(auth, async (user) => {
 
   window._writeDate = async (type, monto, moneda, cat, nota, fecha) => {
     const [y,m] = fecha.split('-');
-    await push(ref(db, `${type}s/${uid}/${y}/${m}`), {
+    await push(ref(db, `${type}s/${getUid()}/${y}/${m}`), {
       fecha, monto: +monto, moneda, categoria: cat, nota: nota||'', timestamp: serverTimestamp()
     });
   };
 
   window._fbOK = true;
   document.dispatchEvent(new Event('fb-ok'));
+  
+  // Forzamos un re-render por si el DOMContentLoaded disparó en falso antes del auth
+  if (typeof onReady === "function") onReady();
 });
 </script>
 
