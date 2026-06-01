@@ -647,21 +647,22 @@ onAuthStateChanged(auth, async (user) => {
 <!-- ══ APP ═════════════════════════════════════════════════════════════════ -->
 <script>
 // FIX: CUO_TOT actualizado a $2.085.233 según nuevas deudas
-const TC = 1420, ING_REF = 1650000, CUO_TOT = 2085233;
+const TC = 1420, ING_REF = 1650000, CUO_TOT = 2106391;
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const COLORS = ['#0066FF','#10B981','#F59E0B','#8B5CF6','#EF4444','#06B6D4','#EC4899','#84CC16','#F97316','#6B7280'];
 
 // FIX: Array DEUDAS actualizado
 const DEUDAS = [
-  {n:'Plan V 3c (TNA 67.25%)',       s:1774172, c:887086, r:1, v:'05/2026', b:'y'},
-  {n:'Plan V 6c (TNA 62.74%)',       s:2652321, c:442053, r:6, v:'09/2026', b:'r'},
-  {n:'Plan V nuevo 3c (TNA 70.89%)', s:1544597, c:575995, r:3, v:'07/2026', b:'b'},
-  {n:'Cuotas ML camperas x3',        s:270672,  c:135336, r:2, v:'06/2026', b:'b'},
-  {n:'Cuotas ML Stanley+Perchero',   s:89526,   c:44763,  r:2, v:'06/2026', b:'b'},
+  {n:'Plan V 6c (TNA 62.74%)',       s:2652321, c:442053, r:4, v:'09/2026', b:'r'},
+  {n:'Plan V nuevo 3c (TNA 70.89%)', s:1544597, c:574862, r:2, v:'07/2026', b:'r'},
+  {n:'Plan V $900K (28/05)',         s:900000,  c:null,   r:null, v:'—',     b:'r'},
+  {n:'ZENTRA',                       s:127000,  c:21158,  r:6, v:'10/2026', b:'b'},
+  {n:'Cuotas ML camperas x3',        s:270672,  c:135336, r:1, v:'06/2026', b:'b'},
+  {n:'Cuotas ML Stanley+Perchero',   s:89526,   c:44763,  r:1, v:'06/2026', b:'b'},
   {n:'MercadoPago/tiendas',          s:344952,  c:null,   r:null, v:'06/2026', b:'r'},
-  {n:'Saldo rotativo',               s:333037,  c:null,   r:null, v:'—',       b:'r'}
+  {n:'Saldo rotativo',               s:333037,  c:null,   r:null, v:'—',       b:'r'},
+  {n:'Saldo USD (U$S 173.79)',       s:173.79,  c:null,   r:null, v:'—',       b:'r'},
 ];
-
 const INV_SNAP = [
   {c:'Acciones (PAMP+)',   m:540225,    p:44.2,b:'b'},
   {c:'Bonos soberanos',    m:522293.78, p:42.7,b:'g'},
