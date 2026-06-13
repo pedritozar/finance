@@ -350,7 +350,6 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
               <span style="color:var(--text2);">Total saldo</span>
               <span style="font-weight:700;">$5.271.558</span>
             </div>
-            <div id="bna-countdown" style="margin-top:10px;padding:9px 12px;border-radius:8px;font-size:12px;font-weight:500;text-align:center;"></div>
           </div>
           <div class="card">
             <div class="card-ttl">Simulador de cuota rápido</div>
@@ -397,17 +396,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     <div class="tab-pane" id="t-sims">
       <div class="sim-grid">
         <div class="card">
-          <div class="card-ttl">🏺 Meta Arkad — Regla del 10%</div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">"Págate a vos mismo primero" — El Hombre Más Rico de Babilonia</div>
-          <div id="arkad-status" style="padding:10px 12px;border-radius:8px;font-size:13px;font-weight:500;background:var(--bg);"></div>
-          <div style="margin-top:12px;">
-            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:4px;">
-              <span>Ahorro real este mes</span><span id="arkad-pct">—</span>
-            </div>
-            <div class="dti-bg"><div id="arkad-bar" class="dti-fill" style="width:0%;background:var(--green);transition:width .4s;"></div></div>
-            <div style="font-size:10px;color:var(--text3);margin-top:4px;">Meta mínima: 10% · Meta ideal: 20%</div>
-          </div>
-        </div>
+          <div class="card-ttl">Inflación vs Salario Real</div>
           <div class="sim-field"><span class="sim-lbl">Salario base ARS</span><input class="sim-input" type="number" id="si-base" value="1000000" oninput="calcInf()"></div>
           <div class="sim-field"><span class="sim-lbl">Salario actual ARS</span><input class="sim-input" type="number" id="si-act" value="1650000" oninput="calcInf()"></div>
           <div class="sim-field"><span class="sim-lbl">Inflación período %</span><input class="sim-input" type="number" id="si-ipc" value="35" step="0.1" oninput="calcInf()"></div>
@@ -571,8 +560,7 @@ onAuthStateChanged(auth, user => {
 <!-- ══ APP ═════════════════════════════════════════════════════════════════ -->
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-let TC = 1420, ING_REF = 1650000, CUO_TOT = 2106391;
-// TC se actualiza automáticamente desde dolarapi.com al cargar
+const TC = 1420, ING_REF = 1650000, CUO_TOT = 1329139.33;
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const COLORS = ['#0066FF','#10B981','#F59E0B','#8B5CF6','#EF4444','#06B6D4','#EC4899','#84CC16','#F97316','#6B7280'];
 
@@ -590,11 +578,11 @@ const INV_SNAP = [
   {c:'Disponible ARS',     m:100699.66, p:8.2, b:'r'},
 ];
 const TICKERS = [
-  {s:'SPY',              n:'S&P 500 ETF',  pre:'$'},
-  {s:'AAPL',             n:'Apple',        pre:'$'},
-  {s:'NVDA',             n:'NVIDIA',       pre:'$'},
-  {s:'BINANCE:BTCUSDT',  n:'Bitcoin',      pre:'$'},
-  {s:'OANDA:XAU_USD',    n:'Oro / USD',    pre:'$'},
+  {s:'GC=F',    n:'Oro',       pre:'$'},
+  {s:'CL=F',    n:'WTI Crude', pre:'$'},
+  {s:'^GSPC',   n:'S&P 500',   pre:''},
+  {s:'AAPL',    n:'Apple',     pre:'$'},
+  {s:'BTC-USD', n:'Bitcoin',   pre:'$'},
 ];
 const CM = {
   alimentacion:{e:'🛒',n:'Alimentación'},  transporte:{e:'🚗',n:'Transporte'},
@@ -623,75 +611,6 @@ const fmtK = n => n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':St
 const set  = (id,t) => { const e=$(id); if(e) e.textContent=t; };
 const fD   = s => s?s.split('-').reverse().join('/'):'';
 
-// ── Countdown BNA ─────────────────────────────────────────────────────────────
-function renderCountdown() {
-  const el = document.getElementById('bna-countdown'); if (!el) return;
-  const vto  = new Date('2026-06-10T00:00:00');
-  const hoy  = new Date(); hoy.setHours(0,0,0,0);
-  const diff = Math.ceil((vto - hoy) / 86400000);
-  if (diff > 0) {
-    const col = diff <= 3 ? 'var(--red)' : diff <= 7 ? 'var(--amber)' : 'var(--blue)';
-    const bg  = diff <= 3 ? 'var(--red-l)' : diff <= 7 ? 'var(--amber-l)' : 'var(--blue-l)';
-    el.style.background = bg; el.style.color = col;
-    el.innerHTML = `⏰ Vencimiento BNA — faltan <strong>${diff} día${diff===1?'':'s'}</strong> · 10/06/2026 · 0810 666 4444`;
-  } else if (diff === 0) {
-    el.style.background = 'var(--red-l)'; el.style.color = 'var(--red)';
-    el.innerHTML = `🚨 <strong>HOY vence el resumen BNA</strong> — Llamar ya: 0810 666 4444`;
-  } else {
-    el.style.background = 'var(--green-l)'; el.style.color = 'var(--green)';
-    el.innerHTML = `✅ Vencimiento BNA 10/06 superado`;
-  }
-}
-
-// ── Meta Arkad ────────────────────────────────────────────────────────────────
-function renderArkad() {
-  const elS = document.getElementById('arkad-status');
-  const elP = document.getElementById('arkad-pct');
-  const elB = document.getElementById('arkad-bar');
-  if (!elS) return;
-  const ing = fl(S.data?.ingresos), gas = fl(S.data?.gastos);
-  const tI  = sARS(ing), tG = sARS(gas);
-  const dti = tI > 0 ? CUO_TOT / tI : 1;
-  // Inactivo mientras DTI > 50%
-  if (dti > 0.5 || tI === 0) {
-    elS.style.background = 'var(--bg)'; elS.style.color = 'var(--text3)';
-    elS.innerHTML = `⏸ Inactivo — DTI actual ${tI>0?(dti*100).toFixed(0):'—'}% · Se activa cuando DTI < 50% (julio/agosto)`;
-    if(elP) elP.textContent = '—';
-    return;
-  }
-  const ahorro = (tI - tG) / tI;
-  const pct    = (ahorro * 100).toFixed(1);
-  const ok     = ahorro >= 0.10;
-  const excelente = ahorro >= 0.20;
-  elS.style.background = excelente ? 'var(--green-l)' : ok ? '#ECFDF5' : 'var(--red-l)';
-  elS.style.color      = ok ? 'var(--green)' : 'var(--red)';
-  elS.innerHTML = excelente
-    ? `🏆 Arkad orgulloso — ahorraste <strong>${pct}%</strong> (meta 10% ✅)`
-    : ok ? `✅ Meta Arkad cumplida — ahorraste <strong>${pct}%</strong>`
-         : `❌ Meta Arkad no cumplida — ahorraste <strong>${pct}%</strong> (meta: 10%)`;
-  if(elP) elP.textContent = `${pct}%`;
-  if(elB) elB.style.width = `${Math.min(Math.max(ahorro*100,0),100)}%`;
-  if(elB) elB.style.background = ok ? 'var(--green)' : 'var(--red)';
-}
-
-// ── Tipo de cambio dinámico ────────────────────────────────────────────────────
-async function fetchTC() {
-  try {
-    const res = await fetch('https://dolarapi.com/v1/dolares/oficial',
-      {signal: AbortSignal.timeout(4000)});
-    if (!res.ok) throw new Error();
-    const { venta } = await res.json();
-    if (venta && venta > 0) {
-      TC = venta;
-      const badge = document.getElementById('tc-badge');
-      if (badge) badge.textContent = `USD oficial $${TC.toLocaleString('es-AR')} · 🟢 live`;
-    }
-  } catch {
-    const badge = document.getElementById('tc-badge');
-    if (badge) badge.textContent = `USD oficial $${TC.toLocaleString('es-AR')} · fallback`;
-  }
-}
-
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   buildPeriodSel();
@@ -701,18 +620,12 @@ document.addEventListener('DOMContentLoaded', () => {
   renderDTIProj();
   renderInvSnap();
   calcSC(); calcInf(); calcAho(); calcCr();
-  renderCountdown();
 
   if (window._fbOK) onReady();
   else document.addEventListener('fb-ok', onReady);
 });
 
-async function onReady(){
-  await fetchTC();                          // espera TC real antes de renderizar
-  loadPeriod(S.year+'-'+S.month);
-  loadHist();
-  loadMarket();
-}
+function onReady(){ loadPeriod(S.year+'-'+S.month); loadHist(); loadMarket(); }
 
 // ── Period ────────────────────────────────────────────────────────────────────
 function buildPeriodSel(){
@@ -742,7 +655,6 @@ function renderDash(){
   const ke=$('k-sal'); ke.textContent=(sal>=0?'+':'')+fmt(sal); ke.className='kpi-val '+(sal>=0?'g':'r');
   set('k-sal2',`${tasa>=0?'+':''}${tasa.toFixed(1)}% tasa de ahorro`);
   updatePie(gas); renderTx(); populateCatFilter();
-  renderArkad();
 }
 
 // ── Charts ────────────────────────────────────────────────────────────────────
@@ -886,7 +798,7 @@ function renderInvSnap(){
     </div>`
   ).join('')+`<div style="display:flex;justify-content:space-between;padding:10px 0 0;font-size:14px;font-weight:700;">
     <span>Total</span><span>${fmt(1222702)}</span>
-  </div><div id="tc-badge" style="font-size:11px;color:var(--text3);margin-top:2px;">≈ USD ${Math.round(1222702/TC).toLocaleString('es-AR')} · t/c $${TC.toLocaleString('es-AR')}</div>`;
+  </div><div style="font-size:11px;color:var(--text3);margin-top:2px;">≈ USD ${Math.round(1222702/TC).toLocaleString('es-AR')} · t/c $${TC.toLocaleString('es-AR')}</div>`;
 }
 
 // ── Finnhub ───────────────────────────────────────────────────────────────────
@@ -902,19 +814,12 @@ async function loadMarket(){
   await Promise.all(TICKERS.map(async t=>{
     try{
       const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${t.s}&token=${key}`), d=await r.json();
-      const id=`tk-${t.s.replace(/\W/g,'_')}`, el2=$(id); if(!el2) return;
-      if(!d.c || d.c===0){
-        el2.querySelector('.tk-price').outerHTML=`<div class="tk-price" style="color:var(--text3);font-size:11px;">n/d</div>`;
-        return;
-      }
+      const id=`tk-${t.s.replace(/\W/g,'_')}`, el2=$(id); if(!el2||!d.c) return;
       const pos=d.dp>=0;
       el2.querySelector('.tk-price').outerHTML=`<div class="tk-price">${t.pre}${d.c.toLocaleString('en-US',{maximumFractionDigits:2})}</div>`;
       el2.querySelector('[style*="gap:6px"]').insertAdjacentHTML('beforeend',
         `<div class="tk-chg ${pos?'p':'n'}">${pos?'+':''}${d.dp?.toFixed(2)}%</div>`);
-    }catch(e){
-      const id=`tk-${t.s.replace(/\W/g,'_')}`, el2=$(id);
-      if(el2) el2.querySelector('.tk-price').outerHTML=`<div class="tk-price" style="color:var(--text3);font-size:11px;">error</div>`;
-    }
+    }catch(e){}
   }));
   set('mkt-ts','Act. '+new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}));
 }
