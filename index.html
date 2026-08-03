@@ -280,7 +280,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         <div class="kpi"><div class="kpi-lbl">Gastos ARS</div><div class="kpi-val r" id="k-gas">$0</div><div class="kpi-sub" id="k-gas2">—</div></div>
         <div class="kpi"><div class="kpi-lbl">Superávit / Déficit</div><div class="kpi-val" id="k-sal">$0</div><div class="kpi-sub" id="k-sal2">—</div></div>
         <div class="kpi"><div class="kpi-lbl">DTI ratio</div><div class="kpi-val r" id="k-dti">80.5%</div><div class="kpi-sub">Cuotas / Ingresos</div></div>
-        <div class="kpi"><div class="kpi-lbl">Cartera Alyc</div><div class="kpi-val b" id="k-port">$1.222.702</div><div class="kpi-sub" id="k-port2">≈ USD 861</div></div>
+        <div class="kpi"><div class="kpi-lbl">Cartera Alyc</div><div class="kpi-val b" id="k-port">$649.838</div><div class="kpi-sub" id="k-port2">≈ USD 419</div></div>
       </div>
       <div class="charts-row">
         <div class="card">
@@ -372,7 +372,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
         <div style="display:flex;flex-direction:column;gap:14px;">
           <div class="card">
-            <div class="card-ttl">Snapshot Alyc — 11/04/2026</div>
+            <div class="card-ttl">Snapshot Alfy — 30/07/2026</div>
             <div id="inv-snap"></div>
           </div>
           <div class="card">
@@ -626,11 +626,12 @@ const DEUDAS = [
   {n:'Saldo rotativo / imp.',     s:333036.86,  c:null,        r:null, v:'04/2026',b:'r'},
 ];
 const INV_SNAP = [
-  {c:'Acciones (PAMP+)',   m:540225,    p:44.2,b:'b'},
-  {c:'Bonos soberanos',    m:522293.78, p:42.7,b:'g'},
-  {c:'Letras',             m:59483.41,  p:4.9, b:'a'},
-  {c:'Disponible ARS',     m:100699.66, p:8.2, b:'r'},
+  {c:'Acciones (LOMA)',              m:32580,    p:5.01, b:'r'},
+  {c:'Cedears (GOOGL/NVDA/PFE)',     m:370990,   p:57.09,b:'g'},
+  {c:'Letras (D31G6)',               m:242720,   p:37.35,b:'b'},
+  {c:'Disponible (ARS+USD)',         m:3548.10,  p:0.55, b:'a'},
 ];
+const TOTAL_INV = 649838.10; // Alfy — snapshot 30/07/2026
 const TICKERS = [
   {s:'SPY',              n:'S&P 500 ETF',  pre:'$'},
   {s:'AAPL',             n:'Apple',        pre:'$'},
@@ -931,8 +932,10 @@ function renderInvSnap(){
       <span style="font-weight:600;">${fmt(i.m)} <span class="badge ${i.b}">${i.p}%</span></span>
     </div>`
   ).join('')+`<div style="display:flex;justify-content:space-between;padding:10px 0 0;font-size:14px;font-weight:700;">
-    <span>Total</span><span>${fmt(1222702)}</span>
-  </div><div id="tc-badge" style="font-size:11px;color:var(--text3);margin-top:2px;">≈ USD ${Math.round(1222702/TC).toLocaleString('es-AR')} · t/c $${TC.toLocaleString('es-AR')}</div>`;
+    <span>Total</span><span>${fmt(TOTAL_INV)}</span>
+  </div><div id="tc-badge" style="font-size:11px;color:var(--text3);margin-top:2px;">≈ USD ${Math.round(TOTAL_INV/TC).toLocaleString('es-AR')} · t/c $${TC.toLocaleString('es-AR')}</div>`;
+  const kp=$('k-port'); if(kp) kp.textContent=fmt(TOTAL_INV);
+  const kp2=$('k-port2'); if(kp2) kp2.textContent='≈ USD '+Math.round(TOTAL_INV/TC).toLocaleString('es-AR');
 }
 
 // ── Finnhub ───────────────────────────────────────────────────────────────────
