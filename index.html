@@ -571,6 +571,7 @@ window._writeDate = async (type, monto, moneda, cat, nota, fecha) => {
 // pero solo el login de Google con la cuenta correcta habilita escritura real.
 window._fbAuthError = null;
 window._authUid = null;
+let _authChecked = false; // true recién después del primer aviso de Firebase sobre el estado de sesión persistido
 onAuthStateChanged(auth, user => {
   const el = document.getElementById('auth-status');
   const btn = document.getElementById('google-login-btn');
@@ -589,6 +590,20 @@ onAuthStateChanged(auth, user => {
     if (el) el.textContent = '';
     if (btn) btn.style.display = 'inline-block';
   }
+  // Solo recurrimos a la sesión anónima si, tras la primera confirmación de
+  // Firebase, NO había ninguna sesión persistida (ni Google ni anónima previa).
+  // Si llamáramos signInAnonymously() sin esperar esto, pisaríamos la sesión
+  // de Google guardada cada vez que se recarga la página.
+  if (!_authChecked) {
+    _authChecked = true;
+    if (!user) {
+      signInAnonymously(auth).catch(err => {
+        console.error('Error de autenticación anónima Firebase:', err);
+        window._fbAuthError = err.message;
+        document.dispatchEvent(new Event('fb-auth-error'));
+      });
+    }
+  }
 });
 
 window._loginGoogle = async () => {
@@ -601,13 +616,8 @@ window._loginGoogle = async () => {
   }
 };
 
-// Sesión anónima como piso mínimo para que las LECTURAS funcionen apenas carga
-// la página, mientras Pedro hace click en "Iniciar sesión Google" para escribir.
-signInAnonymously(auth).catch(err => {
-  console.error('Error de autenticación anónima Firebase:', err);
-  window._fbAuthError = err.message;
-  document.dispatchEvent(new Event('fb-auth-error'));
-});
+// (La sesión anónima de piso mínimo ahora se dispara, si hace falta, dentro
+// de onAuthStateChanged de arriba — solo si no había sesión persistida.)
 </script>
 
 <!-- ══ APP ═════════════════════════════════════════════════════════════════ -->
