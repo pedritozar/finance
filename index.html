@@ -269,6 +269,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     <div class="tab-btn"    data-tab="inv"   onclick="showTab('inv')">Inversiones</div>
     <div class="tab-btn"    data-tab="sims"  onclick="showTab('sims')">Simuladores</div>
     <div class="tab-btn"    data-tab="hist"  onclick="showTab('hist')">Histórico</div>
+    <div class="tab-btn"    data-tab="viv"   onclick="showTab('viv')">🏠 Vivienda vs IPC</div>
   </nav>
 
   <div class="dv-body">
@@ -279,7 +280,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         <div class="kpi"><div class="kpi-lbl">Ingresos ARS</div><div class="kpi-val g" id="k-ing">$0</div><div class="kpi-sub" id="k-ing2">—</div></div>
         <div class="kpi"><div class="kpi-lbl">Gastos ARS</div><div class="kpi-val r" id="k-gas">$0</div><div class="kpi-sub" id="k-gas2">—</div></div>
         <div class="kpi"><div class="kpi-lbl">Superávit / Déficit</div><div class="kpi-val" id="k-sal">$0</div><div class="kpi-sub" id="k-sal2">—</div></div>
-        <div class="kpi"><div class="kpi-lbl">DTI ratio</div><div class="kpi-val r" id="k-dti">80.5%</div><div class="kpi-sub">Cuotas / Ingresos</div></div>
+        <div class="kpi"><div class="kpi-lbl">DTI ratio</div><div class="kpi-val r" id="k-dti">21.7%</div><div class="kpi-sub">Cuotas / Ingresos</div></div>
         <div class="kpi"><div class="kpi-lbl">Cartera Alyc</div><div class="kpi-val b" id="k-port">$649.838</div><div class="kpi-sub" id="k-port2">≈ USD 419</div></div>
       </div>
       <div class="charts-row">
@@ -322,17 +323,17 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         <div style="display:flex;flex-direction:column;gap:14px;">
           <div class="card">
             <div class="card-ttl">DTI Ratio actual</div>
-            <div class="dti-big r" id="dti-num">80.5%</div>
+            <div class="dti-big r" id="dti-num">21.7%</div>
             <div style="margin:8px 0 4px;">
-              <div class="dti-pill crit" id="dti-pill"><span class="dot"></span><span id="dti-txt">Crítico (&gt;50%)</span></div>
+              <div class="dti-pill warn" id="dti-pill"><span class="dot"></span><span id="dti-txt">Moderado (20-36%)</span></div>
             </div>
-            <div class="dti-bg"><div class="dti-fill" id="dti-bar" style="width:80.5%;background:var(--red);"></div></div>
+            <div class="dti-bg"><div class="dti-fill" id="dti-bar" style="width:21.7%;background:var(--amber);"></div></div>
             <div class="dti-scale"><span>0%</span><span>36%</span><span>50%</span><span>100%</span></div>
             <div class="divider" style="margin:12px 0;"></div>
             <div style="font-size:12px;display:flex;flex-direction:column;gap:6px;">
-              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Total cuotas/mes</span><span style="font-weight:700;color:var(--red);">$1.329.139</span></div>
-              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Ingresos ref.</span><span style="font-weight:600;">$1.650.000</span></div>
-              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Umbral saludable</span><span style="color:var(--green);font-weight:600;">&lt; $594.000/mes</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Total cuotas/mes</span><span style="font-weight:700;color:var(--red);">$627.869</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Ingresos ref.</span><span style="font-weight:600;">$2.890.677</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Umbral saludable</span><span style="color:var(--green);font-weight:600;">&lt; $1.040.644/mes</span></div>
             </div>
           </div>
           <div class="card">
@@ -446,6 +447,34 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <thead><tr><th>Mes</th><th>Ingresos ARS</th><th>Gastos ARS</th><th>Saldo</th><th>Tasa ahorro</th><th>IPC</th></tr></thead>
           <tbody id="hist-tb"></tbody>
         </table>
+      </div>
+    </div>
+
+    <div class="tab-pane" id="t-viv">
+      <div class="card">
+        <div class="card-ttl">🏠 Alquiler y Expensas vs Inflación (IPC INDEC nacional / IPC CABA)</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">
+          Compara cuánto subieron tus gastos fijos de vivienda vs. lo que subió el IPC en el mismo período. Datos parciales — completar meses faltantes con capturas de comprobantes.
+        </div>
+        <table class="tbl">
+          <thead><tr><th>Mes</th><th>Alquiler</th><th>Δ Alquiler</th><th>Expensas</th><th>Δ Expensas</th><th>IPC INDEC (mes)</th><th>IPC CABA (mes)</th></tr></thead>
+          <tbody id="viv-tb"></tbody>
+        </table>
+      </div>
+      <div class="card" id="viv-alert"></div>
+      <div class="card">
+        <div class="card-ttl">💡 Servicios básicos — último pago (15/08/2026)</div>
+        <table class="tbl">
+          <thead><tr><th>Servicio</th><th>Monto</th><th>Fecha</th><th>Nota</th></tr></thead>
+          <tbody id="serv-tb"></tbody>
+        </table>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px;">Primer snapshot cargado — sin histórico previo todavía para calcular Δ%. A partir de acá se puede hacer seguimiento mes a mes.</div>
+      </div>
+      <div class="card">
+        <div class="card-ttl">Cómo leer esto</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.6;">
+          "Δ" es la variación % contra el dato anterior cargado (no siempre es un mes exacto, según qué comprobantes tengamos). Compará esa Δ contra el IPC acumulado del mismo período: si tu aumento fue mayor, el propietario/consorcio te ajustó por encima de la inflación oficial.
+        </div>
       </div>
     </div>
 
@@ -623,18 +652,77 @@ window._loginGoogle = async () => {
 <!-- ══ APP ═════════════════════════════════════════════════════════════════ -->
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-let TC = 1420, ING_REF = 1650000, CUO_TOT = 2106391;
+let TC = 1420, ING_REF = 2890677, CUO_TOT = 627869;
 // TC se actualiza automáticamente desde dolarapi.com al cargar
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const COLORS = ['#0066FF','#10B981','#F59E0B','#8B5CF6','#EF4444','#06B6D4','#EC4899','#84CC16','#F97316','#6B7280'];
 
 const DEUDAS = [
-  {n:'Plan V — 3c (TNA 67.25%)',  s:1774171.78, c:887085.89,  r:2,    v:'05/2026',b:'y'},
-  {n:'Plan V — 6c (TNA 62.74%)',  s:2652320.64, c:442053.44,  r:6,    v:'09/2026',b:'r'},
-  {n:'MercadoPago / tiendas',     s:344951.65,  c:null,        r:null, v:'06/2026',b:'r'},
-  {n:'Saldo USD (U$S 117.66)',    s:167077.20,  c:null,        r:null, v:'04/2026',b:'r'},
-  {n:'Saldo rotativo / imp.',     s:333036.86,  c:null,        r:null, v:'04/2026',b:'r'},
+  {n:'Plan V — TNA 62.74% (última cuota, 5/6 facturada)', s:442053.44,  c:442053.44, r:1,    v:'08/2026', b:'y'},
+  {n:'Plan V — TNA 73.00% (3/6 facturadas, restan 3)',    s:557448.00,  c:185816.00, r:3,    v:'10/2026', b:'r'},
+  {n:'Otros consumos / rotativo / USD / imp.',            s:2307435.31, c:null,       r:null, v:'—',       b:'r'},
 ];
+// ✅ Plan V TNA 70.89% (3 cuotas, $574.861,75/mes) — LIQUIDADO en julio/26, ya no figura como deuda activa.
+// Historial Alquiler / Expensas (fuente: comprobantes + changelog) + IPC oficial mensual
+const VIVIENDA_HIST = [
+  {mes:'Feb 2026', alquiler:700000,  expensas:null,      ipcIndec:2.9, ipcCaba:2.6},
+  {mes:'Mar 2026', alquiler:null,    expensas:380540.44, ipcIndec:3.4, ipcCaba:3.0},
+  {mes:'Abr 2026', alquiler:null,    expensas:null,      ipcIndec:2.6, ipcCaba:2.5},
+  {mes:'May 2026', alquiler:null,    expensas:378618.44, ipcIndec:2.1, ipcCaba:2.1},
+  {mes:'Jun 2026', alquiler:767000,  expensas:408654,    ipcIndec:1.9, ipcCaba:1.8},
+  {mes:'Jul 2026', alquiler:861000,  expensas:518000,    ipcIndec:2.1, ipcCaba:2.9},
+  {mes:'Ago 2026', alquiler:null,    expensas:550619.44, ipcIndec:null, ipcCaba:null},
+];
+// Servicios básicos — snapshot pagado 15/08/2026 (fuente: Notion "servicios basicos", casilla pagado)
+const SERVICIOS_HIST = [
+  {n:'Luz (Edenor CABA)',           monto:33318,  fecha:'15/08/2026'},
+  {n:'ABL CABA',                    monto:70528,  fecha:'15/08/2026', nota:'boleta vencida jun-set'},
+  {n:'WiFi / Cable / Teléfono',     monto:87000,  fecha:'15/08/2026', nota:'pago con fondo'},
+];
+function renderVivienda(){
+  const tb = $('viv-tb'); if(!tb) return;
+  let lastAlq = null, lastExp = null;
+  const rows = VIVIENDA_HIST.map(r=>{
+    let dAlq = '—', dExp = '—';
+    if (r.alquiler != null) {
+      if (lastAlq != null) { const p=(r.alquiler/lastAlq-1)*100; dAlq = (p>=0?'+':'')+p.toFixed(1)+'%'; }
+      lastAlq = r.alquiler;
+    }
+    if (r.expensas != null) {
+      if (lastExp != null) { const p=(r.expensas/lastExp-1)*100; dExp = (p>=0?'+':'')+p.toFixed(1)+'%'; }
+      lastExp = r.expensas;
+    }
+    return `<tr>
+      <td>${r.mes}</td>
+      <td>${r.alquiler!=null?fmt(r.alquiler):'<span style="color:var(--text3);">falta dato</span>'}</td>
+      <td style="color:${dAlq.startsWith('+')?'var(--red)':'var(--text3)'};">${dAlq}</td>
+      <td>${r.expensas!=null?fmt(r.expensas):'<span style="color:var(--text3);">falta dato</span>'}</td>
+      <td style="color:${dExp.startsWith('+')?'var(--red)':'var(--text3)'};">${dExp}</td>
+      <td>${r.ipcIndec.toFixed(1)}%</td>
+      <td>${r.ipcCaba.toFixed(1)}%</td>
+    </tr>`;
+  });
+  tb.innerHTML = rows.join('');
+  const stb = $('serv-tb');
+  if (stb) {
+    stb.innerHTML = SERVICIOS_HIST.map(s=>`<tr><td>${s.n}</td><td>${fmt(s.monto)}</td><td>${s.fecha}</td><td style="color:var(--text3);">${s.nota||'—'}</td></tr>`).join('');
+  }
+
+  // Alertas: comparamos último salto real vs IPC acumulado del mismo tramo
+  const alertEl = $('viv-alert');
+  if (alertEl) {
+    alertEl.innerHTML = `
+      <div class="card-ttl">⚠️ Alertas de incremento</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.7;">
+        <b>Alquiler Jun→Jul:</b> +12,3% en un mes — muy por encima del IPC de julio (INDEC 2,1% / CABA 2,9%). Probable renovación/ajuste de contrato, no un simple arrastre de inflación — revisar cláusula de ajuste.<br>
+        <b>Expensas Jun→Jul:</b> +26,8% en un mes — salto grande, muy por encima de cualquier IPC mensual. Revisar si hubo expensa extraordinaria (fondo de reserva, obra, deuda del consorcio) o si es un error de carga.<br>
+        <b>Alquiler Feb→Jun (4 meses):</b> +9,6% vs IPC INDEC acumulado del período ~10,4% y CABA ~9,7% — en línea, incluso levemente por debajo. Bien hasta ahí.<br>
+        <b>Expensas Jul→Ago:</b> +6,3% ($518.000 → $550.619,44). Según la liquidación real de julio (Nacht, Cabrera 2951): el salto de junio a julio se explica en gran parte por un ítem nuevo — SEGURARG S.R.L. (seguridad/vigilancia) $15.750.480 a prorratear entre todo el edificio, categoría "Gastos C" completa. Si esa categoría no existía antes, es un servicio nuevo que subió la base fija, no inflación.<br>
+        <b>⚠️ Vienen 2 cargos extra:</b> la administración informó (i) recupero de indemnización pagada con fondos del edificio, $3.500.000 a prorratear — se recauda desde agosto, vence setiembre; tu parte a 1,391% ≈ <b>$48.685</b>; (ii) cuota extra para reparación de terraza $3.000.000 (aprobada en asamblea, a la espera de presupuesto final) — tu parte estimada ≈ <b>$41.730</b>. Ninguna de las dos está todavía en el monto que pagaste este mes.
+      </div>`;
+  }
+}
+
 const INV_SNAP = [
   {c:'Acciones (LOMA)',              m:32580,    p:5.01, b:'r'},
   {c:'Cedears (GOOGL/NVDA/PFE)',     m:370990,   p:57.09,b:'g'},
@@ -753,6 +841,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderDebtTable();
   renderDTIProj();
   renderInvSnap();
+  renderVivienda();
   calcSC(); calcInf(); calcAho(); calcCr();
   renderCountdown();
 
@@ -913,10 +1002,11 @@ function renderDebtTable(){
 function renderDTIProj(){
   const el=$('dti-proj'); if(!el) return;
   const pts=[
-    {l:'Abril 2026',   dti:80.5, note:''},
-    {l:'Mayo 2026',    dti:26.8, note:'✓ Plan V 3c vence'},
-    {l:'Jun–Ago 2026', dti:26.8, note:''},
-    {l:'Sep 2026',     dti:0,    note:'✓ Plan V 6c vence'},
+    {l:'Junio 2026',    dti:40.4, note:''},
+    {l:'Julio 2026',    dti:21.7, note:'✓ Plan V 70,89% liquidado'},
+    {l:'Agosto 2026',   dti:21.7, note:''},
+    {l:'Set–Oct 2026',  dti:6.4,  note:'✓ Plan V 62,74% vence (ago)'},
+    {l:'Nov 2026 +',    dti:0,    note:'✓ Plan V 73% vence (oct)'},
   ];
   el.innerHTML=pts.map(p=>{
     const col=p.dti<36?'var(--green)':p.dti<50?'var(--amber)':'var(--red)';
