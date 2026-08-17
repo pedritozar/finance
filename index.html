@@ -444,9 +444,10 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <button class="hdr-btn" onclick="exportCSV()">↓ Exportar CSV</button>
         </div>
         <table class="tbl">
-          <thead><tr><th>Mes</th><th>Ingresos ARS</th><th>Gastos ARS</th><th>Saldo</th><th>Tasa ahorro</th><th>IPC</th></tr></thead>
+          <thead><tr><th>Mes</th><th>Ingresos ARS</th><th>≈ USD</th><th>Gastos ARS</th><th>≈ USD</th><th>Saldo</th><th>Tasa ahorro</th></tr></thead>
           <tbody id="hist-tb"></tbody>
         </table>
+        <div id="hist-note" style="font-size:10px;color:var(--text3);margin-top:8px;"></div>
       </div>
     </div>
 
@@ -974,17 +975,22 @@ function populateCatFilter(){
 function renderHistTab(){
   const tb=$('hist-tb'); if(!tb) return;
   const ks=Object.keys(S.hist).sort(); let ti=0,tg=0;
+  const usd=v=>'≈ '+Math.round(v/TC).toLocaleString('es-AR');
   const rows=ks.map(k=>{
     const[y,m]=k.split('-'),I=sARS(fl(S.hist[k].ingresos)),G=sARS(fl(S.hist[k].gastos)),sal=I-G,ta=I>0?sal/I*100:0;
     ti+=I;tg+=G;
     return `<tr><td>${MESES[+m-1]} ${y}</td>
       <td style="color:var(--green);font-weight:600;">${I>0?fmt(I):'—'}</td>
+      <td style="color:var(--text3);font-size:11px;">${I>0?usd(I):'—'}</td>
       <td style="color:var(--red);font-weight:600;">${G>0?fmt(G):'—'}</td>
+      <td style="color:var(--text3);font-size:11px;">${G>0?usd(G):'—'}</td>
       <td style="color:${sal>=0?'var(--green)':'var(--red)'};font-weight:700;">${I>0?(sal>=0?'+':'')+fmt(sal):'—'}</td>
-      <td>${I>0?ta.toFixed(1)+'%':'—'}</td><td style="color:var(--text3);">—</td></tr>`;
+      <td>${I>0?ta.toFixed(1)+'%':'—'}</td></tr>`;
   });
   const st=ti-tg;
-  tb.innerHTML=rows.join('')+`<tr style="font-weight:700;"><td>Total</td><td style="color:var(--green);">${fmt(ti)}</td><td style="color:var(--red);">${fmt(tg)}</td><td style="color:${st>=0?'var(--green)':'var(--red)'};">${(st>=0?'+':'')+fmt(st)}</td><td colspan="2"></td></tr>`;
+  tb.innerHTML=rows.join('')+`<tr style="font-weight:700;"><td>Total</td><td style="color:var(--green);">${fmt(ti)}</td><td style="color:var(--text3);font-size:11px;">${usd(ti)}</td><td style="color:var(--red);">${fmt(tg)}</td><td style="color:var(--text3);font-size:11px;">${usd(tg)}</td><td style="color:${st>=0?'var(--green)':'var(--red)'};">${(st>=0?'+':'')+fmt(st)}</td><td></td></tr>`;
+  const note=$('hist-note');
+  if(note) note.textContent = `Conversión USD aproximada al t/c actual ($${TC.toLocaleString('es-AR')}), no histórico mes a mes.`;
 }
 
 // ── Debt & DTI ────────────────────────────────────────────────────────────────
