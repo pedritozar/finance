@@ -331,9 +331,9 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div class="dti-scale"><span>0%</span><span>36%</span><span>50%</span><span>100%</span></div>
             <div class="divider" style="margin:12px 0;"></div>
             <div style="font-size:12px;display:flex;flex-direction:column;gap:6px;">
-              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Total cuotas/mes</span><span style="font-weight:700;color:var(--red);">$627.869</span></div>
-              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Ingresos ref.</span><span style="font-weight:600;">$2.890.677</span></div>
-              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Umbral saludable</span><span style="color:var(--green);font-weight:600;">&lt; $1.040.644/mes</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Total cuotas/mes</span><span id="dti-cuotas" style="font-weight:700;color:var(--red);">$627.869</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Ingresos ref.</span><span id="dti-ingref" style="font-weight:600;">$2.890.677</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Umbral saludable</span><span id="dti-umbral" style="color:var(--green);font-weight:600;">&lt; $1.040.644/mes</span></div>
             </div>
           </div>
           <div class="card">
@@ -351,8 +351,9 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             </table>
             <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border2);display:flex;justify-content:space-between;font-size:13px;">
               <span style="color:var(--text2);">Total saldo</span>
-              <span style="font-weight:700;">$5.271.558</span>
+              <span id="debt-total" style="font-weight:700;">$5.271.558</span>
             </div>
+            <div id="debt-live-note" style="font-size:10px;color:var(--text3);margin-top:6px;"></div>
             <div id="bna-countdown" style="margin-top:10px;padding:9px 12px;border-radius:8px;font-size:12px;font-weight:500;text-align:center;"></div>
           </div>
           <div class="card">
@@ -596,6 +597,16 @@ window._writeDate = async (type, monto, moneda, cat, nota, fecha) => {
   });
 };
 
+// ── Deudas en vivo (nodo compartido con ZAR Tactical Ledger) ────────────────
+// Tactical Ledger escribe acá cada vez que se marca "Comprado" un ítem
+// financiado: { nombre, saldo, cuotaMensual, tna, plazoMeses, plazoRestante,
+// vencimientoPrimeraCuota, itemId, timestamp }. Antes esta pestaña usaba solo
+// un array fijo en el código (DEUDAS) y nunca leía este nodo — se agrega este
+// listener para que las deudas nuevas del militar se sumen en vivo al DTI real.
+window._listenDeudas = cb => {
+  onValue(ref(db, `deudas/${uid}`), s => cb(s.val() || {}));
+};
+
 // ── Sesión Google real ───────────────────────────────────────────────────────
 // Avisamos "fb-ok" apenas hay CUALQUIER sesión (para que lecturas funcionen),
 // pero solo el login de Google con la cuenta correcta habilita escritura real.
@@ -754,6 +765,7 @@ const CI = ['salario','bono','trading','otro'];
 // ── State ─────────────────────────────────────────────────────────────────────
 const S = { type:'g', cur:'ARS', cat:null, year:'', month:'', data:{gastos:{},ingresos:{}}, hist:{} };
 let pieChart, barChart;
+let DEUDAS_LIVE = {}; // deudas/{uid}/ desde Firebase — cargadas por ZAR Tactical Ledger
 
 // ── Util ──────────────────────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
@@ -848,6 +860,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (window._fbOK) onReady();
   else document.addEventListener('fb-ok', onReady);
+
+  if (window._listenDeudas) {
+    window._listenDeudas(d => { DEUDAS_LIVE = d || {}; renderDebtTable(); });
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenDeudas) window._listenDeudas(d => { DEUDAS_LIVE = d || {}; renderDebtTable(); });
+    });
+  }
 
   document.addEventListener('fb-auth-error', () => {
     alert('No se pudo iniciar sesión anónima en Firebase (' + (window._fbAuthError||'error desconocido') + ').\n\nProbable causa: "Anonymous" no está habilitado en Firebase Console → Authentication → Sign-in method. Activalo y recargá la página.');
@@ -994,16 +1014,65 @@ function renderHistTab(){
 }
 
 // ── Debt & DTI ────────────────────────────────────────────────────────────────
+// DEUDAS = carga manual del saldo VISA/BNA real (resúmenes, sin fecha de cierre
+// fija — se actualiza a mano cada vez que llega un PDF nuevo, ver CHANGELOG de
+// créditos). DEUDAS_LIVE = deudas/{uid}/ en Firebase, escritas por ZAR Tactical
+// Ledger cuando se marca "Comprado" un ítem financiado (equipamiento, etc.).
+// Antes esta pestaña solo mostraba DEUDAS — se combinan ambas fuentes acá.
+function liveDeudasNormalized(){
+  return Object.entries(DEUDAS_LIVE).map(([id,d])=>({
+    n: '🎒 ' + (d.nombre || 'Ítem Tactical Ledger'),
+    s: +d.saldo || 0,
+    c: d.cuotaMensual != null ? +d.cuotaMensual : null,
+    r: d.plazoRestante != null ? d.plazoRestante : (d.plazoMeses != null ? d.plazoMeses : null),
+    v: d.vencimientoPrimeraCuota ? fD(d.vencimientoPrimeraCuota) : '—',
+    b: 'b',
+    _id: id
+  }));
+}
 function renderDebtTable(){
   const tb=$('debt-tb'); if(!tb) return;
-  tb.innerHTML=DEUDAS.map(d=>`<tr>
+  const live = liveDeudasNormalized();
+  const all = [...DEUDAS, ...live];
+  tb.innerHTML=all.map(d=>`<tr>
     <td>${d.n}</td>
     <td style="font-weight:600;font-variant-numeric:tabular-nums;">${fmt(d.s)}</td>
     <td style="font-variant-numeric:tabular-nums;">${d.c?fmt(d.c):'—'}</td>
     <td>${d.r!=null?d.r+'c':'—'}</td>
     <td style="color:var(--text3);">${d.v}</td>
-    <td><span class="badge ${d.b}">${d.b==='y'?'⚠️':d.b==='r'?'🔴':'🔵'}</span></td>
+    <td><span class="badge ${d.b}">${d.b==='y'?'⚠️':d.b==='r'?'🔴':d.b==='b'?'🎒':'🔵'}</span></td>
   </tr>`).join('');
+
+  const totalSaldo = all.reduce((s,d)=>s+(d.s||0),0);
+  set('debt-total', fmt(totalSaldo));
+  const noteEl = $('debt-live-note');
+  if (noteEl) {
+    noteEl.textContent = live.length
+      ? `🎒 ${live.length} ítem${live.length===1?'':'s'} en vivo desde ZAR Tactical Ledger (Firebase deudas/)`
+      : 'Sin ítems financiados desde ZAR Tactical Ledger todavía.';
+  }
+
+  // DTI dinámico: cuota fija VISA (DEUDAS) + cuotas de ítems financiados en vivo
+  CUO_TOT = DEUDAS.reduce((s,d)=>s+(d.c||0),0) + live.reduce((s,d)=>s+(d.c||0),0);
+  recalcDTI();
+}
+
+function recalcDTI(){
+  const dti = ING_REF>0 ? (CUO_TOT/ING_REF*100) : 0;
+  set('dti-num', dti.toFixed(1)+'%');
+  const kdti=$('k-dti');
+  if (kdti){ kdti.textContent = dti.toFixed(1)+'%'; kdti.className='kpi-val '+(dti>=36?'r':dti>=20?'':'g'); }
+  const bar=$('dti-bar');
+  const pill=$('dti-pill'), txt=$('dti-txt');
+  let cls='safe', label='Bajo (<20%)', col='var(--green)';
+  if (dti>=36){ cls='crit'; label='Alto (>36%)'; col='var(--red)'; }
+  else if (dti>=20){ cls='warn'; label='Moderado (20-36%)'; col='var(--amber)'; }
+  if (bar){ bar.style.width=Math.min(dti,100)+'%'; bar.style.background=col; }
+  if (pill) pill.className='dti-pill '+cls;
+  if (txt) txt.textContent=label;
+  set('dti-cuotas', fmt(CUO_TOT));
+  set('dti-ingref', fmt(ING_REF));
+  set('dti-umbral', '< '+fmt(ING_REF*0.36)+'/mes');
 }
 function renderDTIProj(){
   const el=$('dti-proj'); if(!el) return;
