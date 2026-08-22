@@ -373,6 +373,27 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           </div>
         </div>
       </div>
+      <div class="card" style="margin-top:14px;">
+        <div class="card-ttl">Reposición cartera madre</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">Rescate de $3.200.000 (24/08/2026) para saldar la VISA — reposición abierta, sin plazo fijo, financiada con las expensas que Pedro deja de pedirle. Objetivo fijo: reponer el monto retirado, sin contar rendimientos de su cartera.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+          <div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Monto repuesto acumulado</div>
+            <div style="position:relative;height:170px;"><canvas id="repo-ch"></canvas></div>
+          </div>
+          <div style="display:flex;flex-direction:column;justify-content:center;">
+            <div style="font-size:32px;font-weight:700;" id="repo-pct">0%</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">del monto retirado repuesto</div>
+            <div class="dti-bg"><div class="dti-fill" id="repo-bar" style="width:0%;background:var(--blue);"></div></div>
+            <div style="font-size:12px;display:flex;flex-direction:column;gap:6px;margin-top:14px;">
+              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Retirado (24/08)</span><span id="repo-retirado" style="font-weight:700;">$3.200.000</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Repuesto</span><span id="repo-repuesto" style="font-weight:600;color:var(--green);">$0</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Falta</span><span id="repo-falta" style="font-weight:600;color:var(--red);">$3.200.000</span></div>
+            </div>
+          </div>
+        </div>
+        <div id="repo-note" style="font-size:10px;color:var(--text3);margin-top:10px;"></div>
+      </div>
     </div>
 
     <!-- Inversiones -->
@@ -689,6 +710,13 @@ const SANEAMIENTO_HIST = [
   {fecha:'28/05/2026', saldo:4291888.41, nota:'pico'},
   {fecha:'30/07/2026', saldo:3306936.75},
 ];
+// Reposición cartera madre — rescate de $3.200.000 (24/08/2026) para saldar VISA.
+// Objetivo FIJO = monto retirado, no la cartera total ni sus rendimientos (decisión de Pedro, 23/08).
+// Mecanismo: reposición abierta sin plazo fijo, vía expensas que Pedro deja de pedirle + otros aportes futuros.
+const MADRE_REPO_OBJETIVO = 3200000;
+const MADRE_REPO_HIST = [
+  {fecha:'24/08/2026', repuesto:0, nota:'Retiro del rescate — arranca la reposición'},
+];
 // Historial Alquiler / Expensas (fuente: comprobantes + changelog) + IPC oficial mensual
 const VIVIENDA_HIST = [
   {mes:'Feb 2026', alquiler:700000,  expensas:null,      ipcIndec:2.9, ipcCaba:2.6},
@@ -870,6 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderInvSnap();
   renderVivienda();
   renderSaneamiento();
+  renderReposicionMadre();
   calcSC(); calcInf(); calcAho(); calcCr();
   renderCountdown();
 
@@ -976,6 +1005,53 @@ function renderSaneamiento(){
   });
   const note=$('saneamiento-note');
   if(note) note.textContent = `Desde el pico (28/05, ${fmt(pico)}) el saldo bajó ${bajaPico.toFixed(1)}% a ${fmt(ultimo)} (30/07). Falta procesar resumen jun/inicios-jul — gap en la curva.`;
+}
+
+let repoChart=null;
+function renderReposicionMadre(){
+  const cv = $('repo-ch'); if(!cv) return;
+  const ultimo = MADRE_REPO_HIST[MADRE_REPO_HIST.length-1];
+  const repuesto = ultimo.repuesto;
+  const falta = Math.max(MADRE_REPO_OBJETIVO - repuesto, 0);
+  const pct = MADRE_REPO_OBJETIVO>0 ? (repuesto/MADRE_REPO_OBJETIVO*100) : 0;
+
+  if (repoChart) repoChart.destroy();
+  repoChart = new Chart(cv.getContext('2d'),{
+    type:'line',
+    data:{
+      labels: MADRE_REPO_HIST.map(p=>p.fecha),
+      datasets:[
+        {
+          label:'Repuesto acumulado',
+          data: MADRE_REPO_HIST.map(p=>p.repuesto),
+          borderColor:'#10B981', backgroundColor:'#10B98118',
+          borderWidth:2, tension:0.25, fill:true, pointRadius:4,
+        },
+        {
+          label:'Objetivo',
+          data: MADRE_REPO_HIST.map(()=>MADRE_REPO_OBJETIVO),
+          borderColor:'#94A3B8', borderWidth:1.5, borderDash:[5,4],
+          pointRadius:0, fill:false,
+        }
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt(c.parsed.y)}`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:10}}},
+              y:{grid:{color:'#F1F5F9'},ticks:{font:{size:10},callback:v=>'$'+fmtK(v)},
+                 suggestedMax: MADRE_REPO_OBJETIVO*1.05}}}
+  });
+
+  const $pct=$('repo-pct'); if($pct) $pct.textContent = pct.toFixed(1)+'%';
+  const $bar=$('repo-bar'); if($bar) $bar.style.width = Math.min(pct,100)+'%';
+  const $ret=$('repo-retirado'); if($ret) $ret.textContent = fmt(MADRE_REPO_OBJETIVO);
+  const $rep=$('repo-repuesto'); if($rep) $rep.textContent = fmt(repuesto);
+  const $fal=$('repo-falta'); if($fal) $fal.textContent = fmt(falta);
+  const note=$('repo-note');
+  if(note) note.textContent = repuesto>0
+    ? `${pct.toFixed(1)}% repuesto al ${ultimo.fecha}. ${ultimo.nota||''}`
+    : `Arranca el ${ultimo.fecha}. ${ultimo.nota||''}`;
 }
 
 function updatePie(gas){
