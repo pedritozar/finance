@@ -500,6 +500,17 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         <div style="font-size:11px;color:var(--text3);margin-top:8px;">Primer snapshot cargado — sin histórico previo todavía para calcular Δ%. A partir de acá se puede hacer seguimiento mes a mes.</div>
       </div>
       <div class="card">
+        <div class="card-ttl">🩺 OSDE — evolución del valor del plan</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">
+          Valor nominal del plan de servicio (2-310, Individual Neo) vs. lo que realmente se debita a la Mastercard ...8005 — el aporte declarado vía AFIP (tu empleador) puede cubrir total o parcialmente el plan, así que el débito real puede ser $0 algunos períodos. Actualización manual cada vez que llega el mail de OSDE.
+        </div>
+        <div style="position:relative;height:170px;margin-bottom:14px;"><canvas id="osde-ch"></canvas></div>
+        <table class="tbl">
+          <thead><tr><th>Período</th><th>Valor plan</th><th>Aporte declarado</th><th>Débito real</th><th>Nota</th></tr></thead>
+          <tbody id="osde-tb"></tbody>
+        </table>
+      </div>
+      <div class="card">
         <div class="card-ttl">Cómo leer esto</div>
         <div style="font-size:12px;color:var(--text2);line-height:1.6;">
           "Δ" es la variación % contra el dato anterior cargado (no siempre es un mes exacto, según qué comprobantes tengamos). Compará esa Δ contra el IPC acumulado del mismo período: si tu aumento fue mayor, el propietario/consorcio te ajustó por encima de la inflación oficial.
@@ -733,6 +744,12 @@ const SERVICIOS_HIST = [
   {n:'ABL CABA',                    monto:70528,  fecha:'15/08/2026', nota:'boleta vencida jun-set'},
   {n:'WiFi / Cable / Teléfono',     monto:87000,  fecha:'15/08/2026', nota:'pago con fondo'},
 ];
+// OSDE — valor nominal del plan (2-310, Individual Neo) vs. débito real a la Mastercard ...8005.
+// El aporte declarado vía AFIP (empleador) puede cubrir total o parcialmente el plan — por eso "debitoReal"
+// puede ser distinto (incluso $0) al valor del plan. Actualización manual, fuente: mail "Composición de Cuota" de OSDE.
+const OSDE_HIST = [
+  {periodo:'07/2026', plan:207154.00, aporte:269786.41, debitoReal:0, fecha:'21/08/2026', nota:'Aporte cubre de sobra el plan — saldo a favor $62.632,41, sin débito real este período'},
+];
 function renderVivienda(){
   const tb = $('viv-tb'); if(!tb) return;
   let lastAlq = null, lastExp = null;
@@ -762,6 +779,8 @@ function renderVivienda(){
     stb.innerHTML = SERVICIOS_HIST.map(s=>`<tr><td>${s.n}</td><td>${fmt(s.monto)}</td><td>${s.fecha}</td><td style="color:var(--text3);">${s.nota||'—'}</td></tr>`).join('');
   }
 
+  renderOsde();
+
   // Alertas: comparamos último salto real vs IPC acumulado del mismo tramo
   const alertEl = $('viv-alert');
   if (alertEl) {
@@ -774,6 +793,52 @@ function renderVivienda(){
         <b>Expensas Jul→Ago:</b> +6,3% ($518.000 → $550.619,44). Según la liquidación real de julio (Nacht, Cabrera 2951): el salto de junio a julio se explica en gran parte por un ítem nuevo — SEGURARG S.R.L. (seguridad/vigilancia) $15.750.480 a prorratear entre todo el edificio, categoría "Gastos C" completa. Si esa categoría no existía antes, es un servicio nuevo que subió la base fija, no inflación.<br>
         <b>⚠️ Vienen 2 cargos extra:</b> la administración informó (i) recupero de indemnización pagada con fondos del edificio, $3.500.000 a prorratear — se recauda desde agosto, vence setiembre; tu parte a 1,391% ≈ <b>$48.685</b>; (ii) cuota extra para reparación de terraza $3.000.000 (aprobada en asamblea, a la espera de presupuesto final) — tu parte estimada ≈ <b>$41.730</b>. Ninguna de las dos está todavía en el monto que pagaste este mes.
       </div>`;
+  }
+}
+
+let osdeChart=null;
+function renderOsde(){
+  const cv = $('osde-ch');
+  const tb = $('osde-tb');
+  if (!cv && !tb) return;
+
+  if (cv) {
+    if (osdeChart) osdeChart.destroy();
+    osdeChart = new Chart(cv.getContext('2d'),{
+      type:'line',
+      data:{
+        labels: OSDE_HIST.map(p=>p.periodo),
+        datasets:[
+          {
+            label:'Valor del plan',
+            data: OSDE_HIST.map(p=>p.plan),
+            borderColor:'#0066FF', backgroundColor:'#0066FF18',
+            borderWidth:2, tension:0.25, fill:true, pointRadius:4,
+          },
+          {
+            label:'Débito real',
+            data: OSDE_HIST.map(p=>p.debitoReal),
+            borderColor:'#F59E0B', borderWidth:2, borderDash:[5,4],
+            pointRadius:3, fill:false,
+          }
+        ]
+      },
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:10}},
+          tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt(c.parsed.y)}`}}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10}}},
+                y:{grid:{color:'#F1F5F9'},ticks:{font:{size:10},callback:v=>'$'+fmtK(v)}}}}
+    });
+  }
+
+  if (tb) {
+    tb.innerHTML = OSDE_HIST.map(p=>`<tr>
+      <td>${p.periodo}</td>
+      <td>${fmt(p.plan)}</td>
+      <td>${fmt(p.aporte)}</td>
+      <td style="color:${p.debitoReal>0?'var(--red)':'var(--green)'};font-weight:600;">${fmt(p.debitoReal)}</td>
+      <td style="color:var(--text3);font-size:11px;">${p.nota||'—'}</td>
+    </tr>`).join('');
   }
 }
 
