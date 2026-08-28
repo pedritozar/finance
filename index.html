@@ -345,6 +345,10 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         <div style="display:flex;flex-direction:column;gap:14px;">
           <div class="card">
             <div class="card-ttl">Deudas activas</div>
+            <div id="pago-pendiente-banner" style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:var(--amber-l);border-left:3px solid var(--amber);font-size:12px;line-height:1.5;color:var(--text2);">
+              <span style="font-weight:700;color:var(--amber);">⏳ Pago de $3.200.000 realizado el 24/08/2026</span><br>
+              Los saldos de abajo son <strong>previos al pago</strong> — la tarjeta desapareció de la app BNA y todavía no hay saldo confirmado. Se actualizan cuando llegue el resumen (cierre 27/08) o la respuesta del banco.
+            </div>
             <table class="tbl">
               <thead><tr><th>Acreedor</th><th>Saldo</th><th>Cuota/mes</th><th>Rest.</th><th>Vto.</th><th></th></tr></thead>
               <tbody id="debt-tb"></tbody>
@@ -1422,6 +1426,17 @@ function showTab(name){
   const p=$(`t-${name}`),t=document.querySelector(`[data-tab="${name}"]`);
   if(p) p.classList.add('on');
   if(t) t.classList.add('on');
+  // Chart.js no puede dimensionar un canvas creado mientras su pestaña estaba
+  // en display:none (queda 0x0 y no se redibuja solo al mostrarse). Al abrir
+  // la pestaña forzamos un resize de todos los gráficos que contiene.
+  if(p && window.Chart){
+    requestAnimationFrame(()=>{
+      p.querySelectorAll('canvas').forEach(cv=>{
+        const ch = Chart.getChart(cv);
+        if(ch) ch.resize();
+      });
+    });
+  }
 }
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
