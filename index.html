@@ -773,8 +773,8 @@ function renderVivienda(){
       <td style="color:${dAlq.startsWith('+')?'var(--red)':'var(--text3)'};">${dAlq}</td>
       <td>${r.expensas!=null?fmt(r.expensas):'<span style="color:var(--text3);">falta dato</span>'}</td>
       <td style="color:${dExp.startsWith('+')?'var(--red)':'var(--text3)'};">${dExp}</td>
-      <td>${r.ipcIndec.toFixed(1)}%</td>
-      <td>${r.ipcCaba.toFixed(1)}%</td>
+      <td>${r.ipcIndec!=null?r.ipcIndec.toFixed(1)+'%':'<span style="color:var(--text3);">—</span>'}</td>
+      <td>${r.ipcCaba!=null?r.ipcCaba.toFixed(1)+'%':'<span style="color:var(--text3);">—</span>'}</td>
     </tr>`;
   });
   tb.innerHTML = rows.join('');
@@ -958,18 +958,30 @@ async function fetchTC() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+// Blindaje del arranque: si una función de render falla, NO debe tumbar a las que
+// siguen. (28/08/2026: un `null.toFixed()` en VIVIENDA_HIST cortaba el init entero y
+// dejaba media app en blanco sin ningún aviso visible.)
+function safe(fn, nombre){
+  try { fn(); }
+  catch(e){
+    console.error(`[ZAR] Falló ${nombre}:`, e);
+    if(!window._zarFallos) window._zarFallos = [];
+    window._zarFallos.push(nombre);
+  }
+}
 document.addEventListener('DOMContentLoaded', () => {
-  buildPeriodSel();
-  renderCatGrid('mv'); renderCatGrid('p');
-  initCharts();
-  renderDebtTable();
-  renderDTIProj();
-  renderInvSnap();
-  renderVivienda();
-  renderSaneamiento();
-  renderReposicionMadre();
-  calcSC(); calcInf(); calcAho(); calcCr();
-  renderCountdown();
+  safe(buildPeriodSel, 'buildPeriodSel');
+  safe(()=>{ renderCatGrid('mv'); renderCatGrid('p'); }, 'renderCatGrid');
+  safe(initCharts, 'initCharts');
+  safe(renderDebtTable, 'renderDebtTable');
+  safe(renderDTIProj, 'renderDTIProj');
+  safe(renderInvSnap, 'renderInvSnap');
+  safe(renderVivienda, 'renderVivienda');
+  safe(renderSaneamiento, 'renderSaneamiento');
+  safe(renderReposicionMadre, 'renderReposicionMadre');
+  safe(()=>{ calcSC(); calcInf(); calcAho(); calcCr(); }, 'simuladores');
+  safe(renderCountdown, 'renderCountdown');
+  if (window._zarFallos?.length) console.warn('[ZAR] Secciones que no cargaron:', window._zarFallos.join(', '));
 
   if (window._fbOK) onReady();
   else document.addEventListener('fb-ok', onReady);
@@ -988,10 +1000,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function onReady(){
-  await fetchTC();                          // espera TC real antes de renderizar
-  loadPeriod(S.year+'-'+S.month);
-  loadHist();
-  loadMarket();
+  try { await fetchTC(); } catch(e){ console.error('[ZAR] fetchTC falló:', e); }
+  // Cada carga va aislada: que falle el t/c o el mercado no puede dejar sin
+  // datos al período ni al histórico.
+  Promise.resolve().then(()=>loadPeriod(S.year+'-'+S.month)).catch(e=>console.error('[ZAR] loadPeriod falló:', e));
+  Promise.resolve().then(()=>loadHist()).catch(e=>console.error('[ZAR] loadHist falló:', e));
+  Promise.resolve().then(()=>loadMarket()).catch(e=>console.error('[ZAR] loadMarket falló:', e));
 }
 
 // ── Period ────────────────────────────────────────────────────────────────────
@@ -1147,9 +1161,12 @@ async function loadHist(){
     months.push({y:d.getFullYear(),m:String(d.getMonth()+1).padStart(2,'0')});
   }
   S.hist = await window._hist(months);
-  updateBar(); renderHistTab();
+  // Separados: si uno falla, el otro tiene que seguir renderizando.
+  safe(updateBar, 'updateBar');
+  safe(renderHistTab, 'renderHistTab');
 }
 function updateBar(){
+  if(!barChart) return;
   const ks=Object.keys(S.hist).sort();
   barChart.data.labels=ks.map(k=>{const[y,m]=k.split('-');return new Date(y,m-1).toLocaleDateString('es-AR',{month:'short'});});
   barChart.data.datasets[0].data=ks.map(k=>sARS(fl(S.hist[k].ingresos)));
