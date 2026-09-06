@@ -218,6 +218,10 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     <div class="cat-grid" id="mv-cg"></div>
   </div>
   <div class="note-sec">
+    <div class="sec-lbl" style="margin-bottom:4px;">Fecha</div>
+    <input class="sim-input" type="date" id="mv-fc" style="width:100%;">
+  </div>
+  <div class="note-sec">
     <textarea class="note-in" id="mv-nt" rows="2" placeholder="Nota — Coto, SUBE, Judo abril…"></textarea>
   </div>
   <div class="sub-sec">
@@ -335,6 +339,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
               <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Ingresos ref.</span><span id="dti-ingref" style="font-weight:600;">$2.890.677</span></div>
               <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">Umbral saludable</span><span id="dti-umbral" style="color:var(--green);font-weight:600;">&lt; $1.040.644/mes</span></div>
             </div>
+            <div id="limite-consumo-badge"></div>
           </div>
           <div class="card">
             <div class="card-ttl">Proyección DTI</div>
@@ -378,6 +383,22 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         </div>
       </div>
       <div class="card" style="margin-top:14px;">
+        <div class="card-ttl">🧮 Calculadora rápida de recargo</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">
+          Chequeo suelto: cuánto te cobró de más el banco/la financiación en una compra puntual —
+          no hace falta que la compra esté cargada en ningún lado para usar esto.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="sim-field"><span class="sim-lbl">Valor real (contado)</span><input class="sim-input" type="number" id="rec-real" oninput="calcRecargo()"></div>
+          <div class="sim-field"><span class="sim-lbl">Lo que te cobraron</span><input class="sim-input" type="number" id="rec-cobro" oninput="calcRecargo()"></div>
+        </div>
+        <div class="sim-res" id="rec-res"></div>
+        <div style="font-size:10px;color:var(--text3);margin-top:10px;border-top:1px solid var(--border2);padding-top:8px;">
+          🧠 Acordate rápido: <b>(Cobro − Valor real) ÷ Valor real × 100 = % de recargo.</b>
+          La resta sola te da la diferencia en pesos; dividirla por el valor real es lo que te da el %.
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px;">
         <div class="card-ttl">Reposición cartera madre</div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">Rescate de $3.200.000 (24/08/2026) para saldar la VISA — reposición abierta, sin plazo fijo, financiada con las expensas que Pedro deja de pedirle. Objetivo fijo: reponer el monto retirado, sin contar rendimientos de su cartera.</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
@@ -397,6 +418,113 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           </div>
         </div>
         <div id="repo-note" style="font-size:10px;color:var(--text3);margin-top:10px;"></div>
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <div class="card-ttl">🗓️ Ciclo de tarjeta VISA — resúmenes y compras en cuotas</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">
+          El día de cierre NO es fijo, se mueve mes a mes — cargá acá la fecha real de cierre/vencimiento
+          de cada resumen a medida que llegan. Al registrar una compra en cuotas, el sistema compara la
+          fecha contra el último cierre cargado y calcula sola a qué resumen cae y en qué mes arranca la
+          primera cuota (si es posterior al último cierre, queda "pendiente de resumen" hasta el próximo).
+          Comparte los mismos datos que ZAR Tactical Ledger — cargar un resumen o una compra acá también
+          lo ve el militar, y viceversa.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+          <div>
+            <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Resúmenes cargados</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Cierre</span><input class="sim-input" type="date" id="rs-cierre"></div>
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Vencimiento</span><input class="sim-input" type="date" id="rs-vencimiento"></div>
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Saldo ARS</span><input class="sim-input" type="number" id="rs-saldo" placeholder="0"></div>
+            </div>
+            <button class="hdr-btn pri" style="width:100%;margin-bottom:12px;" onclick="addResumenUI()">+ Agregar resumen</button>
+            <table class="tbl">
+              <thead><tr><th>Cierre</th><th>Vto.</th><th>Saldo</th><th></th></tr></thead>
+              <tbody id="resumenes-tb"><tr><td colspan="4" style="color:var(--text3);font-size:12px;">Cargando…</td></tr></tbody>
+            </table>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Nueva compra en cuotas</div>
+            <div class="sim-field" style="margin:0 0 8px;"><span class="sim-lbl">Descripción</span><input class="sim-input" type="text" id="cc-nombre" placeholder="Ej: notebook, viaje, etc."></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Precio ARS</span><input class="sim-input" type="number" id="cc-precio" placeholder="0"></div>
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Fecha de compra</span><input class="sim-input" type="date" id="cc-fecha"></div>
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">TNA %</span><input class="sim-input" type="number" id="cc-tna" value="82.04" step="0.01"></div>
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Plazo cuotas</span><input class="sim-input" type="number" id="cc-plazo" value="1" min="1"></div>
+            </div>
+            <div class="sim-field" style="margin:0 0 10px;"><span class="sim-lbl">Categoría</span>
+              <select class="sim-input" id="cc-cat">
+                <option value="alimentacion">🛒 Alimentación</option>
+                <option value="transporte">🚗 Transporte</option>
+                <option value="servicios">🏠 Servicios Básicos</option>
+                <option value="streaming">📺 Streaming</option>
+                <option value="salud">🏥 Salud / OSDE</option>
+                <option value="ropa">👕 Ropa / Personal</option>
+                <option value="judo">🥋 Judo / Deporte</option>
+                <option value="ocio">🎮 Ocio / Salidas</option>
+                <option value="inversiones">📈 Inversiones</option>
+                <option value="finanzas">💹 Finanzas / Trading</option>
+                <option value="varios" selected>📦 Varios</option>
+              </select>
+            </div>
+            <button class="hdr-btn pri" style="width:100%;margin-bottom:10px;" onclick="registrarCompraCuotas()">Calcular e imputar</button>
+            <div id="cc-result" style="font-size:12px;margin-bottom:14px;"></div>
+
+            <div style="border-top:1px solid var(--border);margin:4px 0 14px;"></div>
+            <div style="font-size:12px;font-weight:700;margin-bottom:4px;">💳 Gasto con tarjeta (pago único, sin cuotas)</div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">
+              Para compras al contado con tarjeta (ej: supermercado) cuando todavía no sabés a qué resumen caen.
+              No genera deuda ni afecta el DTI — sólo espera a saber en qué mes se factura.
+            </div>
+            <div class="sim-field" style="margin:0 0 8px;"><span class="sim-lbl">Descripción</span><input class="sim-input" type="text" id="gp-nombre" placeholder="Ej: supermercado"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Monto ARS</span><input class="sim-input" type="number" id="gp-monto" placeholder="0"></div>
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Fecha de compra</span><input class="sim-input" type="date" id="gp-fecha"></div>
+            </div>
+            <div class="sim-field" style="margin:0 0 10px;"><span class="sim-lbl">Categoría</span>
+              <select class="sim-input" id="gp-cat">
+                <option value="alimentacion">🛒 Alimentación</option>
+                <option value="transporte">🚗 Transporte</option>
+                <option value="servicios">🏠 Servicios Básicos</option>
+                <option value="streaming">📺 Streaming</option>
+                <option value="salud">🏥 Salud / OSDE</option>
+                <option value="ropa">👕 Ropa / Personal</option>
+                <option value="judo">🥋 Judo / Deporte</option>
+                <option value="ocio">🎮 Ocio / Salidas</option>
+                <option value="educacion">🎓 Educación</option>
+                <option value="inversiones">📈 Inversiones</option>
+                <option value="finanzas">💹 Finanzas / Trading</option>
+                <option value="varios" selected>📦 Varios</option>
+              </select>
+            </div>
+            <button class="hdr-btn pri" style="width:100%;margin-bottom:10px;" onclick="registrarGastoTarjeta()">Registrar gasto</button>
+            <div id="gp-result" style="font-size:12px;margin-bottom:14px;"></div>
+
+            <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Pendientes de resumen</div>
+            <div id="pendientes-list" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--text3);">Cargando…</div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);margin:16px 0 14px;"></div>
+        <div id="resumen-balance-wrap" style="display:none;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:2px;">📊 Balance del último resumen — ¿en qué se fue la plata?</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:10px;">
+            Sólo compras cargadas en esta card (cuotas o gasto con tarjeta pago único), agrupadas por el resumen al que quedaron
+            imputadas — no incluye gastos cargados por el formulario general de "Movimientos".
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;" id="resumen-pie-ttl">Composición por categoría</div>
+              <div style="position:relative;height:190px;"><canvas id="resumen-pie-ch"></canvas></div>
+              <div id="resumen-consejo"></div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">Tendencia por categoría entre resúmenes</div>
+              <div style="position:relative;height:190px;"><canvas id="resumen-trend-ch"></canvas></div>
+              <div id="resumen-trend-note" style="font-size:10px;color:var(--text3);margin-top:6px;"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -559,6 +687,10 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <div class="panel-cats" id="p-cg"></div>
         </div>
         <div>
+          <div class="panel-lbl">Fecha</div>
+          <input class="sim-input" type="date" id="p-fc" style="width:100%;">
+        </div>
+        <div>
           <div class="panel-lbl">Nota</div>
           <textarea class="panel-note" id="p-nt" rows="2" placeholder="Coto, SUBE, Judo…"></textarea>
         </div>
@@ -574,7 +706,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
 <!-- ══ FIREBASE ════════════════════════════════════════════════════════════ -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, push, onValue, get, serverTimestamp }
+import { getDatabase, ref, push, onValue, get, set, remove, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { getAuth, signInAnonymously, signInWithPopup, GoogleAuthProvider, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
@@ -639,6 +771,16 @@ window._writeDate = async (type, monto, moneda, cat, nota, fecha) => {
   });
 };
 
+// Borrado de un movimiento individual (gasto o ingreso) — agregado 03/09 para poder
+// sacar duplicados de importaciones CSV desde la propia UI, sin tocar Firebase a mano.
+window._deleteTx = async (type, y, m, id) => {
+  // FIX 06/09/2026: deleteTxUI() llama con 'g'/'i' (código corto de la UI),
+  // no con 'gasto'/'ingreso' completo -- `${type}s` daba 'gs'/'is', ruta sin
+  // regla de escritura en Firebase -> PERMISSION_DENIED. Se normaliza acá.
+  const coll = (type === 'g' || type === 'gasto') ? 'gastos' : 'ingresos';
+  await remove(ref(db, `${coll}/${uid}/${y}/${m}/${id}`));
+};
+
 // ── Deudas en vivo (nodo compartido con ZAR Tactical Ledger) ────────────────
 // Tactical Ledger escribe acá cada vez que se marca "Comprado" un ítem
 // financiado: { nombre, saldo, cuotaMensual, tna, plazoMeses, plazoRestante,
@@ -647,6 +789,103 @@ window._writeDate = async (type, monto, moneda, cat, nota, fecha) => {
 // listener para que las deudas nuevas del militar se sumen en vivo al DTI real.
 window._listenDeudas = cb => {
   onValue(ref(db, `deudas/${uid}`), s => cb(s.val() || {}));
+};
+
+// ── Ciclo de tarjeta VISA — resúmenes (cierre/vencimiento/saldo) ────────────
+// Mismo nodo que usa ZAR Tactical Ledger (tarjeta/{uid}/resumenes): cargar un
+// resumen acá o allá es lo mismo, ambas apps comparten el historial (agregado
+// 30/08, pedido de Pedro para poder cargar compras en cuotas desde acá también).
+window._listenResumenes = cb => {
+  onValue(ref(db, `tarjeta/${uid}/resumenes`), s => cb(s.val() || {}));
+};
+window._addResumen = async (cierre, vencimiento, saldo) => {
+  const id = push(ref(db, `tarjeta/${uid}/resumenes`)).key;
+  await set(ref(db, `tarjeta/${uid}/resumenes/${id}`), {
+    cierre, vencimiento, saldo: +saldo, timestamp: serverTimestamp()
+  });
+};
+window._deleteResumen = async id => {
+  await remove(ref(db, `tarjeta/${uid}/resumenes/${id}`));
+};
+
+// ── Compras financiadas: imputación automática + escritura dual ────────────
+// Misma lógica que writeDualComprado() de ZAR Tactical Ledger, mismo nodo
+// deudas/{uid} (ya lo lee esta app, ver _listenDeudas) y gastos/{uid}/{y}/{m}
+// — así que una compra cargada acá se ve también en el militar y viceversa.
+// La fecha del gasto queda en el mes de la PRIMERA CUOTA (vencimiento del
+// resumen al que cae), no en el mes en que se apretó "comprar" — SPEC punto 2.
+window._writeDualComprado = async (nombre, categoria, precio, tna, plazo, resumen) => {
+  const tem = (+tna / 100) / 12;
+  const n = +plazo;
+  const cuota = tem === 0 ? precio / n : precio * (tem * Math.pow(1 + tem, n)) / (Math.pow(1 + tem, n) - 1);
+  const cuotaRed = Math.round(cuota * 100) / 100;
+  const fechaImputacion = resumen.vencimiento;
+  const [y, m] = fechaImputacion.split('-');
+  const deudaId = push(ref(db, `deudas/${uid}`)).key;
+  await set(ref(db, `deudas/${uid}/${deudaId}`), {
+    nombre, saldo: +precio, cuotaMensual: cuotaRed, tna: +tna,
+    plazoMeses: n, plazoRestante: n, vencimientoPrimeraCuota: fechaImputacion,
+    timestamp: serverTimestamp()
+  });
+  const gastoId = push(ref(db, `gastos/${uid}/${y}/${m}`)).key;
+  await set(ref(db, `gastos/${uid}/${y}/${m}/${gastoId}`), {
+    fecha: fechaImputacion, monto: cuotaRed, moneda: 'ARS',
+    categoria: categoria || 'varios', resumenCierre: resumen.cierre,
+    nota: `Compra financiada: ${nombre} (cuota 1/${n})`, timestamp: serverTimestamp()
+  });
+  return cuotaRed;
+};
+window._listenPendientes = cb => {
+  onValue(ref(db, `comprasPendientes/${uid}`), s => cb(s.val() || {}));
+};
+window._addPendiente = async (nombre, categoria, precio, tna, plazo, fechaCompra) => {
+  const id = push(ref(db, `comprasPendientes/${uid}`)).key;
+  await set(ref(db, `comprasPendientes/${uid}/${id}`), {
+    nombre, categoria, precio: +precio, tna: +tna, plazoMeses: +plazo, fechaCompra,
+    timestamp: serverTimestamp()
+  });
+};
+window._deletePendiente = async id => {
+  await remove(ref(db, `comprasPendientes/${uid}/${id}`));
+};
+
+// ── Gasto con tarjeta, pago único sin cuotas (agregado 05/09/2026) ──────────
+// Idea de Pedro: poder cargar YA una compra del día a día hecha con tarjeta
+// (ej. supermercado) sin esperar a poder ver el resumen/cierre real, dejarla
+// "en stand by" y que se resuelva sola contra el resumen que corresponda —
+// pero a diferencia de una compra en cuotas (_addPendiente/_writeDualComprado,
+// arriba), esto NO es deuda financiada: es sólo un gasto normal cuya fecha de
+// imputación real todavía no se sabe. Por eso NO crea nada en deudas/{uid} ni
+// afecta el DTI — sólo termina como un gasto más en gastos/{uid}/{y}/{m}.
+// Comparte el mismo nodo comprasPendientes/{uid} que las de cuotas (mismo
+// mecanismo de "elegibles contra el último cierre"), diferenciadas por
+// tipo:'gasto' vs las de cuotas (sin tipo, o tipo:'cuotas').
+window._addPendienteGasto = async (nombre, categoria, monto, fechaCompra) => {
+  const id = push(ref(db, `comprasPendientes/${uid}`)).key;
+  await set(ref(db, `comprasPendientes/${uid}/${id}`), {
+    tipo: 'gasto', nombre, categoria, monto: +monto, fechaCompra,
+    timestamp: serverTimestamp()
+  });
+};
+window._writeGastoDesdeResumen = async (nombre, categoria, monto, resumen) => {
+  const fechaImputacion = resumen.vencimiento;
+  const [y, m] = fechaImputacion.split('-');
+  const gastoId = push(ref(db, `gastos/${uid}/${y}/${m}`)).key;
+  await set(ref(db, `gastos/${uid}/${y}/${m}/${gastoId}`), {
+    fecha: fechaImputacion, monto: +monto, moneda: 'ARS',
+    categoria: categoria || 'varios', resumenCierre: resumen.cierre,
+    nota: `Compra con tarjeta (pago único): ${nombre}`, timestamp: serverTimestamp()
+  });
+};
+
+// Balance por resumen (agregado 06/09/2026): las dos funciones de arriba ahora
+// taguean cada gasto con `resumenCierre` (el cierre del resumen al que quedó
+// imputado). Este listener genérico lee el gasto/{uid}/{y}/{m} de CUALQUIER mes
+// (no sólo el mes seleccionado en el dashboard) para que la app pueda armar,
+// para cada resumen cargado, el desglose por categoría de lo que efectivamente
+// se cargó vía "Ciclo de tarjeta" — sin esto, sólo se podía ver el mes actual.
+window._listenGastosMes = (y, m, cb) => {
+  onValue(ref(db, `gastos/${uid}/${y}/${m}`), s => cb(s.val() || {}));
 };
 
 // ── Sesión Google real ───────────────────────────────────────────────────────
@@ -740,8 +979,24 @@ const VIVIENDA_HIST = [
   {mes:'May 2026', alquiler:null,    expensas:378618.44, ipcIndec:2.1, ipcCaba:2.1},
   {mes:'Jun 2026', alquiler:767000,  expensas:408654,    ipcIndec:1.9, ipcCaba:1.8},
   {mes:'Jul 2026', alquiler:861000,  expensas:518000,    ipcIndec:2.1, ipcCaba:2.9},
-  {mes:'Ago 2026', alquiler:null,    expensas:550619.44, ipcIndec:null, ipcCaba:null},
+  {mes:'Ago 2026', alquiler:867000,  expensas:550619.44, ipcIndec:null, ipcCaba:null},
+  {mes:'Set 2026', alquiler:867000,  expensas:519752.44, ipcIndec:null, ipcCaba:null},
 ];
+// Alquiler agosto ($867.000, 01/08/2026) cargado 03/09 desde el rollup mensual
+// de Notion ("Presupuesto" → Todos los gastos, fila "Renta") — cierra el hueco
+// que quedaba pendiente desde el 28/08. Sin comprobante de WhatsApp todavía
+// (ver pendiente "completar historial de alquiler"), es el dato que Pedro
+// tiene cargado en su propio Notion, no una estimación inventada.
+// Setiembre 2026: alquiler repetido de agosto (867.000, sin dato nuevo todavía —
+// Pedro no mandó comprobante de setiembre). Expensas $519.752,44 = liquidación real
+// de expensas AGOSTO/2026 de Adm. Nacht (Cabrera 2951, UF 7-44), con 1er vencimiento
+// 10/09/2026 — cargada 03/09 desde el PDF que Pedro adjuntó. Gastos A $199.927,53 +
+// Gastos C $231.091,16 + Gastos D $88.733,76 + redondeo. La cuota extra de terraza
+// ($3.000.000 a prorratear, recaudación ya arrancada según la administración) NO
+// aparece cargada a esta UF en esta liquidación — sí se le cobró a otras unidades
+// este mes (ej. UF 7-37: $480.000), así que sigue pendiente para Pedro, no cancelada.
+// SEGURARG (seguridad/vigilancia) se repite este mes por el mismo monto total del
+// edificio ($16.308.480) — confirma que es costo fijo nuevo y no un cargo único.
 // Servicios básicos — snapshot pagado 15/08/2026 (fuente: Notion "servicios basicos", casilla pagado)
 const SERVICIOS_HIST = [
   {n:'Luz (Edenor CABA)',           monto:33318,  fecha:'15/08/2026'},
@@ -795,7 +1050,9 @@ function renderVivienda(){
         <b>Expensas Jun→Jul:</b> +26,8% en un mes — salto grande, muy por encima de cualquier IPC mensual. Revisar si hubo expensa extraordinaria (fondo de reserva, obra, deuda del consorcio) o si es un error de carga.<br>
         <b>Alquiler Feb→Jun (4 meses):</b> +9,6% vs IPC INDEC acumulado del período ~10,4% y CABA ~9,7% — en línea, incluso levemente por debajo. Bien hasta ahí.<br>
         <b>Expensas Jul→Ago:</b> +6,3% ($518.000 → $550.619,44). Según la liquidación real de julio (Nacht, Cabrera 2951): el salto de junio a julio se explica en gran parte por un ítem nuevo — SEGURARG S.R.L. (seguridad/vigilancia) $15.750.480 a prorratear entre todo el edificio, categoría "Gastos C" completa. Si esa categoría no existía antes, es un servicio nuevo que subió la base fija, no inflación.<br>
-        <b>⚠️ Vienen 2 cargos extra:</b> la administración informó (i) recupero de indemnización pagada con fondos del edificio, $3.500.000 a prorratear — se recauda desde agosto, vence setiembre; tu parte a 1,391% ≈ <b>$48.685</b>; (ii) cuota extra para reparación de terraza $3.000.000 (aprobada en asamblea, a la espera de presupuesto final) — tu parte estimada ≈ <b>$41.730</b>. Ninguna de las dos está todavía en el monto que pagaste este mes.
+        <b>Expensas Ago→Set:</b> -5,6% ($550.619,44 → $519.752,44). Bajó respecto de agosto, según la liquidación real de agosto (vencimiento 10/09/2026). SEGURARG se repite por el mismo monto total ($16.308.480) — confirma que es costo fijo nuevo, no un cargo único de julio.<br>
+        <b>⚠️ Cuota extra terraza sigue pendiente para tu unidad:</b> la administración ya empezó a cobrarla este mes — a otras unidades del edificio (ej. UF 7-37 pagó $480.000 de cuota extra) — pero a tu UF 7-44 todavía NO se le cargó en esta liquidación. Es cuestión de tiempo que aparezca; cuando llegue el próximo resumen conviene revisar si te tocó.<br>
+        <b>Recupero de indemnización ($3.500.000):</b> mencionado por la administración en el resumen de julio, no aparece referenciado en las notas de esta liquidación de agosto — no hay confirmación de que se haya aplicado ni de que se haya dado de baja. Sin dato nuevo, queda sin resolver.
       </div>`;
   }
 }
@@ -867,16 +1124,34 @@ const CM = {
   judo:{e:'🥋',n:'Judo / Deporte'},        ocio:{e:'🎮',n:'Ocio / Salidas'},
   inversiones:{e:'📈',n:'Inversiones'},    varios:{e:'📦',n:'Varios'},
   finanzas:{e:'💹',n:'Finanzas / Trading'},
+  educacion:{e:'🎓',n:'Educación'},
   salario:{e:'💼',n:'Salario'},            bono:{e:'⭐',n:'Bono / Extra'},
   trading:{e:'📊',n:'Trading / Alyc'},     otro:{e:'💵',n:'Otro Ingreso'},
 };
-const CG = ['alimentacion','transporte','servicios','streaming','salud','ropa','judo','ocio','inversiones','finanzas','varios'];
+const CG = ['alimentacion','transporte','servicios','streaming','salud','ropa','judo','ocio','inversiones','finanzas','educacion','varios'];
 const CI = ['salario','bono','trading','otro'];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const S = { type:'g', cur:'ARS', cat:null, year:'', month:'', data:{gastos:{},ingresos:{}}, hist:{} };
 let pieChart, barChart;
 let DEUDAS_LIVE = {}; // deudas/{uid}/ desde Firebase — cargadas por ZAR Tactical Ledger
+let RESUMENES_LIVE = {}; // tarjeta/{uid}/resumenes desde Firebase — compartido con ZAR Tactical Ledger
+let PENDIENTES_LIVE = {}; // comprasPendientes/{uid} — compras posteriores al último cierre cargado
+
+// ── Balance por resumen (agregado 06/09/2026) ────────────────────────────────
+// RESUMEN_GASTOS_CACHE[resumenId] = { y, m, gastos:{...} } — un listener por
+// resumen cargado, apuntando al mes de SU vencimiento (que es donde
+// _writeDualComprado/_writeGastoDesdeResumen escriben el gasto ya imputado).
+// RESUMEN_GASTOS_LISTENING evita abrir el mismo listener dos veces.
+let RESUMEN_GASTOS_CACHE = {};
+const RESUMEN_GASTOS_LISTENING = new Set();
+// Mapeo fijo (Fase 1, sin tageado manual todavía — ver Fase 2 pendiente del
+// límite de endeudamiento sano): sólo para matizar el consejo del balance de
+// resumen. "alimentacion" queda aparte (neutral, se marca si es muy alto).
+// "educacion" siempre se lee como inversión, nunca como consumo/lujo.
+// "inversiones"/"finanzas" no son gasto de consumo, quedan fuera del consejo.
+const CAT_NECESARIO = new Set(['servicios', 'salud', 'transporte']);
+const CAT_DISCRECIONAL = new Set(['ropa', 'ocio', 'streaming', 'judo', 'varios']);
 
 // ── Util ──────────────────────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
@@ -974,6 +1249,8 @@ document.addEventListener('DOMContentLoaded', () => {
   safe(()=>{ renderCatGrid('mv'); renderCatGrid('p'); }, 'renderCatGrid');
   safe(initCharts, 'initCharts');
   safe(renderDebtTable, 'renderDebtTable');
+  safe(renderResumenes, 'renderResumenes');
+  safe(renderPendientes, 'renderPendientes');
   safe(renderDTIProj, 'renderDTIProj');
   safe(renderInvSnap, 'renderInvSnap');
   safe(renderVivienda, 'renderVivienda');
@@ -991,6 +1268,21 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     document.addEventListener('fb-ok', () => {
       if (window._listenDeudas) window._listenDeudas(d => { DEUDAS_LIVE = d || {}; renderDebtTable(); });
+    });
+  }
+
+  if (window._listenResumenes) {
+    window._listenResumenes(d => { RESUMENES_LIVE = d || {}; renderResumenes(); renderPendientes(); ensureResumenGastosListeners(); });
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenResumenes) window._listenResumenes(d => { RESUMENES_LIVE = d || {}; renderResumenes(); renderPendientes(); ensureResumenGastosListeners(); });
+    });
+  }
+  if (window._listenPendientes) {
+    window._listenPendientes(d => { PENDIENTES_LIVE = d || {}; renderPendientes(); });
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenPendientes) window._listenPendientes(d => { PENDIENTES_LIVE = d || {}; renderPendientes(); });
     });
   }
 
@@ -1021,10 +1313,27 @@ function buildPeriodSel(){
   S.year = String(now.getFullYear());
   S.month= String(now.getMonth()+1).padStart(2,'0');
 }
+function _defaultFecha(){
+  // FEATURE 06/09/2026: fecha por defecto del formulario "+Registrar" -- si estás
+  // parado en el mes real de hoy, arranca en hoy; si estás viendo un mes pasado
+  // (ej. agosto navegando el selector de arriba), arranca en el último día de ESE
+  // mes -- así "+Registrar" cae en el mes que estás mirando, no siempre en el real.
+  // Siempre editable a mano en el input antes de guardar.
+  const now = new Date();
+  const curY = String(now.getFullYear()), curM = String(now.getMonth()+1).padStart(2,'0');
+  if (S.year === curY && S.month === curM) return now.toISOString().split('T')[0];
+  const lastDay = new Date(Number(S.year), Number(S.month), 0).getDate();
+  return `${S.year}-${S.month}-${String(lastDay).padStart(2,'0')}`;
+}
+function syncFechaInputs(){
+  const f = _defaultFecha();
+  ['mv-fc','p-fc'].forEach(id=>{ const e=$(id); if(e) e.value=f; });
+}
 function loadPeriod(val){
   if(!val||!window._listen) return;
   [S.year,S.month]=val.split('-');
   window._listen(S.year,S.month,data=>{ S.data=data; renderDash(); });
+  syncFechaInputs();
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -1175,9 +1484,12 @@ function updateBar(){
 }
 
 // ── Transactions ──────────────────────────────────────────────────────────────
+// flId: como fl() pero conserva el id de Firebase de cada entrada (fl() lo pierde
+// con Object.values) — necesario para poder borrar un movimiento puntual.
+const flId = o => o ? Object.entries(o).filter(([,v])=>v).map(([id,v])=>({...v,id})) : [];
 function renderTx(){
   const f=$('cat-filter')?.value||'';
-  const all=[...fl(S.data.gastos).map(e=>({...e,_t:'g'})),...fl(S.data.ingresos).map(e=>({...e,_t:'i'}))]
+  const all=[...flId(S.data.gastos).map(e=>({...e,_t:'g'})),...flId(S.data.ingresos).map(e=>({...e,_t:'i'}))]
     .filter(e=>!f||e.categoria===f).sort((a,b)=>b.fecha?.localeCompare(a.fecha)||0);
   const el=$('tx-list'); if(!el) return;
   if(!all.length){el.innerHTML='<div class="empty">Sin movimientos. Registrá desde el panel →</div>';return;}
@@ -1187,8 +1499,14 @@ function renderTx(){
       <div class="tx-ico">${c.e}</div>
       <div class="tx-info"><div class="tx-nm">${c.n}${tx.nota?' · '+tx.nota:''}</div><div class="tx-dt">${fD(tx.fecha)}</div></div>
       <div class="tx-amt ${tx._t}">${tx._t==='g'?'-':'+'}${fmt(tx.monto)}<span class="tx-cur">${tx.moneda}</span></div>
+      <button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px;margin-left:8px;" onclick="deleteTxUI('${tx._t}','${tx.id}')" title="Eliminar movimiento">✕</button>
     </div>`;
   }).join('');
+}
+async function deleteTxUI(t, id){
+  if (!confirm('¿Eliminar este movimiento?')) return;
+  try{ await window._deleteTx(t, S.year, S.month, id); }
+  catch(err){ alert('Error al borrar: '+err.message); }
 }
 function populateCatFilter(){
   const sel=$('cat-filter'); if(!sel) return;
@@ -1279,7 +1597,299 @@ function recalcDTI(){
   set('dti-cuotas', fmt(CUO_TOT));
   set('dti-ingref', fmt(ING_REF));
   set('dti-umbral', '< '+fmt(ING_REF*0.36)+'/mes');
+
+  // Límite de endeudamiento sano para consumo/ocio — agregado 05/09/2026, idea de Pedro.
+  // Distinto del semáforo DTI de arriba (que va 0-20-36-100%, pensado para el total de
+  // deuda en general): esto es un umbral propio, más estricto, específico para deuda de
+  // consumo/ocio (compras, ropa, viajes, financiaciones no esenciales) con techo fijo en
+  // el 20% de los ingresos. FASE 1 (hoy): no hay todavía forma de distinguir qué deuda es
+  // "necesaria" (ej. una notebook de trabajo) de qué es "consumo/ocio" — se calcula sobre
+  // el total de `CUO_TOT` tal cual, igual que el DTI de arriba. FASE 2 (pendiente, a pedido
+  // futuro de Pedro): taguear cada deuda/cuota con un tipo (necesario/consumo) para que
+  // este número refleje sólo lo discrecional.
+  const limBadge = $('limite-consumo-badge');
+  if (limBadge) {
+    const ok = dti <= 20;
+    limBadge.innerHTML = `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:${ok?'var(--green-l)':'var(--red-l)'};border-left:3px solid ${ok?'var(--green)':'var(--red)'};font-size:11px;line-height:1.5;color:var(--text2);">
+      🎯 <strong style="color:${ok?'var(--green)':'var(--red)'};">Límite sano consumo/ocio: ${dti.toFixed(1)}%</strong> ${ok?'— ✅ dentro del 20% recomendado':'— ⚠️ por encima del 20% recomendado'}<br>
+      <span style="color:var(--text3);">Fase 1: calculado sobre el total de tu deuda actual (todavía no distinguimos "necesario" de "consumo/ocio").</span>
+    </div>`;
+  }
+  // El consejo del balance por resumen usa este mismo DTI — si cambió, se repinta.
+  if (typeof renderResumenBalance === 'function') renderResumenBalance();
 }
+// ── Ciclo de tarjeta: resúmenes + imputación de compras en cuotas ───────────
+// Agregado 30/08/2026 (pedido de Pedro) — porta a ZAR Finance la lógica que ya
+// tenía ZAR Tactical Ledger (SPEC_credito_debito.md): cargar a mano cierre y
+// vencimiento de cada resumen real, y que una compra nueva se impute sola al
+// resumen correcto (o quede "pendiente" si es posterior al último cargado).
+function getUltimoResumen(){
+  const arr = Object.values(RESUMENES_LIVE);
+  if (!arr.length) return null;
+  return arr.reduce((a,b) => (a.cierre > b.cierre ? a : b));
+}
+function renderResumenes(){
+  const tb = $('resumenes-tb'); if (!tb) return;
+  const arr = Object.entries(RESUMENES_LIVE).sort((a,b)=> b[1].cierre.localeCompare(a[1].cierre));
+  if (!arr.length){
+    tb.innerHTML = '<tr><td colspan="4" style="color:var(--text3);font-size:12px;">Sin resúmenes cargados todavía.</td></tr>';
+    return;
+  }
+  tb.innerHTML = arr.map(([id,r],i)=>`<tr>
+    <td>${fD(r.cierre)}</td>
+    <td>${fD(r.vencimiento)}</td>
+    <td style="font-variant-numeric:tabular-nums;">${fmt(r.saldo)}</td>
+    <td>${i===0?'<span style="font-size:10px;font-weight:700;color:var(--blue);">ÚLTIMO</span> ':''}<button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px;" onclick="deleteResumenUI(\'${id}\')" title="Eliminar">✕</button></td>
+  </tr>`).join('');
+}
+async function addResumenUI(){
+  const cierre = $('rs-cierre').value, vencimiento = $('rs-vencimiento').value, saldo = parseFloat($('rs-saldo').value);
+  if (!cierre || !vencimiento || isNaN(saldo)){ alert('Completá cierre, vencimiento y saldo'); return; }
+  try{
+    await window._addResumen(cierre, vencimiento, saldo);
+    $('rs-cierre').value=''; $('rs-vencimiento').value=''; $('rs-saldo').value='';
+  }catch(err){ alert('Error al guardar el resumen: '+err.message); }
+}
+async function deleteResumenUI(id){
+  if (!confirm('¿Eliminar este resumen del historial?')) return;
+  try{ await window._deleteResumen(id); }
+  catch(err){ alert('Error: '+err.message); }
+}
+function eligibleResumenesFor(pend){
+  return Object.entries(RESUMENES_LIVE).filter(([,r]) => pend.fechaCompra <= r.cierre);
+}
+
+// ── Balance por resumen: composición por categoría + consejo (06/09/2026) ───
+// Abre (una sola vez por resumen) un listener al mes de SU vencimiento —ahí es
+// donde _writeDualComprado/_writeGastoDesdeResumen dejan el gasto imputado—
+// y cachea el resultado. Reactivo: cuando llega un gasto nuevo para ese mes,
+// Firebase dispara el callback solo y renderResumenBalance() se repinta sola.
+function ensureResumenGastosListeners(){
+  if (!window._listenGastosMes) return;
+  Object.entries(RESUMENES_LIVE).forEach(([id, r]) => {
+    if (RESUMEN_GASTOS_LISTENING.has(id) || !r.vencimiento) return;
+    RESUMEN_GASTOS_LISTENING.add(id);
+    const [y, m] = r.vencimiento.split('-');
+    window._listenGastosMes(y, m, data => {
+      RESUMEN_GASTOS_CACHE[id] = { y, m, gastos: data };
+      renderResumenBalance();
+    });
+  });
+}
+// Sólo cuenta los gastos de ese mes que quedaron tageados con el cierre de
+// ESTE resumen (resumenCierre) — así no mezcla, por ejemplo, un gasto normal
+// del formulario general que caiga casualmente en el mismo mes.
+function composicionResumen(id){
+  const r = RESUMENES_LIVE[id], cache = RESUMEN_GASTOS_CACHE[id];
+  if (!r || !cache) return null;
+  const entries = flId(cache.gastos).filter(e => e.resumenCierre === r.cierre);
+  const porCat = {};
+  entries.forEach(e => { const c = e.categoria || 'varios'; porCat[c] = (porCat[c]||0) + (+e.monto||0); });
+  const total = entries.reduce((s,e)=>s+(+e.monto||0), 0);
+  return { total, porCat, entries };
+}
+// Consejo cualitativo: qué categoría domina + qué tan grave es según el DTI
+// actual. Mapeo fijo Fase 1 (CAT_NECESARIO/CAT_DISCRECIONAL más arriba);
+// Educación siempre se lee como inversión, nunca como "cagada a pedos".
+function generarConsejoResumen(comp, dti){
+  if (!comp || comp.total <= 0) return null;
+  const cats = Object.entries(comp.porCat).sort((a,b)=>b[1]-a[1]);
+  const [topCat, topMonto] = cats[0];
+  const pct = (topMonto / comp.total * 100);
+  const nombre = CM[topCat]?.n || topCat, emoji = CM[topCat]?.e || '📦';
+
+  if (topCat === 'educacion'){
+    return { col:'var(--green)', bg:'var(--green-l)',
+      html:`${emoji} <strong>${pct.toFixed(0)}%</strong> de este resumen fue a <strong>${nombre}</strong> — es inversión, no consumo. Financiarlo en cuotas no es lo mismo que financiar ocio, aunque suba el DTI igual.` };
+  }
+  if (topCat === 'inversiones' || topCat === 'finanzas'){
+    return { col:'var(--blue)', bg:'var(--blue-l)',
+      html:`${emoji} <strong>${pct.toFixed(0)}%</strong> de este resumen fue a <strong>${nombre}</strong> — no es gasto de consumo, queda fuera de esta lectura.` };
+  }
+
+  let severidad = 'baja';
+  if (dti >= 36) severidad = 'alta'; else if (dti >= 20) severidad = 'media';
+
+  let frase, col, bg;
+  if (CAT_NECESARIO.has(topCat)){
+    frase = 'es gasto necesario — no hay mucho para ajustar ahí.';
+    col = 'var(--green)'; bg = 'var(--green-l)';
+  } else if (topCat === 'alimentacion'){
+    if (pct > 40){
+      frase = 'es mucho para alimentación en un resumen financiado — revisá si es supermercado (necesario) o delivery/salidas (discrecional, dentro de la misma categoría hoy).';
+      col = 'var(--amber)'; bg = 'var(--amber-l)';
+    } else {
+      frase = 'dentro de lo razonable para alimentación.';
+      col = 'var(--green)'; bg = 'var(--green-l)';
+    }
+  } else if (CAT_DISCRECIONAL.has(topCat)){
+    if (severidad === 'alta'){
+      frase = `y con tu DTI en ${dti.toFixed(1)}% (zona alta), financiar consumo discrecional a la TNA de la tarjeta es la peor combinación — la "cagada a pedos" grande.`;
+      col = 'var(--red)'; bg = 'var(--red-l)';
+    } else if (severidad === 'media'){
+      frase = `con tu DTI en ${dti.toFixed(1)}% (moderado) conviene no seguir sumando consumo financiado acá.`;
+      col = 'var(--amber)'; bg = 'var(--amber-l)';
+    } else {
+      frase = `con tu DTI en ${dti.toFixed(1)}% (bajo) todavía no es grave, pero es la categoría a vigilar si crece.`;
+      col = 'var(--green)'; bg = 'var(--green-l)';
+    }
+  } else {
+    frase = 'conviene revisar si tiene sentido seguir financiándolo.';
+    col = 'var(--amber)'; bg = 'var(--amber-l)';
+  }
+  return { col, bg, html:`${emoji} <strong>${pct.toFixed(0)}%</strong> de este resumen fue a <strong>${nombre}</strong> — ${frase}` };
+}
+let resumenPieChart = null, resumenTrendChart = null;
+function renderResumenBalance(){
+  const wrap = $('resumen-balance-wrap'); if (!wrap) return;
+  const idsDesc = Object.entries(RESUMENES_LIVE).sort((a,b)=> b[1].cierre.localeCompare(a[1].cierre));
+  if (!idsDesc.length){ wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+
+  const [ultimoId, ultimoR] = idsDesc[0];
+  const comp = composicionResumen(ultimoId);
+  const consejoEl = $('resumen-consejo'), pieCv = $('resumen-pie-ch'), pieTtl = $('resumen-pie-ttl');
+  if (pieTtl) pieTtl.textContent = `Composición del resumen de cierre ${fD(ultimoR.cierre)}`;
+
+  if (resumenPieChart){ resumenPieChart.destroy(); resumenPieChart = null; }
+  if (!comp || !comp.total){
+    if (pieCv) pieCv.style.display = 'none';
+    if (consejoEl) consejoEl.innerHTML = `<div style="font-size:11px;color:var(--text3);margin-top:8px;">Sin compras registradas todavía vía "Ciclo de tarjeta" para este resumen. Cargá una compra en cuotas o un gasto con tarjeta arriba para ver el balance acá.</div>`;
+  } else {
+    if (pieCv){
+      pieCv.style.display = '';
+      const cats = Object.entries(comp.porCat).sort((a,b)=>b[1]-a[1]);
+      resumenPieChart = new Chart(pieCv.getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: cats.map(([c])=>CM[c]?.n||c), datasets:[{ data: cats.map(([,v])=>v), backgroundColor: COLORS, borderWidth: 0, hoverOffset: 5 }] },
+        options: { responsive:true, maintainAspectRatio:false, cutout:'60%', animation:{duration:300},
+          plugins:{ legend:{display:true, position:'bottom', labels:{font:{size:10}, boxWidth:8}},
+            tooltip:{ callbacks:{ label:c=>` ${fmt(c.parsed)} (${(c.parsed/comp.total*100).toFixed(0)}%)` } } } }
+      });
+    }
+    const dti = ING_REF > 0 ? (CUO_TOT/ING_REF*100) : 0;
+    const consejo = generarConsejoResumen(comp, dti);
+    if (consejoEl && consejo){
+      consejoEl.innerHTML = `<div style="margin-top:8px;padding:9px 11px;border-radius:8px;background:${consejo.bg};border-left:3px solid ${consejo.col};font-size:11px;line-height:1.5;color:var(--text2);">${consejo.html}</div>`;
+    }
+  }
+
+  // Tendencia entre resúmenes (barras apiladas por categoría)
+  const trendCv = $('resumen-trend-ch'), trendNote = $('resumen-trend-note');
+  if (resumenTrendChart){ resumenTrendChart.destroy(); resumenTrendChart = null; }
+  const serie = idsDesc.slice().reverse()
+    .map(([id, r]) => ({ r, comp: composicionResumen(id) }))
+    .filter(x => x.comp && x.comp.total > 0);
+  const catsSet = new Set();
+  serie.forEach(x => Object.keys(x.comp.porCat).forEach(c => catsSet.add(c)));
+  const catsArr = [...catsSet];
+  if (serie.length < 2 || !catsArr.length){
+    if (trendCv) trendCv.style.display = 'none';
+    if (trendNote) trendNote.textContent = 'Necesitás al menos 2 resúmenes con compras cargadas vía "Ciclo de tarjeta" para ver la tendencia.';
+  } else {
+    if (trendCv) trendCv.style.display = '';
+    if (trendNote) trendNote.textContent = '';
+    resumenTrendChart = new Chart(trendCv.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: serie.map(x => fD(x.r.cierre)),
+        datasets: catsArr.map((c,i) => ({
+          label: CM[c]?.n || c, data: serie.map(x => x.comp.porCat[c] || 0),
+          backgroundColor: COLORS[i % COLORS.length]
+        }))
+      },
+      options: { responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:true, position:'bottom', labels:{font:{size:10}, boxWidth:8}},
+          tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${fmt(c.parsed.y)}` } } },
+        scales:{ x:{ stacked:true, grid:{display:false}, ticks:{font:{size:10}} },
+                 y:{ stacked:true, grid:{color:'#F1F5F9'}, ticks:{font:{size:10}, callback:v=>'$'+fmtK(v)} } } }
+    });
+  }
+}
+function renderPendientes(){
+  const wrap = $('pendientes-list'); if (!wrap) return;
+  const arr = Object.entries(PENDIENTES_LIVE);
+  if (!arr.length){
+    wrap.innerHTML = '<div style="color:var(--text3);">Sin compras pendientes de resumen.</div>';
+    return;
+  }
+  wrap.innerHTML = arr.map(([id,p])=>{
+    const esGasto = p.tipo === 'gasto';
+    const monto = esGasto ? p.monto : p.precio;
+    const eligibles = eligibleResumenesFor(p);
+    const selId = 'pend-sel-'+id;
+    return `<div style="border:1px solid var(--border2);border-radius:8px;padding:8px 10px;">
+      <div style="margin-bottom:6px;"><strong>${p.nombre}</strong> — ${fmt(monto)}${esGasto ? ' · <span style="color:var(--text3);">pago único, sin cuotas</span>' : ` · TNA ${p.tna}% · ${p.plazoMeses}c`} · compra ${fD(p.fechaCompra)}</div>
+      ${eligibles.length ? `
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <select id="${selId}" class="sim-input" style="width:auto;padding:5px 8px;font-size:11px;">
+            <option value="">Elegí resumen…</option>
+            ${eligibles.map(([rid,r])=>`<option value="${rid}">Cierre ${fD(r.cierre)} → Vto ${fD(r.vencimiento)}</option>`).join('')}
+          </select>
+          <button class="hdr-btn pri" style="padding:5px 10px;font-size:11px;" onclick="resolvePendienteUI('${id}','${selId}')">Asignar</button>
+        </div>` : `<span style="color:var(--amber);">⏳ esperando el próximo resumen del banco</span>`}
+    </div>`;
+  }).join('');
+}
+async function resolvePendienteUI(pendId, selId){
+  const sel = $(selId); const resumenId = sel.value;
+  if (!resumenId){ alert('Elegí un resumen para asignar la compra'); return; }
+  const pend = PENDIENTES_LIVE[pendId], resumen = RESUMENES_LIVE[resumenId];
+  if (!pend || !resumen) return;
+  try{
+    if (pend.tipo === 'gasto'){
+      await window._writeGastoDesdeResumen(pend.nombre, pend.categoria, pend.monto, resumen);
+      await window._deletePendiente(pendId);
+      alert(`✅ Cargado como gasto en ${fD(resumen.vencimiento)} (resumen cierre ${fD(resumen.cierre)}) — no es deuda, no afecta el DTI.`);
+    } else {
+      const cuota = await window._writeDualComprado(pend.nombre, pend.categoria, pend.precio, pend.tna, pend.plazoMeses, resumen);
+      await window._deletePendiente(pendId);
+      alert(`✅ Imputada al resumen de cierre ${fD(resumen.cierre)} — primera cuota de ${fmt(cuota)} en ${fD(resumen.vencimiento)}.`);
+    }
+  }catch(err){ alert('Error al resolver el pendiente: '+err.message); }
+}
+async function registrarGastoTarjeta(){
+  const nombre = $('gp-nombre').value.trim(), cat = $('gp-cat').value;
+  const monto = parseFloat($('gp-monto').value), fecha = $('gp-fecha').value;
+  const res = $('gp-result');
+  if (!nombre || isNaN(monto) || !fecha){ alert('Completá descripción, monto y fecha'); return; }
+  const ultimo = getUltimoResumen();
+  try{
+    if (!ultimo || fecha > ultimo.cierre){
+      await window._addPendienteGasto(nombre, cat, monto, fecha);
+      res.style.color = 'var(--amber)';
+      res.innerHTML = `⏳ <strong>Pendiente de resumen</strong> — es posterior al último cierre cargado (${ultimo?fD(ultimo.cierre):'sin resúmenes aún'}). Queda en "stand by": no es deuda ni afecta el DTI, sólo espera a saber en qué mes se factura.`;
+    } else {
+      await window._writeGastoDesdeResumen(nombre, cat, monto, ultimo);
+      res.style.color = 'var(--green)';
+      res.innerHTML = `✅ Cargado como gasto en <strong>${fD(ultimo.vencimiento)}</strong> (resumen con cierre ${fD(ultimo.cierre)}).`;
+    }
+    $('gp-nombre').value=''; $('gp-monto').value='';
+  }catch(err){ res.style.color='var(--red)'; res.textContent = 'Error: '+err.message; }
+}
+async function registrarCompraCuotas(){
+  const nombre = $('cc-nombre').value.trim(), cat = $('cc-cat').value;
+  const precio = parseFloat($('cc-precio').value), tna = parseFloat($('cc-tna').value);
+  const plazo = parseInt($('cc-plazo').value), fecha = $('cc-fecha').value;
+  const res = $('cc-result');
+  if (!nombre || isNaN(precio) || isNaN(tna) || !plazo || !fecha){
+    alert('Completá descripción, precio, fecha, TNA y plazo'); return;
+  }
+  const ultimo = getUltimoResumen();
+  try{
+    if (!ultimo || fecha > ultimo.cierre){
+      await window._addPendiente(nombre, cat, precio, tna, plazo, fecha);
+      res.style.color = 'var(--amber)';
+      res.innerHTML = `⏳ <strong>Pendiente de resumen</strong> — es posterior al último cierre cargado (${ultimo?fD(ultimo.cierre):'sin resúmenes aún'}). Se asigna cuando cargues el próximo resumen del banco.`;
+    } else {
+      const cuota = await window._writeDualComprado(nombre, cat, precio, tna, plazo, ultimo);
+      res.style.color = 'var(--green)';
+      res.innerHTML = `✅ Imputada al resumen de cierre <strong>${fD(ultimo.cierre)}</strong> — primera cuota de <strong>${fmt(cuota)}</strong> en <strong>${fD(ultimo.vencimiento)}</strong> (${plazo} cuotas).`;
+    }
+    $('cc-nombre').value=''; $('cc-precio').value='';
+  }catch(err){ res.style.color='var(--red)'; res.textContent = 'Error: '+err.message; }
+}
+
 function renderDTIProj(){
   const el=$('dti-proj'); if(!el) return;
   const pts=[
@@ -1378,6 +1988,17 @@ function calcSC(){
   const r=$('sc-res');if(!r)return;
   r.innerHTML=simRow('Cuota mensual',fmt(cu),'var(--red)')+simRow('Total pagado',fmt(tot))+simRow('Intereses',fmt(tot-cap))+simRow('Nuevo DTI estimado',((CUO_TOT+cu)/ING_REF*100).toFixed(1)+'%','var(--red)');
 }
+function calcRecargo(){
+  // FEATURE 06/09/2026: card "Calculadora rápida de recargo" -- chequeo suelto de
+  // cuánto de más cobra una compra financiada vs. el valor de contado. Diferencia
+  // en $ es la resta directa; el % es esa diferencia dividida por el valor real
+  // (no la resta sola, error común) -- ver nota fija abajo de la card en el HTML.
+  const real=+$('rec-real')?.value||0, cobro=+$('rec-cobro')?.value||0;
+  const r=$('rec-res'); if(!r) return;
+  if(!real||!cobro){ r.innerHTML=''; return; }
+  const diff=cobro-real, pct=diff/real*100, col=diff>0?'var(--red)':'var(--green)';
+  r.innerHTML=simRow('Diferencia $',fmt(diff),col)+simRow('Recargo %',pct.toFixed(1)+'%',col);
+}
 function calcIPC(){
   const ipc=parseFloat($('ipc-v')?.value),r=$('ipc-res');if(!r)return;
   if(isNaN(ipc)||ipc<0){r.innerHTML='';return;}
@@ -1410,20 +2031,51 @@ async function importCSV(){
   const lines=raw.split('\n').filter(l=>l.trim()&&!l.startsWith('fecha'));
   if(!lines.length){ $('import-status').textContent='Sin datos para importar.'; return; }
   if(!window._write){ $('import-status').textContent='Firebase no conectado aún. Esperá un segundo y reintentá.'; return; }
-  let ok=0,err=0,firstErrMsg='';
-  for(let i=0;i<lines.length;i++){
-    const line=lines[i];
-    $('import-status').textContent=`Importando ${i+1}/${lines.length}...`;
+
+  // FEATURE 06/09/2026: dedup contra lo ya cargado -- Pedro migra gastos desde
+  // Notion vía CSV y a veces se solapa con lo ya importado (mismo origen de los
+  // duplicados de "Salario +$689" y Silvina/Streaming que hubo que borrar a mano
+  // en su momento). Se arma primero la lista parseada + qué meses toca, se trae
+  // UNA vez lo que ya existe en esos meses (window._hist, ya existía), y se
+  // saltea cualquier fila cuya firma fecha|monto|categoría ya esté cargada --
+  // tanto contra Firebase como contra otra fila repetida dentro del mismo CSV.
+  const parsed=[]; const monthsNeeded=new Set();
+  for(const line of lines){
+    const cols=line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
+    const [fecha,tipo,monto,moneda,categoria,nota='']=cols;
+    if(!fecha||!tipo||!monto) continue;
+    const [y,m]=fecha.split('-'); if(!y||!m) continue;
+    monthsNeeded.add(`${y}-${m}`);
+    parsed.push({fecha,tipo:tipo==='ingreso'?'ingreso':'gasto',monto:+monto,moneda:moneda||'ARS',categoria:categoria||'varios',nota,y,m});
+  }
+  if(!parsed.length){ $('import-status').textContent='Sin datos para importar.'; return; }
+
+  const sig=(fecha,monto,cat)=>`${fecha}|${(+monto).toFixed(2)}|${cat}`;
+  const seen=new Set();
+  try{
+    $('import-status').textContent='Chequeando duplicados contra lo ya cargado...';
+    const hist=await _withTimeout(window._hist([...monthsNeeded].map(k=>{const [y,m]=k.split('-');return{y,m};})),8000);
+    Object.values(hist).forEach(({gastos,ingresos})=>{
+      Object.values(gastos||{}).forEach(g=>seen.add('g:'+sig(g.fecha,g.monto,g.categoria)));
+      Object.values(ingresos||{}).forEach(g=>seen.add('i:'+sig(g.fecha,g.monto,g.categoria)));
+    });
+  }catch(e){
+    $('import-status').textContent='⚠️ No se pudo chequear duplicados ('+(e.message||e)+') -- importando sin dedup.';
+  }
+
+  let ok=0,dup=0,err=0,firstErrMsg='';
+  for(let i=0;i<parsed.length;i++){
+    const row=parsed[i];
+    $('import-status').textContent=`Importando ${i+1}/${parsed.length}...`;
+    const key=(row.tipo==='ingreso'?'i:':'g:')+sig(row.fecha,row.monto,row.categoria);
+    if(seen.has(key)){ dup++; continue; }
     try{
-      const cols=line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
-      const [fecha,tipo,monto,moneda,categoria,nota='']=cols;
-      if(!fecha||!tipo||!monto) continue;
       // Use existing _writeDate con manejo de fecha custom, con timeout de 8s por si Firebase se cuelga
-      await _withTimeout(window._writeDate(tipo==='ingreso'?'ingreso':'gasto', +monto, moneda||'ARS', categoria||'varios', nota, fecha), 8000);
-      ok++;
+      await _withTimeout(window._writeDate(row.tipo, row.monto, row.moneda, row.categoria, row.nota, row.fecha), 8000);
+      seen.add(key); ok++;
     }catch(e){ err++; if(!firstErrMsg) firstErrMsg=e.message||String(e); console.error(e); }
   }
-  $('import-status').textContent=`✅ ${ok} importados${err>0?' · ⚠️ '+err+' errores: '+firstErrMsg:''}${err>0?'':' — recargá el dashboard'}`;
+  $('import-status').textContent=`✅ ${ok} importados${dup>0?' · ⏭️ '+dup+' duplicados salteados (ya estaban cargados)':''}${err>0?' · ⚠️ '+err+' errores: '+firstErrMsg:''}${err===0?' — recargá el dashboard':''}`;
   if(err===0) setTimeout(()=>{ closeImport(); loadPeriod(S.year+'-'+S.month); },2000);
 }
 
@@ -1508,12 +2160,14 @@ function updAmt(pfx,v){
 async function submit(pfx){
   const isMV=pfx==='mv';
   const ainput=$(isMV?'mv-ai':'p-ai'), note=$(isMV?'mv-nt':'p-nt'), sbtn=$(isMV?'mv-sb':'p-sb');
+  const fechaInput=$(isMV?'mv-fc':'p-fc');
   const monto=parseFloat(ainput.value);
   if(!monto||monto<=0){ _pulse(sbtn,'Ingresá un monto'); return; }
   if(!S.cat){ _pulse(sbtn,'Seleccioná categoría'); return; }
+  const fecha=(fechaInput&&fechaInput.value)?fechaInput.value:_defaultFecha();
   sbtn.disabled=true; sbtn.textContent='Guardando…';
   try{
-    await window._write(S.type==='g'?'gasto':'ingreso',monto,S.cur,S.cat,note.value.trim());
+    await window._writeDate(S.type==='g'?'gasto':'ingreso',monto,S.cur,S.cat,note.value.trim(),fecha);
     const c=CM[S.cat];
     if(isMV) _flash(`${c.e} ${c.n}`,`${fmt(monto)} ${S.cur} registrado`);
     else closePanel();
@@ -1527,6 +2181,7 @@ function _reset(){
   ['mv-ad','p-ad'].forEach(id=>{const e=$(id);if(e)e.textContent='0';});
   ['mv-nt','p-nt'].forEach(id=>{const e=$(id);if(e)e.value='';});
   S.cat=null; renderCatGrid('mv'); renderCatGrid('p');
+  syncFechaInputs();
 }
 function _flash(lbl,sub){
   $('fl-lbl').textContent=lbl; $('fl-sub').textContent=sub;
