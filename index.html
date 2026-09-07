@@ -534,8 +534,9 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
         <div style="display:flex;flex-direction:column;gap:14px;">
           <div class="card">
-            <div class="card-ttl">Snapshot Alfy — 30/07/2026</div>
+            <div class="card-ttl">Snapshot Alfy — 07/09/2026</div>
             <div id="inv-snap"></div>
+            <div style="margin-top:14px;height:170px;"><canvas id="inv-bar-ch"></canvas></div>
           </div>
           <div class="card">
             <div class="card-ttl">Fondo de Emergencia</div>
@@ -554,6 +555,13 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div id="tickers"></div>
           </div>
         </div>
+      </div>
+      <div class="card" style="margin-top:18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div class="card-ttl" style="margin:0;">Evolución del patrimonio (Alfy)</div>
+          <span id="inv-hist-note" style="font-size:11px;color:var(--text3);"></span>
+        </div>
+        <div style="height:220px;"><canvas id="inv-hist-ch"></canvas></div>
       </div>
     </div>
 
@@ -994,7 +1002,24 @@ window._deleteAporteObjetivo = async id => {
   await remove(ref(db, `objetivos/${uid}/aportes/${id}`));
 };
 
-// ── Sesión Google real ───────────────────────────────────────────────────────
+// ── Historial de cartera (Alfy) — agregado 07/09/2026 ───────────────────────
+// Nodo carteraHist/{uid}/{fecha-ISO} = { total, detalle:[...], timestamp }. La
+// clave es la fecha (AAAA-MM-DD), no un push() al azar: así, si se vuelve a
+// guardar un snapshot con la MISMA fecha (por ejemplo corrigiendo datos), se
+// sobreescribe en vez de duplicar. Cada snapshot nuevo que Pedro traiga (cuando
+// actualice sus datos de Alfy) se guarda solo, una vez, al cargar la página —
+// así el gráfico de evolución ("zigzag") se arma con puntos reales, sin
+// inventar historia hacia atrás.
+window._listenCarteraHist = cb => {
+  onValue(ref(db, `carteraHist/${uid}`), s => cb(s.val() || {}));
+};
+window._saveCarteraSnapshot = async (fechaISO, total, detalle) => {
+  await update(ref(db, `carteraHist/${uid}/${fechaISO}`), {
+    total: +total, detalle, timestamp: serverTimestamp()
+  });
+};
+
+// ── Sesión Google real ─────────────────────────────────────────────────────
 // Avisamos "fb-ok" apenas hay CUALQUIER sesión (para que lecturas funcionen),
 // pero solo el login de Google con la cuenta correcta habilita escritura real.
 window._fbAuthError = null;
@@ -1209,13 +1234,20 @@ function renderOsde(){
   }
 }
 
-const INV_SNAP = [
-  {c:'Acciones (LOMA)',              m:32580,    p:5.01, b:'r'},
-  {c:'Cedears (GOOGL/NVDA/PFE)',     m:370990,   p:57.09,b:'g'},
-  {c:'Letras (D31G6)',               m:242720,   p:37.35,b:'b'},
-  {c:'Disponible (ARS+USD)',         m:3548.10,  p:0.55, b:'a'},
+const INV_SNAP_FECHA_ISO = '2026-09-07'; // clave del snapshot en carteraHist/{uid} — cambiar cada vez que se cargue un snapshot nuevo
+const INV_DETALLE = [ // desglose por instrumento (para el gráfico de barras); color = índice sobre COLORS[]
+  {c:'LOMA (Acciones)',      m:29295.00,  p:-12.05, color:2},
+  {c:'GOOGL (Cedear)',       m:389340.00, p:-3.34,  color:0},
+  {c:'META (Cedear)',        m:285040.00, p:3.47,   color:3},
+  {c:'NVDA (Cedear)',        m:258740.00, p:-0.27,  color:1},
+  {c:'Disponible (ARS+USD)', m:9689.30,   p:null,   color:9},
 ];
-const TOTAL_INV = 649838.10; // Alfy — snapshot 30/07/2026
+const INV_SNAP = [
+  {c:'Acciones (LOMA)',               m:29295.00,  p:3.01, b:'r'},
+  {c:'Cedears (GOOGL/META/NVDA)',     m:933120.00, p:95.99,b:'g'},
+  {c:'Disponible (ARS+USD)',          m:9689.30,   p:1.00, b:'y'},
+];
+const TOTAL_INV = 972104.30; // Alfy — snapshot 07/09/2026
 const TICKERS = [
   {s:'SPY',              n:'S&P 500 ETF',  pre:'$'},
   {s:'AAPL',             n:'Apple',        pre:'$'},
@@ -1246,6 +1278,7 @@ let PENDIENTES_LIVE = {}; // comprasPendientes/{uid} — compras posteriores al 
 let OBJETIVO_LIVE = null; // objetivos/{uid} — un solo objetivo activo (Fase 1)
 let APORTES_OBJETIVO_LIVE = {}; // objetivos/{uid}/aportes — historial real de aportes cargados
 let editandoAporteId = null; // id del aporte en edición (null = modo alta normal)
+let CARTERA_HIST_LIVE = {}; // carteraHist/{uid} — snapshots históricos de la cartera Alfy
 
 // ── Balance por resumen (agregado 06/09/2026) ────────────────────────────────
 // RESUMEN_GASTOS_CACHE[resumenId] = { y, m, gastos:{...} } — un listener por
@@ -1568,6 +1601,8 @@ document.addEventListener('DOMContentLoaded', () => {
   safe(renderPendientes, 'renderPendientes');
   safe(renderDTIProj, 'renderDTIProj');
   safe(renderInvSnap, 'renderInvSnap');
+  safe(renderInvBar, 'renderInvBar');
+  safe(renderCarteraHist, 'renderCarteraHist');
   safe(renderVivienda, 'renderVivienda');
   safe(renderSaneamiento, 'renderSaneamiento');
   safe(renderReposicionMadre, 'renderReposicionMadre');
@@ -1613,6 +1648,13 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     document.addEventListener('fb-ok', () => {
       if (window._listenAportesObjetivo) window._listenAportesObjetivo(a => { APORTES_OBJETIVO_LIVE = a || {}; renderObjetivo(); });
+    });
+  }
+  if (window._listenCarteraHist) {
+    window._listenCarteraHist(h => { CARTERA_HIST_LIVE = h || {}; renderCarteraHist(); guardarSnapshotCarteraSiNuevo(); });
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenCarteraHist) window._listenCarteraHist(h => { CARTERA_HIST_LIVE = h || {}; renderCarteraHist(); guardarSnapshotCarteraSiNuevo(); });
     });
   }
 
@@ -2258,6 +2300,77 @@ function renderInvSnap(){
   </div><div id="tc-badge" style="font-size:11px;color:var(--text3);margin-top:2px;">≈ USD ${Math.round(TOTAL_INV/TC).toLocaleString('es-AR')} · t/c $${TC.toLocaleString('es-AR')}</div>`;
   const kp=$('k-port'); if(kp) kp.textContent=fmt(TOTAL_INV);
   const kp2=$('k-port2'); if(kp2) kp2.textContent='≈ USD '+Math.round(TOTAL_INV/TC).toLocaleString('es-AR');
+}
+
+let invBarChart = null;
+function renderInvBar(){
+  const cv = $('inv-bar-ch'); if (!cv || typeof Chart === 'undefined') return;
+  if (invBarChart){ invBarChart.destroy(); invBarChart = null; }
+  invBarChart = new Chart(cv.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: INV_DETALLE.map(i=>i.c),
+      datasets: [{
+        data: INV_DETALLE.map(i=>i.m),
+        backgroundColor: INV_DETALLE.map(i=>COLORS[i.color % COLORS.length]),
+        borderRadius: 4, maxBarThickness: 46
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: {duration:300},
+      plugins: { legend:{display:false},
+        tooltip: { callbacks: { label: c => {
+          const d = INV_DETALLE[c.dataIndex];
+          return ' ' + fmt(d.m) + (d.p!=null ? ` (${d.p>0?'+':''}${d.p.toFixed(2)}%)` : '');
+        } } } },
+      scales: { x:{grid:{display:false},ticks:{font:{size:10}}},
+                y:{grid:{color:'#F1F5F9'},ticks:{font:{size:10},callback:v=>'$'+fmtK(v)}} }
+    }
+  });
+}
+
+let invHistChart = null;
+function renderCarteraHist(){
+  const cv = $('inv-hist-ch'); if (!cv || typeof Chart === 'undefined') return;
+  const puntos = Object.entries(CARTERA_HIST_LIVE || {}).sort((a,b)=>a[0].localeCompare(b[0]));
+  const note = $('inv-hist-note');
+  if (invHistChart){ invHistChart.destroy(); invHistChart = null; }
+  if (!puntos.length){
+    if (note) note.textContent = 'Sin historial todavía.';
+    return;
+  }
+  if (note) note.textContent = puntos.length === 1
+    ? 'Un solo punto por ahora — se va armando solo con cada snapshot nuevo que cargues.'
+    : `${puntos.length} snapshots cargados`;
+  invHistChart = new Chart(cv.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: puntos.map(([f])=>fD(f)),
+      datasets: [{ label:'Patrimonio total', data: puntos.map(([,v])=>v.total),
+        borderColor:'#0066FF', backgroundColor:'#0066FF18', tension:.15,
+        pointRadius:4, pointBackgroundColor:'#0066FF', fill:true }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:{duration:300},
+      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label:c=>' '+fmt(c.parsed.y) } } },
+      scales: { x:{grid:{display:false},ticks:{font:{size:10}}},
+                y:{grid:{color:'#F1F5F9'},ticks:{font:{size:10},callback:v=>'$'+fmtK(v)}} }
+    }
+  });
+}
+function guardarSnapshotCarteraSiNuevo(){
+  // Auto-guarda el snapshot actual (INV_DETALLE/TOTAL_INV) en carteraHist/{uid}
+  // la primera vez que carga con esta fecha — no duplica en cargas siguientes.
+  if (!window._saveCarteraSnapshot) return;
+  if (CARTERA_HIST_LIVE && CARTERA_HIST_LIVE[INV_SNAP_FECHA_ISO]) return;
+  window._saveCarteraSnapshot(INV_SNAP_FECHA_ISO, TOTAL_INV, INV_DETALLE).catch(e => {
+    // 07/09/2026: si carteraHist/$uid no está agregado en las Realtime DB Rules
+    // (nodo nuevo, no reservado como objetivos/aportes), esto falla con
+    // PERMISSION_DENIED en silencio -- lo hacemos visible acá en vez de perderlo.
+    console.error('[ZAR] guardarSnapshotCarteraSiNuevo falló (revisar Firebase Rules para carteraHist):', e);
+    const note = $('inv-hist-note');
+    if (note) note.textContent = 'No se pudo guardar el snapshot (revisar permisos de Firebase) — ver consola.';
+  });
 }
 
 // ── Finnhub ───────────────────────────────────────────────────────────────────
