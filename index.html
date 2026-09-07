@@ -274,6 +274,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     <div class="tab-btn"    data-tab="sims"  onclick="showTab('sims')">Simuladores</div>
     <div class="tab-btn"    data-tab="hist"  onclick="showTab('hist')">Histórico</div>
     <div class="tab-btn"    data-tab="viv"   onclick="showTab('viv')">🏠 Vivienda vs IPC</div>
+    <div class="tab-btn"    data-tab="obj"   onclick="showTab('obj')">🎯 Objetivos</div>
   </nav>
 
   <div class="dv-body">
@@ -650,6 +651,56 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
       </div>
     </div>
 
+    <!-- Objetivos Financieros -->
+    <div class="tab-pane" id="t-obj">
+      <div class="card" id="obj-wrap">
+        <div class="card-ttl">🎯 Objetivos Financieros</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">
+          Fase 1: curva de ahorro/aporte proyectado hacia una meta (monto + fecha), sin contar todavía rendimiento de cartera de inversión ni inflación en USD. El monto se carga en USD y se convierte con el dólar oficial en vivo (mismo TC que usa el resto del dashboard) — así el objetivo se ajusta solo si el tipo de cambio se mueve.
+        </div>
+
+        <div id="obj-form-wrap">
+          <div class="sim-field"><span class="sim-lbl">Nombre del objetivo</span><input class="sim-input" type="text" id="obj-in-nombre" placeholder="Ej: Mac mini M5 Pro"></div>
+          <div class="sim-field"><span class="sim-lbl">Monto objetivo (USD)</span><input class="sim-input" type="number" id="obj-in-monto" placeholder="1699"></div>
+          <div class="sim-field"><span class="sim-lbl">Fecha objetivo</span><input class="sim-input" type="date" id="obj-in-fecha"></div>
+          <div class="sim-field"><span class="sim-lbl">Aporte mensual planeado ARS (opcional)</span><input class="sim-input" type="number" id="obj-in-aporte" placeholder="Dejalo vacío si todavía no lo definiste"></div>
+          <button class="hdr-btn pri" style="margin-top:6px;" onclick="guardarObjetivo()">Crear objetivo</button>
+        </div>
+
+        <div id="obj-activo-wrap" style="display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+            <div>
+              <div style="font-size:15px;font-weight:700;" id="obj-nombre"></div>
+              <div style="font-size:11px;color:var(--text3);">Meta: <span id="obj-fecha"></span> · Faltan <span id="obj-meses-rest"></span></div>
+            </div>
+            <button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:12px;" onclick="eliminarObjetivo()">✕ Eliminar</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
+            <div><div style="font-size:10px;color:var(--text3);">Monto en USD</div><div style="font-size:15px;font-weight:700;" id="obj-monto-usd"></div></div>
+            <div><div style="font-size:10px;color:var(--text3);">≈ ARS hoy</div><div style="font-size:15px;font-weight:700;" id="obj-monto-ars"></div></div>
+            <div><div style="font-size:10px;color:var(--text3);">Aportado hasta ahora</div><div style="font-size:15px;font-weight:700;color:var(--green);" id="obj-aportado"></div></div>
+            <div><div style="font-size:10px;color:var(--text3);">Aporte necesario</div><div style="font-size:15px;font-weight:700;" id="obj-aporte-nec"></div></div>
+          </div>
+          <div id="obj-aviso"></div>
+
+          <div style="border-top:1px solid var(--border);margin:14px 0;"></div>
+          <div style="font-size:12px;font-weight:700;margin-bottom:8px;">+ Aporte real</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">
+            Cargá acá cada vez que efectivamente destines plata a este objetivo — con eso se arma la curva "Aportado (real)" y el aviso de ritmo de abajo, ya no una proyección teórica.
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
+            <div class="sim-field" style="margin-bottom:0;"><span class="sim-lbl">Monto ARS</span><input class="sim-input" type="number" id="obj-in-aporte-monto" placeholder="Ej: 400000"></div>
+            <div class="sim-field" style="margin-bottom:0;"><span class="sim-lbl">Fecha</span><input class="sim-input" type="date" id="obj-in-aporte-fecha"></div>
+            <button class="hdr-btn pri" id="obj-aporte-btn" onclick="agregarAporteObjetivo()">Agregar aporte</button>
+          </div>
+          <div id="obj-aporte-edit-note" style="font-size:11px;color:var(--blue);margin:-6px 0 10px;"></div>
+          <div id="obj-aportes-list" style="font-size:12px;color:var(--text3);margin-bottom:14px;">Cargando…</div>
+
+          <div style="position:relative;height:220px;margin-top:14px;"><canvas id="obj-ch"></canvas></div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /dv-body -->
 
   <!-- Sliding Panel -->
@@ -706,7 +757,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
 <!-- ══ FIREBASE ════════════════════════════════════════════════════════════ -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, push, onValue, get, set, remove, serverTimestamp }
+import { getDatabase, ref, push, onValue, get, set, update, remove, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { getAuth, signInAnonymously, signInWithPopup, GoogleAuthProvider, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
@@ -886,6 +937,61 @@ window._writeGastoDesdeResumen = async (nombre, categoria, monto, resumen) => {
 // se cargó vía "Ciclo de tarjeta" — sin esto, sólo se podía ver el mes actual.
 window._listenGastosMes = (y, m, cb) => {
   onValue(ref(db, `gastos/${uid}/${y}/${m}`), s => cb(s.val() || {}));
+};
+
+// ── Objetivos Financieros (agregado 06/09/2026) ─────────────────────────────
+// Nodo objetivos/{uid} ya reservado en las Rules de Firebase, sin uso hasta
+// ahora. Fase 1: un solo objetivo activo a la vez (nombre, monto en USD,
+// fecha de inicio, fecha objetivo, aporte mensual ARS planeado opcional). El
+// monto en ARS NO se guarda fijo — se recalcula siempre con el TC oficial en
+// vivo (fetchTC()), así el objetivo se ajusta solo si el dólar se mueve. Sin
+// rendimiento de cartera ni inflación en USD todavía (Fase 2, pendiente de
+// más integración de Alfy / posible lectura de IPC desde "Macro Argentina" —
+// ver changelog).
+window._listenObjetivo = cb => {
+  onValue(ref(db, `objetivos/${uid}`), s => cb(s.val() || null));
+};
+window._setObjetivo = async (nombre, montoUSD, fechaInicio, fechaObjetivo, aporteMensualARS) => {
+  // update() y no set(): así nunca pisa el subnodo objetivos/{uid}/aportes si ya
+  // existe (ver más abajo) — sólo toca los campos propios del objetivo en sí.
+  await update(ref(db, `objetivos/${uid}`), {
+    nombre, montoUSD: +montoUSD, fechaInicio, fechaObjetivo,
+    aporteMensualARS: aporteMensualARS ? +aporteMensualARS : null,
+    timestamp: serverTimestamp()
+  });
+};
+window._deleteObjetivo = async () => {
+  // remove() del nodo completo — se lleva también el historial de aportes.
+  // Coherente con que hoy "editar" un objetivo es borrar y crear de nuevo:
+  // si Pedro descarta el objetivo, descarta también su progreso.
+  await remove(ref(db, `objetivos/${uid}`));
+};
+
+// ── Aportes reales hacia el objetivo (agregado 07/09/2026) ──────────────────
+// Historial de aportes efectivamente cargados por Pedro (no un plan teórico):
+// objetivos/{uid}/aportes/{id} = { monto, fecha, timestamp }. La curva
+// "Aportado (real)" de renderObjetivo() se arma acumulando esto, y el aviso de
+// ritmo compara el acumulado real contra lo que hacía falta tener ahorrado a
+// esta altura del horizonte — ya no un proxy basado en el aporte planeado.
+window._listenAportesObjetivo = cb => {
+  onValue(ref(db, `objetivos/${uid}/aportes`), s => cb(s.val() || {}));
+};
+window._addAporteObjetivo = async (monto, fecha) => {
+  const id = push(ref(db, `objetivos/${uid}/aportes`)).key;
+  await set(ref(db, `objetivos/${uid}/aportes/${id}`), {
+    monto: +monto, fecha, timestamp: serverTimestamp()
+  });
+};
+window._updateAporteObjetivo = async (id, monto, fecha) => {
+  // set() sobre un id puntual, no sobre todo el nodo `aportes` — no afecta a
+  // los demás aportes ya cargados (agregado 07/09/2026, pedido de Pedro para
+  // poder corregir un aporte mal cargado en vez de borrar y recrear).
+  await set(ref(db, `objetivos/${uid}/aportes/${id}`), {
+    monto: +monto, fecha, timestamp: serverTimestamp()
+  });
+};
+window._deleteAporteObjetivo = async id => {
+  await remove(ref(db, `objetivos/${uid}/aportes/${id}`));
 };
 
 // ── Sesión Google real ───────────────────────────────────────────────────────
@@ -1137,6 +1243,9 @@ let pieChart, barChart;
 let DEUDAS_LIVE = {}; // deudas/{uid}/ desde Firebase — cargadas por ZAR Tactical Ledger
 let RESUMENES_LIVE = {}; // tarjeta/{uid}/resumenes desde Firebase — compartido con ZAR Tactical Ledger
 let PENDIENTES_LIVE = {}; // comprasPendientes/{uid} — compras posteriores al último cierre cargado
+let OBJETIVO_LIVE = null; // objetivos/{uid} — un solo objetivo activo (Fase 1)
+let APORTES_OBJETIVO_LIVE = {}; // objetivos/{uid}/aportes — historial real de aportes cargados
+let editandoAporteId = null; // id del aporte en edición (null = modo alta normal)
 
 // ── Balance por resumen (agregado 06/09/2026) ────────────────────────────────
 // RESUMEN_GASTOS_CACHE[resumenId] = { y, m, gastos:{...} } — un listener por
@@ -1214,6 +1323,211 @@ function renderArkad() {
   if(elB) elB.style.background = ok ? 'var(--green)' : 'var(--red)';
 }
 
+// ── Objetivos Financieros (agregado 06/09/2026) ─────────────────────────────
+// Fase 1: sin rendimiento de cartera ni inflación en USD (ver changelog) — sólo
+// curva de aporte/ahorro proyectado hacia el objetivo. El monto en ARS se
+// recalcula siempre con el TC oficial en vivo (objetivoARS = montoUSD * TC),
+// nunca se guarda fijo.
+function renderObjetivo(){
+  const form = $('obj-form-wrap'), activo = $('obj-activo-wrap');
+  if (!form || !activo) return;
+  if (!OBJETIVO_LIVE){
+    form.style.display = '';
+    activo.style.display = 'none';
+    return;
+  }
+  form.style.display = 'none';
+  activo.style.display = '';
+
+  const o = OBJETIVO_LIVE;
+  const montoARS = o.montoUSD * TC;
+  const hoy = new Date();
+  const inicio = new Date(o.fechaInicio + 'T00:00:00');
+  const fin = new Date(o.fechaObjetivo + 'T00:00:00');
+  const totalDias = Math.max(1, (fin - inicio) / 86400000);
+  const mesesTotales = Math.max(1, Math.round(totalDias / 30.44));
+  const mesesTranscurridos = Math.min(mesesTotales, Math.max(0, Math.round((hoy - inicio) / 86400000 / 30.44)));
+  const mesesRestantes = Math.max(0, mesesTotales - mesesTranscurridos);
+  const aporteMensual = o.aporteMensualARS || null;
+
+  // Aportes reales cargados (agregado 07/09/2026) — historial en
+  // objetivos/{uid}/aportes, es la base real de la curva y del aviso de ritmo,
+  // ya no un proxy calculado sobre el aporte mensual planeado.
+  const aportesArr = Object.entries(APORTES_OBJETIVO_LIVE || {})
+    .map(([id, a]) => ({ id, monto: +a.monto, fecha: a.fecha }))
+    .sort((a,b) => a.fecha.localeCompare(b.fecha));
+  const acumuladoReal = aportesArr.reduce((s,a) => s + a.monto, 0);
+
+  $('obj-nombre').textContent = o.nombre;
+  $('obj-monto-usd').textContent = `USD ${o.montoUSD.toLocaleString('en-US')}`;
+  $('obj-monto-ars').textContent = fmt(montoARS) + ' (TC $' + Math.round(TC).toLocaleString('es-AR') + ')';
+  $('obj-fecha').textContent = fD(o.fechaObjetivo);
+  $('obj-meses-rest').textContent = mesesRestantes > 0 ? `${mesesRestantes} meses` : (fin < hoy ? 'vencido' : 'este mes');
+  const acumuladoRealUSD = TC > 0 ? Math.round(acumuladoReal / TC) : 0;
+  $('obj-aportado').innerHTML = `${fmt(acumuladoReal)}<div style="font-size:10px;color:var(--text3);font-weight:400;">≈ USD ${acumuladoRealUSD.toLocaleString('en-US')}</div>`;
+
+  const restanteParaMeta = Math.max(0, montoARS - acumuladoReal);
+  const aporteNecesario = mesesRestantes > 0 ? restanteParaMeta / mesesRestantes : restanteParaMeta;
+  const aporteNecesarioUSD = TC > 0 ? Math.round(aporteNecesario / TC) : 0;
+  $('obj-aporte-nec').innerHTML = restanteParaMeta <= 0
+    ? '¡cubierto!'
+    : (mesesRestantes > 0
+        ? `${fmt(aporteNecesario)}/mes<div style="font-size:10px;color:var(--text3);font-weight:400;">≈ USD ${aporteNecesarioUSD.toLocaleString('en-US')}/mes</div>`
+        : `${fmt(restanteParaMeta)}<div style="font-size:10px;color:var(--text3);font-weight:400;">≈ USD ${aporteNecesarioUSD.toLocaleString('en-US')}</div>`);
+
+  // Curva: "Necesario para llegar" (recta 0→montoARS a lo largo de todo el
+  // horizonte, referencia fija) + "Aportado (real)" (acumulado real de los
+  // aportes cargados, mes a mes — se corta en el mes de hoy, no se inventa
+  // nada hacia adelante) + si Pedro cargó un aporte mensual planeado al crear
+  // el objetivo, "Proyectado (tu plan)" de referencia, punteada, informativa
+  // (no depende de los aportes reales, es sólo el plan original).
+  const labels = [];
+  const necesaria = [];
+  const aportadoReal = [];
+  const proyectadaPlan = aporteMensual ? [] : null;
+  const acumuladoPorMes = new Array(mesesTotales + 1).fill(0);
+  for (const a of aportesArr){
+    const fa = new Date(a.fecha + 'T00:00:00');
+    let idx = Math.round((fa - inicio) / 86400000 / 30.44);
+    idx = Math.max(0, Math.min(mesesTotales, idx));
+    acumuladoPorMes[idx] += a.monto;
+  }
+  let corrida = 0;
+  for (let i = 0; i <= mesesTotales; i++){
+    const d = new Date(inicio); d.setMonth(d.getMonth() + i);
+    labels.push(d.toLocaleDateString('es-AR', {month:'short', year:'2-digit'}));
+    necesaria.push(Math.round(montoARS * (i / mesesTotales)));
+    corrida += acumuladoPorMes[i];
+    aportadoReal.push(i <= mesesTranscurridos ? Math.round(corrida) : null);
+    if (proyectadaPlan) proyectadaPlan.push(Math.min(Math.round(aporteMensual * i), montoARS));
+  }
+  const cv = $('obj-ch');
+  if (objetivoChart){ objetivoChart.destroy(); objetivoChart = null; }
+  if (cv){
+    const datasets = [
+      { label:'Necesario para llegar', data: necesaria, borderColor:'#0066FF', backgroundColor:'transparent', tension:.2, pointRadius:0 },
+      { label:'Aportado (real)', data: aportadoReal, borderColor:'#10B981', backgroundColor:'transparent', tension:.2, pointRadius:2, spanGaps:true }
+    ];
+    if (proyectadaPlan) datasets.push({ label:'Proyectado (tu plan)', data: proyectadaPlan, borderColor:'#9CA3AF', backgroundColor:'transparent', tension:.2, pointRadius:0, borderDash:[5,3] });
+    objetivoChart = new Chart(cv.getContext('2d'), {
+      type: 'line',
+      data: { labels, datasets },
+      options: { responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:true, position:'bottom', labels:{font:{size:10}, boxWidth:8}},
+          tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${c.parsed.y==null?'—':fmt(c.parsed.y)}` } } },
+        scales:{ x:{ grid:{display:false}, ticks:{font:{size:9}} },
+                 y:{ grid:{color:'#F1F5F9'}, ticks:{font:{size:10}, callback:v=>'$'+fmtK(v)} } } }
+    });
+  }
+
+  // Aviso de ritmo: compara lo REALMENTE aportado contra lo que hacía falta
+  // tener ahorrado a esta altura del horizonte — ya no un plan teórico.
+  const avisoEl = $('obj-aviso');
+  if (avisoEl){
+    if (restanteParaMeta <= 0){
+      avisoEl.innerHTML = `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--green-l);border-left:3px solid var(--green);font-size:11px;color:var(--text2);">🏆 ¡Objetivo cubierto! Aportaste ${fmt(acumuladoReal)} de ${fmt(montoARS)}.</div>`;
+    } else if (!aportesArr.length){
+      avisoEl.innerHTML = `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--bg);font-size:11px;color:var(--text3);">Todavía no cargaste ningún aporte real — usá "+ Aporte real" de abajo cada vez que destines plata a este objetivo, para ver acá tu ritmo real.</div>`;
+    } else {
+      const esperadoAHoy = Math.round(montoARS * (mesesTranscurridos / mesesTotales));
+      const vaBien = acumuladoReal >= esperadoAHoy;
+      const restoNota = mesesRestantes > 0 ? `Con lo que falta, necesitás ${fmt(aporteNecesario)}/mes de acá a la meta.` : 'Ya no queda tiempo hasta la fecha objetivo.';
+      avisoEl.innerHTML = vaBien
+        ? `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--green-l);border-left:3px solid var(--green);font-size:11px;color:var(--text2);">✅ Vas bien: aportaste ${fmt(acumuladoReal)}, hacían falta ${fmt(esperadoAHoy)} a esta altura. ${restoNota}</div>`
+        : `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--red-l);border-left:3px solid var(--red);font-size:11px;color:var(--text2);">⚠️ Vas atrasado: aportaste ${fmt(acumuladoReal)}, hacían falta ${fmt(esperadoAHoy)} a esta altura. ${restoNota}</div>`;
+    }
+  }
+
+  // Historial de aportes cargados.
+  const listEl = $('obj-aportes-list');
+  if (listEl){
+    listEl.innerHTML = !aportesArr.length
+      ? 'Sin aportes cargados todavía.'
+      : aportesArr.slice().reverse().map(a => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border2);">
+          <span style="color:var(--text2);">${fD(a.fecha)} — ${fmt(a.monto)}</span>
+          <span>
+            <button style="border:none;background:none;color:var(--blue);cursor:pointer;font-size:12px;margin-right:6px;" onclick="editarAporteObjetivo('${a.id}', ${a.monto}, '${a.fecha}')" title="Editar aporte">✏️</button>
+            <button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:12px;" onclick="eliminarAporteObjetivo('${a.id}')" title="Eliminar aporte">✕</button>
+          </span>
+        </div>`).join('');
+  }
+}
+async function guardarObjetivo(){
+  const nombre = $('obj-in-nombre').value.trim();
+  const montoUSD = +$('obj-in-monto').value;
+  const fechaObjetivo = $('obj-in-fecha').value;
+  const aporte = $('obj-in-aporte').value;
+  if (!nombre || !montoUSD || !fechaObjetivo){
+    alert('Completá al menos nombre, monto en USD y fecha objetivo.');
+    return;
+  }
+  const fechaInicio = new Date().toISOString().slice(0,10);
+  try {
+    await window._setObjetivo(nombre, montoUSD, fechaInicio, fechaObjetivo, aporte);
+  } catch(e){
+    console.error('[ZAR] Error guardando objetivo:', e);
+    alert('No se pudo guardar el objetivo: ' + e.message);
+  }
+}
+async function eliminarObjetivo(){
+  if (!confirm('¿Eliminar este objetivo? Se borra también el historial de aportes. Vas a poder cargar uno nuevo después.')) return;
+  try {
+    await window._deleteObjetivo();
+  } catch(e){
+    console.error('[ZAR] Error eliminando objetivo:', e);
+    alert('No se pudo eliminar el objetivo: ' + e.message);
+  }
+}
+async function agregarAporteObjetivo(){
+  const monto = +$('obj-in-aporte-monto').value;
+  const fecha = $('obj-in-aporte-fecha').value || new Date().toISOString().slice(0,10);
+  if (!monto || monto <= 0){
+    alert('Cargá un monto válido.');
+    return;
+  }
+  try {
+    if (editandoAporteId){
+      await window._updateAporteObjetivo(editandoAporteId, monto, fecha);
+      cancelarEdicionAporte();
+    } else {
+      await window._addAporteObjetivo(monto, fecha);
+      $('obj-in-aporte-monto').value = '';
+    }
+  } catch(e){
+    console.error('[ZAR] Error guardando aporte:', e);
+    alert('No se pudo guardar el aporte: ' + e.message);
+  }
+}
+// Editar un aporte ya cargado (agregado 07/09/2026, pedido de Pedro para poder
+// corregir un monto/fecha mal cargados sin tener que borrar y crear de nuevo):
+// precarga el form con los valores existentes y pone agregarAporteObjetivo()
+// en modo "guardar cambios" hasta que se confirme o se cancele.
+function editarAporteObjetivo(id, monto, fecha){
+  editandoAporteId = id;
+  $('obj-in-aporte-monto').value = monto;
+  $('obj-in-aporte-fecha').value = fecha;
+  const btn = $('obj-aporte-btn'); if (btn) btn.textContent = 'Guardar cambios';
+  const note = $('obj-aporte-edit-note');
+  if (note) note.innerHTML = `Editando el aporte del ${fD(fecha)} — <a href="javascript:void(0)" onclick="cancelarEdicionAporte()" style="color:var(--blue);">cancelar</a>`;
+}
+function cancelarEdicionAporte(){
+  editandoAporteId = null;
+  $('obj-in-aporte-monto').value = '';
+  $('obj-in-aporte-fecha').value = '';
+  const btn = $('obj-aporte-btn'); if (btn) btn.textContent = 'Agregar aporte';
+  const note = $('obj-aporte-edit-note'); if (note) note.innerHTML = '';
+}
+async function eliminarAporteObjetivo(id){
+  if (!confirm('¿Eliminar este aporte del historial?')) return;
+  try {
+    if (editandoAporteId === id) cancelarEdicionAporte();
+    await window._deleteAporteObjetivo(id);
+  } catch(e){
+    console.error('[ZAR] Error eliminando aporte:', e);
+    alert('No se pudo eliminar el aporte: ' + e.message);
+  }
+}
 // ── Tipo de cambio dinámico ────────────────────────────────────────────────────
 async function fetchTC() {
   try {
@@ -1225,6 +1539,7 @@ async function fetchTC() {
       TC = venta;
       const badge = document.getElementById('tc-badge');
       if (badge) badge.textContent = `USD oficial $${TC.toLocaleString('es-AR')} · 🟢 live`;
+      if (typeof renderObjetivo === 'function') renderObjetivo();
     }
   } catch {
     const badge = document.getElementById('tc-badge');
@@ -1256,6 +1571,7 @@ document.addEventListener('DOMContentLoaded', () => {
   safe(renderVivienda, 'renderVivienda');
   safe(renderSaneamiento, 'renderSaneamiento');
   safe(renderReposicionMadre, 'renderReposicionMadre');
+  safe(renderObjetivo, 'renderObjetivo');
   safe(()=>{ calcSC(); calcInf(); calcAho(); calcCr(); }, 'simuladores');
   safe(renderCountdown, 'renderCountdown');
   if (window._zarFallos?.length) console.warn('[ZAR] Secciones que no cargaron:', window._zarFallos.join(', '));
@@ -1283,6 +1599,20 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     document.addEventListener('fb-ok', () => {
       if (window._listenPendientes) window._listenPendientes(d => { PENDIENTES_LIVE = d || {}; renderPendientes(); });
+    });
+  }
+  if (window._listenObjetivo) {
+    window._listenObjetivo(o => { OBJETIVO_LIVE = o; renderObjetivo(); });
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenObjetivo) window._listenObjetivo(o => { OBJETIVO_LIVE = o; renderObjetivo(); });
+    });
+  }
+  if (window._listenAportesObjetivo) {
+    window._listenAportesObjetivo(a => { APORTES_OBJETIVO_LIVE = a || {}; renderObjetivo(); });
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenAportesObjetivo) window._listenAportesObjetivo(a => { APORTES_OBJETIVO_LIVE = a || {}; renderObjetivo(); });
     });
   }
 
@@ -1740,6 +2070,7 @@ function generarConsejoResumen(comp, dti){
   return { col, bg, html:`${emoji} <strong>${pct.toFixed(0)}%</strong> de este resumen fue a <strong>${nombre}</strong> — ${frase}` };
 }
 let resumenPieChart = null, resumenTrendChart = null;
+let objetivoChart = null;
 function renderResumenBalance(){
   const wrap = $('resumen-balance-wrap'); if (!wrap) return;
   const idsDesc = Object.entries(RESUMENES_LIVE).sort((a,b)=> b[1].cierre.localeCompare(a[1].cierre));
