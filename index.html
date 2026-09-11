@@ -11,6 +11,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- pdf.js (Mozilla), build clásico v3.11 — mismo patrón que ZAR Tactical Ledger. Corre 100% en el navegador, no sube nada a ningún servidor. Se usa sólo para autocompletar el formulario de "Ciclo de tarjeta VISA" a partir del PDF del resumen (ver extraerTextoPdfResumen). -->
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -433,6 +435,9 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
           <div>
             <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Resúmenes cargados</div>
+            <input type="file" id="rs-pdf-input" accept="application/pdf" style="display:none;" onchange="onResumenPdfSeleccionado(event)">
+            <button class="hdr-btn" style="width:100%;margin-bottom:6px;" onclick="document.getElementById('rs-pdf-input').click()">📄 Leer PDF del resumen (autocompletar)</button>
+            <div id="rs-pdf-status" style="font-size:11px;color:var(--text3);margin-bottom:10px;min-height:14px;"></div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
               <div class="sim-field" style="margin:0;"><span class="sim-lbl">Cierre</span><input class="sim-input" type="date" id="rs-cierre"></div>
               <div class="sim-field" style="margin:0;"><span class="sim-lbl">Vencimiento</span><input class="sim-input" type="date" id="rs-vencimiento"></div>
@@ -2020,6 +2025,94 @@ function renderResumenes(){
     <td style="font-variant-numeric:tabular-nums;">${fmt(r.saldo)}</td>
     <td>${i===0?'<span style="font-size:10px;font-weight:700;color:var(--blue);">ÚLTIMO</span> ':''}<button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px;" onclick="deleteResumenUI(\'${id}\')" title="Eliminar">✕</button></td>
   </tr>`).join('');
+}
+// ── Autocompletar "Ciclo de tarjeta VISA" desde el PDF del resumen ──────────────
+// pdf.js corre en el navegador, no sube nada a ningún servidor (mismo patrón que la extracción
+// de manuales de ZAR Tactical Ledger). IMPORTANTE: esto sólo PRE-LLENA cierre/vencimiento/saldo
+// en el formulario — nunca guarda solo. Pedro revisa los 3 valores y confirma tocando el botón
+// "+ Agregar resumen" de siempre (addResumenUI), igual que si los hubiera tipeado a mano.
+const MESES_ABBR_VISA = {ene:'01',feb:'02',mar:'03',abr:'04',may:'05',jun:'06',jul:'07',ago:'08',sep:'09',set:'09',oct:'10',nov:'11',dic:'12'};
+function _fechaAbbrAISO(dia, mesAbbr, anio){
+  const m = MESES_ABBR_VISA[String(mesAbbr).toLowerCase().slice(0,3)];
+  if (!m) return null;
+  const a = String(anio).length===2 ? '20'+anio : String(anio);
+  return `${a}-${m}-${String(dia).padStart(2,'0')}`;
+}
+async function extraerTextoPdfResumen(file){
+  if (!window.pdfjsLib){
+    throw new Error('La librería de lectura de PDF no cargó (revisá tu conexión a internet) — recargá la página e intentá de nuevo.');
+  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  // sólo hace falta la 1ª página — ahí está siempre el cierre/vencimiento/saldo del resumen VISA BNA
+  const page = await pdf.getPage(1);
+  const content = await page.getTextContent();
+  // pdf.js no garantiza orden visual de lectura — reconstruirlo por posición: agrupar en líneas
+  // por proximidad vertical y, dentro de cada línea, ordenar de izquierda a derecha (mismo efecto
+  // que "pdftotext -layout", que es con lo que se diseñó y probó el parser de abajo).
+  const items = content.items.map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5] }));
+  items.sort((a,b) => b.y - a.y || a.x - b.x);
+  const lineas = []; let actual = []; let lastY = null;
+  for (const it of items){
+    if (lastY === null || Math.abs(it.y - lastY) <= 3) actual.push(it);
+    else { lineas.push(actual); actual = [it]; }
+    lastY = it.y;
+  }
+  if (actual.length) lineas.push(actual);
+  return lineas.map(l => l.sort((a,b)=>a.x-b.x).map(it=>it.str).join(' ')).join('\n');
+}
+// Probado a mano (Cowork, 11/09) contra los 6 resúmenes reales de Pedro (ene-feb, mar ×2 formatos,
+// abr, jul, ago) — cubre el formato nuevo (tabla "VENCIMIENTO SALDO $ SALDO U$S...") y el viejo
+// ("VENCIMIENTO ACTUAL:"/"SALDO ACTUAL:" separados), ambos con o sin punto tras el mes abreviado.
+function parsearResumenVisa(textoCrudo){
+  const t = textoCrudo.replace(/\s+/g, ' ');
+  const out = { cierre: null, vencimiento: null, saldo: null };
+  let m = t.match(/CIERRE ACTUAL:?\s*(\d{1,2})\s*([A-Za-zé]{3,4})\.?\s*(\d{2,4})/i);
+  if (m) out.cierre = _fechaAbbrAISO(m[1], m[2], m[3]);
+  m = t.match(/VENCIMIENTO\s+SALDO\s*\$\s*SALDO\s*U\$S[\s\S]{0,250}?(\d{1,2})\s*([A-Za-zé]{3,4})\.?\s*(\d{2,4})\s+([\d.,]+)\s+([\d.,]+)/i);
+  if (m) {
+    out.vencimiento = _fechaAbbrAISO(m[1], m[2], m[3]);
+    out.saldo = parseFloat(m[4].replace(/\./g, '').replace(',', '.'));
+  } else {
+    const m2 = t.match(/VENCIMIENTO ACTUAL:?\s*(\d{1,2})\s*([A-Za-zé]{3,4})\.?\s*(\d{2,4})/i);
+    if (m2) out.vencimiento = _fechaAbbrAISO(m2[1], m2[2], m2[3]);
+    const m3 = t.match(/SALDO ACTUAL:?\s*\$\s*([\d.,]+)/i);
+    if (m3) out.saldo = parseFloat(m3[1].replace(/\./g, '').replace(',', '.'));
+  }
+  return out;
+}
+async function onResumenPdfSeleccionado(ev){
+  const file = ev.target.files[0];
+  ev.target.value = '';
+  if (!file) return;
+  const status = $('rs-pdf-status');
+  if (!status) return;
+  if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)){
+    status.textContent = '⚠️ Sólo se admiten PDF acá.';
+    status.style.color = 'var(--red)';
+    return;
+  }
+  status.textContent = 'Leyendo ' + file.name + '…';
+  status.style.color = 'var(--text3)';
+  try {
+    const texto = await extraerTextoPdfResumen(file);
+    const r = parsearResumenVisa(texto);
+    const faltantes = [];
+    if (r.cierre) $('rs-cierre').value = r.cierre; else faltantes.push('cierre');
+    if (r.vencimiento) $('rs-vencimiento').value = r.vencimiento; else faltantes.push('vencimiento');
+    if (r.saldo != null && !isNaN(r.saldo)) $('rs-saldo').value = r.saldo; else faltantes.push('saldo');
+    if (faltantes.length) {
+      status.textContent = `⚠️ No se pudo leer: ${faltantes.join(', ')}. Completá a mano lo que falte y revisá el resto antes de confirmar.`;
+      status.style.color = 'var(--amber)';
+    } else {
+      status.textContent = `✅ Leído de "${file.name}" — revisá los 3 campos y tocá "+ Agregar resumen" para confirmar.`;
+      status.style.color = 'var(--green)';
+    }
+  } catch (err) {
+    status.textContent = '⚠️ ' + err.message;
+    status.style.color = 'var(--red)';
+  }
 }
 async function addResumenUI(){
   const cierre = $('rs-cierre').value, vencimiento = $('rs-vencimiento').value, saldo = parseFloat($('rs-saldo').value);
