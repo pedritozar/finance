@@ -352,8 +352,8 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <div class="card">
             <div class="card-ttl">Deudas activas</div>
             <div id="pago-pendiente-banner" style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:var(--amber-l);border-left:3px solid var(--amber);font-size:12px;line-height:1.5;color:var(--text2);">
-              <span style="font-weight:700;color:var(--amber);">⏳ Pago de $3.200.000 realizado el 24/08/2026</span><br>
-              Los saldos de abajo son <strong>previos al pago</strong> — la tarjeta desapareció de la app BNA y todavía no hay saldo confirmado. Se actualizan cuando llegue el resumen (cierre 27/08) o la respuesta del banco.
+              <span style="font-weight:700;color:var(--green);">✅ Pago de $3.200.000 (24/08) confirmado en el resumen de agosto</span><br>
+              Saldo real post-pago: <strong>$1.752.324,38</strong> (cierre 27/08 → vto 09/09). El Plan V TNA 62,74% quedó liquidado ese mismo ciclo; el de TNA 73% sigue activo, restan 2 cuotas.
             </div>
             <table class="tbl">
               <thead><tr><th>Acreedor</th><th>Saldo</th><th>Cuota/mes</th><th>Rest.</th><th>Vto.</th><th></th></tr></thead>
@@ -1082,11 +1082,17 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'
 const COLORS = ['#0066FF','#10B981','#F59E0B','#8B5CF6','#EF4444','#06B6D4','#EC4899','#84CC16','#F97316','#6B7280'];
 
 const DEUDAS = [
-  {n:'Plan V — TNA 62.74% (última cuota, 5/6 facturada)', s:442053.44,  c:442053.44, r:1,    v:'08/2026', b:'y'},
-  {n:'Plan V — TNA 73.00% (3/6 facturadas, restan 3)',    s:557448.00,  c:185816.00, r:3,    v:'10/2026', b:'r'},
-  {n:'Otros consumos / rotativo / USD / imp.',            s:2307435.31, c:null,       r:null, v:'—',       b:'r'},
+  {n:'Plan V — TNA 73.00% (4/6 facturadas, restan 2)',    s:371632.00,  c:185816.00, r:2,    v:'10/2026', b:'r'},
+  {n:'Otros consumos / rotativo / USD / imp.',            s:1380692.38, c:null,       r:null, v:'—',       b:'r'},
 ];
 // ✅ Plan V TNA 70.89% (3 cuotas, $574.861,75/mes) — LIQUIDADO en julio/26, ya no figura como deuda activa.
+// ✅ Plan V TNA 62.74% (6 cuotas, $442.053,44/mes) — LIQUIDADO en el resumen de agosto/26 (cierre 27/08,
+// última cuota 6/6 facturada ese ciclo, confirmado por el cargo de IVA sobre interés de ese plan en el
+// detalle del resumen) — ya no figura como deuda activa.
+// 'Otros consumos' de agosto (1.380.692,38) = saldo total confirmado del resumen (1.752.324,38, cierre 27/08)
+// menos el saldo restante del Plan V 73% (371.632,00 = 2 cuotas de 185.816,00) — el resumen no desglosa el
+// capital de cada cuota Plan V por separado (sólo el interés/IVA), así que este ítem es la diferencia, no un
+// dato line-a-línea del PDF. Total real y ambos montos de Plan V sí son 100% del PDF (Cowork, 11/09).
 // Historial de saldo total deuda VISA/BNA (saneamiento) — 4 puntos reales confirmados
 // (fuente: resúmenes + changelog créditos). Hay un gap jun/inicios-jul sin resumen procesado.
 const SANEAMIENTO_HIST = [
@@ -1094,6 +1100,7 @@ const SANEAMIENTO_HIST = [
   {fecha:'30/04/2026', saldo:2903539.19},
   {fecha:'28/05/2026', saldo:4291888.41, nota:'pico'},
   {fecha:'30/07/2026', saldo:3306936.75},
+  {fecha:'27/08/2026', saldo:1752324.38, nota:'post-pago $3.2M'},
 ];
 // Reposición cartera madre — rescate de $3.200.000 (24/08/2026) para saldar VISA.
 // Objetivo FIJO = monto retirado, no la cartera total ni sus rendimientos (decisión de Pedro, 23/08).
