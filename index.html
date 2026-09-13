@@ -531,6 +531,17 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             </div>
           </div>
         </div>
+
+        <div id="credito-bm-wrap" style="display:none;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:2px;">🟢🔴 Crédito bueno vs. crédito malo — alertas de sobreapalancamiento</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:10px;">
+            Distinción de manual de economía: <strong>crédito/deuda "bueno"</strong> financia algo que genera valor o ingreso futuro (educación, inversión) —
+            <strong>crédito/deuda "malo"</strong> financia consumo que se deprecia al instante y no vuelve (ocio, streaming, ropa, delivery, "varios").
+            Se calcula sobre todo lo cargado vía "Ciclo de tarjeta" en los resúmenes con datos.
+          </div>
+          <div id="credito-bm-alert"></div>
+          <div id="credito-bm-tabla" style="margin-top:10px;"></div>
+        </div>
       </div>
     </div>
 
@@ -1306,6 +1317,9 @@ const RESUMEN_GASTOS_LISTENING = new Set();
 // "inversiones"/"finanzas" no son gasto de consumo, quedan fuera del consejo.
 const CAT_NECESARIO = new Set(['servicios', 'salud', 'transporte']);
 const CAT_DISCRECIONAL = new Set(['ropa', 'ocio', 'streaming', 'judo', 'varios']);
+// "Crédito bueno" (13/09/2026): mismo criterio que ya usa generarConsejoResumen para
+// tratar educación/inversiones/finanzas como "no es consumo" — acá se lo nombra explícito.
+const CAT_BUENA = new Set(['educacion', 'inversiones', 'finanzas']);
 
 // ── Util ──────────────────────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
@@ -2001,6 +2015,7 @@ function recalcDTI(){
   }
   // El consejo del balance por resumen usa este mismo DTI — si cambió, se repinta.
   if (typeof renderResumenBalance === 'function') renderResumenBalance();
+  if (typeof renderCreditoBuenoMalo === 'function') renderCreditoBuenoMalo();
 }
 // ── Ciclo de tarjeta: resúmenes + imputación de compras en cuotas ───────────
 // Agregado 30/08/2026 (pedido de Pedro) — porta a ZAR Finance la lógica que ya
@@ -2049,9 +2064,15 @@ async function extraerTextoPdfResumen(file){
   const page = await pdf.getPage(1);
   const content = await page.getTextContent();
   // pdf.js no garantiza orden visual de lectura — reconstruirlo por posición: agrupar en líneas
-  // por proximidad vertical y, dentro de cada línea, ordenar de izquierda a derecha (mismo efecto
-  // que "pdftotext -layout", que es con lo que se diseñó y probó el parser de abajo).
-  const items = content.items.map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5] }));
+  // por proximidad vertical y, dentro de cada línea, ordenar de izquierda a derecha. Corregido
+  // 13/09: algunos resúmenes VISA (BNA) insertan además caracteres " " sueltos DENTRO de números y
+  // fechas (ej. "1.752.32 4 ,3 8" en vez de "1.752.324,38", detectado con resumen agosto.pdf) —
+  // esos espacios "fantasma" se descartan acá, y el espacio real entre columnas se decide por la
+  // distancia horizontal real entre el fin de un ítem y el comienzo del siguiente (>1pt = espacio
+  // genuino), no por si pdf.js reportó o no un carácter " " de por medio.
+  const items = content.items
+    .filter(it => it.str.trim() !== '')
+    .map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5], w: it.width || 0 }));
   items.sort((a,b) => b.y - a.y || a.x - b.x);
   const lineas = []; let actual = []; let lastY = null;
   for (const it of items){
@@ -2060,7 +2081,16 @@ async function extraerTextoPdfResumen(file){
     lastY = it.y;
   }
   if (actual.length) lineas.push(actual);
-  return lineas.map(l => l.sort((a,b)=>a.x-b.x).map(it=>it.str).join(' ')).join('\n');
+  return lineas.map(l => {
+    const ordenado = l.slice().sort((a,b)=>a.x-b.x);
+    let out = ''; let prevEnd = null;
+    for (const it of ordenado){
+      if (prevEnd !== null && (it.x - prevEnd) > 1) out += ' ';
+      out += it.str;
+      prevEnd = it.x + it.w;
+    }
+    return out;
+  }).join('\n');
 }
 // Probado a mano (Cowork, 11/09) contra los 6 resúmenes reales de Pedro (ene-feb, mar ×2 formatos,
 // abr, jul, ago) — cubre el formato nuevo (tabla "VENCIMIENTO SALDO $ SALDO U$S...") y el viejo
@@ -2145,6 +2175,7 @@ function ensureResumenGastosListeners(){
     window._listenGastosMes(y, m, data => {
       RESUMEN_GASTOS_CACHE[id] = { y, m, gastos: data };
       renderResumenBalance();
+      renderCreditoBuenoMalo();
     });
   });
 }
@@ -2277,6 +2308,73 @@ function renderResumenBalance(){
         scales:{ x:{ stacked:true, grid:{display:false}, ticks:{font:{size:10}} },
                  y:{ stacked:true, grid:{color:'#F1F5F9'}, ticks:{font:{size:10}, callback:v=>'$'+fmtK(v)} } } }
     });
+  }
+}
+// ── Crédito bueno vs. crédito malo (agregado 13/09/2026) ────────────────────
+// Reusa la misma distinción NECESARIO/DISCRECIONAL (CAT_NECESARIO/CAT_DISCRECIONAL,
+// definidas arriba) que ya usa generarConsejoResumen — no inventa una taxonomía
+// paralela. "Bueno" = CAT_BUENA (educación/inversiones/finanzas, ya se leía como
+// "no es consumo"). "Malo" = CAT_DISCRECIONAL (consumo que se deprecia al instante
+// y no genera retorno — ropa, ocio, streaming, judo, varios). El resto (necesario +
+// alimentación) queda como "neutro". Se agrega sobre TODOS los resúmenes con datos,
+// no sólo el último — para ver el patrón de fondo, no un mes suelto.
+function renderCreditoBuenoMalo(){
+  const wrap = $('credito-bm-wrap'); if (!wrap) return;
+  const ids = Object.keys(RESUMENES_LIVE);
+  const agregado = {}; let total = 0; let huboDatos = false;
+  ids.forEach(id => {
+    const comp = composicionResumen(id);
+    if (!comp || !comp.total) return;
+    huboDatos = true;
+    total += comp.total;
+    Object.entries(comp.porCat).forEach(([c,v]) => { agregado[c] = (agregado[c]||0) + v; });
+  });
+  if (!huboDatos || total <= 0){ wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+
+  const sum = cats => cats.reduce((s,c) => s + (agregado[c]||0), 0);
+  const buena = sum([...CAT_BUENA]);
+  const mala = sum([...CAT_DISCRECIONAL]);
+  const neutra = Math.max(0, total - buena - mala);
+  const pctMala = mala / total * 100;
+  const pctBuena = buena / total * 100;
+  const pctNeutra = neutra / total * 100;
+
+  let nivel, col, bg, verdicto;
+  if (pctMala >= 40){
+    nivel = '🔴 Alerta alta'; col = 'var(--red)'; bg = 'var(--red-l)';
+    verdicto = `<strong>${pctMala.toFixed(0)}%</strong> de todo lo financiado en cuotas es crédito malo — consumo que se deprecia al instante (ocio, streaming, ropa, delivery, "varios") y no te devuelve nada. Financiarlo a la TNA de la tarjeta (ver Deudas activas) es el "sobreapalancamiento sin sentido" del que hablan los manuales: pagás intereses altos por algo que ya no existe cuando llega el resumen.`;
+  } else if (pctMala >= 20){
+    nivel = '🟡 Moderado'; col = 'var(--amber)'; bg = 'var(--amber-l)';
+    verdicto = `<strong>${pctMala.toFixed(0)}%</strong> de lo financiado es crédito malo (consumo que se deprecia). No es crítico todavía, pero es la parte a recortar antes de sumar cuotas nuevas.`;
+  } else {
+    nivel = '🟢 Saludable'; col = 'var(--green)'; bg = 'var(--green-l)';
+    verdicto = `Sólo <strong>${pctMala.toFixed(0)}%</strong> de lo financiado es crédito malo — la mayoría de lo que pagás en cuotas es necesario o, mejor todavía, crédito bueno (financia algo que te genera valor).`;
+  }
+  const alertEl = $('credito-bm-alert');
+  if (alertEl){
+    alertEl.innerHTML = `<div style="padding:10px 12px;border-radius:8px;background:${bg};border-left:3px solid ${col};font-size:12px;line-height:1.5;color:var(--text2);">
+      <strong style="color:${col};">${nivel}</strong> — ${verdicto}
+    </div>`;
+  }
+
+  const filaBucket = (emoji, nombre, monto, pct, col, cats) => {
+    const detalle = cats.filter(c => agregado[c] > 0).sort((a,b)=>agregado[b]-agregado[a])
+      .map(c => `${CM[c]?.e||''} ${CM[c]?.n||c}: ${fmt(agregado[c])}`).join(' · ');
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--border2);">
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;">
+        <span style="color:${col};">${emoji} ${nombre}</span>
+        <span>${fmt(monto)} <span style="color:var(--text3);font-weight:400;">(${pct.toFixed(0)}%)</span></span>
+      </div>
+      ${detalle ? `<div style="font-size:10px;color:var(--text3);margin-top:3px;">${detalle}</div>` : ''}
+    </div>`;
+  };
+  const tablaEl = $('credito-bm-tabla');
+  if (tablaEl){
+    tablaEl.innerHTML =
+      filaBucket('🟢', 'Crédito bueno (educación / inversión)', buena, pctBuena, 'var(--green)', [...CAT_BUENA]) +
+      filaBucket('⚪', 'Neutro / necesario', neutra, pctNeutra, 'var(--text2)', ['alimentacion', ...CAT_NECESARIO]) +
+      filaBucket('🔴', 'Crédito malo (consumo que se deprecia)', mala, pctMala, 'var(--red)', [...CAT_DISCRECIONAL]);
   }
 }
 function renderPendientes(){
