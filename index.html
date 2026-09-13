@@ -295,6 +295,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <div class="card-ttl">Gastos por categoría</div>
           <div style="position:relative;height:200px;"><canvas id="pie-ch"></canvas></div>
           <div id="pie-leg" style="margin-top:12px;display:flex;flex-direction:column;gap:5px;"></div>
+          <div id="pie-veredicto" style="margin-top:10px;"></div>
         </div>
         <div class="card">
           <div class="card-ttl">Ingresos vs Gastos — últimos 6 meses</div>
@@ -530,6 +531,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
               <div id="resumen-trend-note" style="font-size:10px;color:var(--text3);margin-top:6px;"></div>
             </div>
           </div>
+          <div id="resumen-veredicto" style="margin-top:14px;"></div>
         </div>
 
         <div id="credito-bm-wrap" style="display:none;">
@@ -541,6 +543,22 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           </div>
           <div id="credito-bm-alert"></div>
           <div id="credito-bm-tabla" style="margin-top:10px;"></div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);margin:16px 0 14px;"></div>
+        <div id="boveda-export-wrap">
+          <div style="font-size:12px;font-weight:700;margin-bottom:2px;">🗄️ Bóveda histórica — exportar año completo</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:10px;">
+            Cada resumen con datos se archiva solo, en segundo plano, en una bóveda de Firebase separada por año (no toca el
+            nodo operativo de resúmenes). Este botón junta lo archivado del año elegido -- composición, veredicto y los
+            gráficos tal cual están en pantalla ahora mismo -- en un archivo para descargar. Todavía no arma el Excel final
+            (eso es el siguiente paso); por ahora es el respaldo / doble control.
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <select class="sim-input" id="boveda-export-year" style="width:auto;"></select>
+            <button class="hdr-btn" onclick="exportarAnioCompleto()">📦 Exportar año completo</button>
+          </div>
+          <div id="boveda-export-result" style="font-size:11px;color:var(--text3);"></div>
         </div>
       </div>
     </div>
@@ -642,10 +660,40 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">
           Compara cuánto subieron tus gastos fijos de vivienda vs. lo que subió el IPC en el mismo período. Datos parciales — completar meses faltantes con capturas de comprobantes.
         </div>
+        <div style="position:relative;height:190px;margin-bottom:14px;"><canvas id="viv-ch"></canvas></div>
         <table class="tbl">
-          <thead><tr><th>Mes</th><th>Alquiler</th><th>Δ Alquiler</th><th>Expensas</th><th>Δ Expensas</th><th>IPC INDEC (mes)</th><th>IPC CABA (mes)</th></tr></thead>
+          <thead><tr><th>Mes</th><th>Alquiler</th><th>Δ Alquiler</th><th>Expensas</th><th>Δ Expensas</th><th>IPC INDEC (mes)</th><th>IPC CABA (mes)</th><th></th></tr></thead>
           <tbody id="viv-tb"></tbody>
         </table>
+      </div>
+      <div class="card">
+        <div class="card-ttl">➕ Cargar / editar mes (Alquiler · Expensas · IPC)</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:10px;">
+          Se guarda en Firebase (nodo <code>vivienda/{uid}</code>, aparte de todo lo demás) -- ya no hace falta editar código para sumar un mes o completar un dato que faltaba. Si el mes ya existe, lo pisa con lo que cargues acá (dejá un campo vacío para no tocarlo... en realidad si lo dejás vacío se guarda vacío, así que completá también los que ya tenías si sólo querés agregar un dato nuevo al mismo mes).
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Mes</span><input class="sim-input" type="month" id="viv-mes"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Alquiler ARS</span><input class="sim-input" type="number" id="viv-alquiler" placeholder="vacío = falta dato"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Expensas ARS</span><input class="sim-input" type="number" id="viv-expensas" placeholder="vacío = falta dato"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">IPC INDEC del mes (%)</span><input class="sim-input" type="number" id="viv-ipc-indec" step="0.1" placeholder="vacío = falta dato"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">IPC CABA del mes (%)</span><input class="sim-input" type="number" id="viv-ipc-caba" step="0.1" placeholder="vacío = falta dato"></div>
+        </div>
+        <button class="hdr-btn pri" style="width:100%;" onclick="guardarMesVivienda()">Guardar mes</button>
+        <div id="viv-form-status" style="font-size:11px;margin-top:8px;color:var(--text3);"></div>
+      </div>
+      <div class="card">
+        <div class="card-ttl">📈 ICL (BCRA) — Índice para Contratos de Locación</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:10px;">
+          Serie oficial del Banco Central (Ley 27.551), consultada en vivo desde acá -- que tu contrato use ICL como referencia de ajuste lo confirmaste vos. Esto NO calcula tu alquiler nuevo solo (para eso hace falta la fecha de inicio y el monto base del contrato, todavía pendiente de cargar) -- por ahora sirve para ver cuánto varió el índice en el período que elijas y cruzarlo contra lo que te ajuste el propietario. Consulta en vivo al BCRA desde el navegador -- si falla acá (CORS u otro corte de red propio del BCRA), revisá el valor directo en bcra.gob.ar o en dolarito.ar/indices/indice-icl.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:10px;">
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Desde</span><input class="sim-input" type="date" id="icl-desde"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Hasta</span><input class="sim-input" type="date" id="icl-hasta"></div>
+          <button class="hdr-btn" onclick="consultarICL()">Consultar</button>
+        </div>
+        <div id="icl-result" style="font-size:12px;color:var(--text2);line-height:1.6;"></div>
       </div>
       <div class="card" id="viv-alert"></div>
       <div class="card">
@@ -864,6 +912,21 @@ window._deleteTx = async (type, y, m, id) => {
 // listener para que las deudas nuevas del militar se sumen en vivo al DTI real.
 window._listenDeudas = cb => {
   onValue(ref(db, `deudas/${uid}`), s => cb(s.val() || {}));
+};
+
+// ── Vivienda / Alquileres (nodo aparte, agregado 13/09/2026 tarde) ──────────
+// Migrado del array hardcodeado VIVIENDA_HIST -- cada mes vivía en el código y
+// había que editarlo a mano (yo) cada vez que llegaba un comprobante. Ahora es
+// un nodo propio en Firebase, clave YYYY-MM (mismo orden cronológico que
+// alfabético, sin falta ordenar por fecha real).
+window._listenVivienda = cb => {
+  onValue(ref(db, `vivienda/${uid}`), s => cb(s.val() || {}));
+};
+window._setViviendaMes = async (key, data) => {
+  await set(ref(db, `vivienda/${uid}/${key}`), data);
+};
+window._deleteViviendaMes = async key => {
+  await remove(ref(db, `vivienda/${uid}/${key}`));
 };
 
 // ── Ciclo de tarjeta VISA — resúmenes (cierre/vencimiento/saldo) ────────────
@@ -1126,16 +1189,90 @@ const MADRE_REPO_HIST = [
   {fecha:'24/08/2026', repuesto:0, nota:'Retiro del rescate — arranca la reposición'},
 ];
 // Historial Alquiler / Expensas (fuente: comprobantes + changelog) + IPC oficial mensual
-const VIVIENDA_HIST = [
-  {mes:'Feb 2026', alquiler:700000,  expensas:null,      ipcIndec:2.9, ipcCaba:2.6},
-  {mes:'Mar 2026', alquiler:null,    expensas:380540.44, ipcIndec:3.4, ipcCaba:3.0},
-  {mes:'Abr 2026', alquiler:null,    expensas:null,      ipcIndec:2.6, ipcCaba:2.5},
-  {mes:'May 2026', alquiler:null,    expensas:378618.44, ipcIndec:2.1, ipcCaba:2.1},
-  {mes:'Jun 2026', alquiler:767000,  expensas:408654,    ipcIndec:1.9, ipcCaba:1.8},
-  {mes:'Jul 2026', alquiler:861000,  expensas:518000,    ipcIndec:2.1, ipcCaba:2.9},
-  {mes:'Ago 2026', alquiler:867000,  expensas:550619.44, ipcIndec:null, ipcCaba:null},
-  {mes:'Set 2026', alquiler:867000,  expensas:519752.44, ipcIndec:null, ipcCaba:null},
-];
+// -- migrado a Firebase (13/09/2026, tarde). Este objeto queda SOLO como semilla:
+// se usa una única vez, la primera vez que corre esta versión con el nodo
+// vivienda/{uid} todavía vacío (ver manejarViviendaLive), para no perder el
+// historial real ya cargado. Después de esa siembra inicial, Firebase manda y
+// este objeto no se vuelve a leer -- cargar/editar meses se hace desde el
+// formulario en la pestaña Vivienda, no editando este archivo.
+const VIVIENDA_HIST_SEED = {
+  '2026-02': {alquiler:700000,  expensas:null,      ipcIndec:2.9,  ipcCaba:2.6},
+  '2026-03': {alquiler:null,    expensas:380540.44, ipcIndec:3.4,  ipcCaba:3.0},
+  '2026-04': {alquiler:null,    expensas:null,      ipcIndec:2.6,  ipcCaba:2.5},
+  '2026-05': {alquiler:null,    expensas:378618.44, ipcIndec:2.1,  ipcCaba:2.1},
+  '2026-06': {alquiler:767000,  expensas:408654,    ipcIndec:1.9,  ipcCaba:1.8},
+  '2026-07': {alquiler:861000,  expensas:518000,    ipcIndec:2.1,  ipcCaba:2.9},
+  '2026-08': {alquiler:867000,  expensas:550619.44, ipcIndec:null, ipcCaba:null},
+  '2026-09': {alquiler:867000,  expensas:519752.44, ipcIndec:null, ipcCaba:null}
+};
+const MESES_ABR_VIV = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Set','Oct','Nov','Dic'];
+function viviendaKeyToLabel(key){
+  const [y,m] = key.split('-');
+  return `${MESES_ABR_VIV[(+m)-1]||m} ${y}`;
+}
+let viviendaSeedIntentada = false;
+function manejarViviendaLive(d){
+  VIVIENDA_LIVE = d || {};
+  if (!viviendaSeedIntentada){
+    viviendaSeedIntentada = true;
+    if (!Object.keys(VIVIENDA_LIVE).length && window._setViviendaMes){
+      Object.entries(VIVIENDA_HIST_SEED).forEach(([k,v]) => window._setViviendaMes(k, v).catch(()=>{}));
+      return; // el propio set() dispara onValue de nuevo con los datos ya sembrados
+    }
+  }
+  renderVivienda();
+}
+async function guardarMesVivienda(){
+  const st = $('viv-form-status');
+  const mesEl = $('viv-mes');
+  const key = mesEl && mesEl.value;
+  if (!key){ if (st) st.textContent = 'Elegí un mes primero.'; return; }
+  const num = id => { const v = $(id)?.value; return (v === '' || v == null) ? null : +v; };
+  const data = { alquiler: num('viv-alquiler'), expensas: num('viv-expensas'), ipcIndec: num('viv-ipc-indec'), ipcCaba: num('viv-ipc-caba') };
+  try {
+    await window._setViviendaMes(key, data);
+    if (st) st.textContent = `Guardado: ${viviendaKeyToLabel(key)}.`;
+    ['viv-alquiler','viv-expensas','viv-ipc-indec','viv-ipc-caba'].forEach(id => { const e = $(id); if (e) e.value = ''; });
+  } catch (err){
+    console.error(err);
+    if (st) st.textContent = 'Error al guardar -- revisá la consola.';
+  }
+}
+async function borrarMesVivienda(key){
+  if (!window._deleteViviendaMes) return;
+  try { await window._deleteViviendaMes(key); } catch (err){ console.error(err); }
+}
+async function consultarICL(){
+  const desdeEl = $('icl-desde'), hastaEl = $('icl-hasta'), resEl = $('icl-result');
+  const desde = desdeEl && desdeEl.value, hasta = hastaEl && hastaEl.value;
+  if (!desde || !hasta){ if (resEl) resEl.textContent = 'Elegí un rango de fechas.'; return; }
+  if (resEl) resEl.textContent = 'Consultando BCRA…';
+  try {
+    const url = `https://api.bcra.gob.ar/estadisticas/v4.0/Monetarias/40?desde=${desde}&hasta=${hasta}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const json = await r.json();
+    const detalle = (json.results && json.results[0] && json.results[0].detalle) || [];
+    if (!detalle.length){ if (resEl) resEl.textContent = 'El BCRA no devolvió datos para ese rango.'; return; }
+    const ordenado = detalle.slice().sort((a,b) => a.fecha.localeCompare(b.fecha));
+    const primero = ordenado[0], ultimo = ordenado[ordenado.length - 1];
+    const variacion = primero.valor > 0 ? ((ultimo.valor / primero.valor - 1) * 100) : 0;
+    if (resEl){
+      resEl.innerHTML = `ICL ${fD(primero.fecha)}: <strong>${primero.valor.toFixed(2)}</strong> → ICL ${fD(ultimo.fecha)}: <strong>${ultimo.valor.toFixed(2)}</strong> — variación del período: <strong style="color:${variacion>=0?'var(--red)':'var(--green)'};">${variacion>=0?'+':''}${variacion.toFixed(2)}%</strong>`;
+    }
+  } catch (err){
+    console.error(err);
+    if (resEl) resEl.innerHTML = 'No se pudo consultar el BCRA desde acá (puede ser CORS o un corte del propio servicio del banco) -- revisá el valor directo en <a href="https://www.bcra.gob.ar/" target="_blank" rel="noopener">bcra.gob.ar</a> o en <a href="https://www.dolarito.ar/indices/indice-icl" target="_blank" rel="noopener">dolarito.ar</a>.';
+  }
+}
+function initICLDefaults(){
+  const desdeEl = $('icl-desde'), hastaEl = $('icl-hasta');
+  if (!desdeEl || !hastaEl) return;
+  const hoy = new Date();
+  const haceUnAnio = new Date(hoy.getFullYear()-1, hoy.getMonth(), hoy.getDate());
+  if (!hastaEl.value) hastaEl.value = hoy.toISOString().split('T')[0];
+  if (!desdeEl.value) desdeEl.value = haceUnAnio.toISOString().split('T')[0];
+}
 // Alquiler agosto ($867.000, 01/08/2026) cargado 03/09 desde el rollup mensual
 // de Notion ("Presupuesto" → Todos los gastos, fila "Renta") — cierra el hueco
 // que quedaba pendiente desde el 28/08. Sin comprobante de WhatsApp todavía
@@ -1166,7 +1303,8 @@ const OSDE_HIST = [
 function renderVivienda(){
   const tb = $('viv-tb'); if(!tb) return;
   let lastAlq = null, lastExp = null;
-  const rows = VIVIENDA_HIST.map(r=>{
+  const entradas = Object.entries(VIVIENDA_LIVE).sort((a,b) => a[0].localeCompare(b[0]));
+  const rows = entradas.map(([key, r])=>{
     let dAlq = '—', dExp = '—';
     if (r.alquiler != null) {
       if (lastAlq != null) { const p=(r.alquiler/lastAlq-1)*100; dAlq = (p>=0?'+':'')+p.toFixed(1)+'%'; }
@@ -1177,16 +1315,44 @@ function renderVivienda(){
       lastExp = r.expensas;
     }
     return `<tr>
-      <td>${r.mes}</td>
+      <td>${viviendaKeyToLabel(key)}</td>
       <td>${r.alquiler!=null?fmt(r.alquiler):'<span style="color:var(--text3);">falta dato</span>'}</td>
       <td style="color:${dAlq.startsWith('+')?'var(--red)':'var(--text3)'};">${dAlq}</td>
       <td>${r.expensas!=null?fmt(r.expensas):'<span style="color:var(--text3);">falta dato</span>'}</td>
       <td style="color:${dExp.startsWith('+')?'var(--red)':'var(--text3)'};">${dExp}</td>
       <td>${r.ipcIndec!=null?r.ipcIndec.toFixed(1)+'%':'<span style="color:var(--text3);">—</span>'}</td>
       <td>${r.ipcCaba!=null?r.ipcCaba.toFixed(1)+'%':'<span style="color:var(--text3);">—</span>'}</td>
+      <td><button class="hdr-btn" style="padding:2px 8px;font-size:11px;" onclick="borrarMesVivienda('${key}')">✕</button></td>
     </tr>`;
   });
-  tb.innerHTML = rows.join('');
+  tb.innerHTML = rows.join('') || `<tr><td colspan="8" style="color:var(--text3);font-size:12px;">Sin meses cargados todavía.</td></tr>`;
+
+  // Gráfico de seguimiento Alquiler/Expensas (agregado 13/09/2026, tarde) -- mismo
+  // patrón visual que el chart de OSDE (línea, spanGaps para saltar meses sin dato).
+  const vivCv = $('viv-ch');
+  if (vivCv) {
+    if (viviendaChart) viviendaChart.destroy();
+    if (!entradas.length) {
+      vivCv.style.display = 'none';
+    } else {
+      vivCv.style.display = '';
+      viviendaChart = new Chart(vivCv.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: entradas.map(([k]) => viviendaKeyToLabel(k)),
+          datasets: [
+            { label: 'Alquiler', data: entradas.map(([,r]) => r.alquiler), borderColor:'#0066FF', backgroundColor:'#0066FF18', borderWidth:2, tension:0.25, fill:true, pointRadius:4, spanGaps:true },
+            { label: 'Expensas', data: entradas.map(([,r]) => r.expensas), borderColor:'#F59E0B', borderWidth:2, borderDash:[5,4], pointRadius:3, fill:false, spanGaps:true }
+          ]
+        },
+        options: { responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:10}},
+            tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y!=null?fmt(c.parsed.y):'sin dato'}`}} },
+          scales:{ x:{grid:{display:false},ticks:{font:{size:10}}},
+                   y:{grid:{color:'#F1F5F9'},ticks:{font:{size:10},callback:v=>'$'+fmtK(v)}} } }
+      });
+    }
+  }
   const stb = $('serv-tb');
   if (stb) {
     stb.innerHTML = SERVICIOS_HIST.map(s=>`<tr><td>${s.n}</td><td>${fmt(s.monto)}</td><td>${s.fecha}</td><td style="color:var(--text3);">${s.nota||'—'}</td></tr>`).join('');
@@ -1212,6 +1378,7 @@ function renderVivienda(){
 }
 
 let osdeChart=null;
+let viviendaChart=null;
 function renderOsde(){
   const cv = $('osde-ch');
   const tb = $('osde-tb');
@@ -1297,6 +1464,7 @@ const S = { type:'g', cur:'ARS', cat:null, year:'', month:'', data:{gastos:{},in
 let pieChart, barChart;
 let DEUDAS_LIVE = {}; // deudas/{uid}/ desde Firebase — cargadas por ZAR Tactical Ledger
 let RESUMENES_LIVE = {}; // tarjeta/{uid}/resumenes desde Firebase — compartido con ZAR Tactical Ledger
+let VIVIENDA_LIVE = {}; // vivienda/{uid} desde Firebase — migrado del array hardcodeado VIVIENDA_HIST (13/09/2026, tarde)
 let PENDIENTES_LIVE = {}; // comprasPendientes/{uid} — compras posteriores al último cierre cargado
 let OBJETIVO_LIVE = null; // objetivos/{uid} — un solo objetivo activo (Fase 1)
 let APORTES_OBJETIVO_LIVE = {}; // objetivos/{uid}/aportes — historial real de aportes cargados
@@ -1630,6 +1798,7 @@ document.addEventListener('DOMContentLoaded', () => {
   safe(renderInvBar, 'renderInvBar');
   safe(renderCarteraHist, 'renderCarteraHist');
   safe(renderVivienda, 'renderVivienda');
+  safe(initICLDefaults, 'initICLDefaults');
   safe(renderSaneamiento, 'renderSaneamiento');
   safe(renderReposicionMadre, 'renderReposicionMadre');
   safe(renderObjetivo, 'renderObjetivo');
@@ -1681,6 +1850,13 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     document.addEventListener('fb-ok', () => {
       if (window._listenCarteraHist) window._listenCarteraHist(h => { CARTERA_HIST_LIVE = h || {}; renderCarteraHist(); guardarSnapshotCarteraSiNuevo(); });
+    });
+  }
+  if (window._listenVivienda) {
+    window._listenVivienda(manejarViviendaLive);
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenVivienda) window._listenVivienda(manejarViviendaLive);
     });
   }
 
@@ -1844,6 +2020,50 @@ function renderReposicionMadre(){
     : `Arranca el ${ultimo.fecha}. ${ultimo.nota||''}`;
 }
 
+// ── Veredicto del gasto general del mes (agregado 13/09/2026, tarde) ───────
+// Pedido de Pedro: migrar el mismo concepto del "veredicto" (puteada/felicitación
+// según % de gasto discrecional) de Crédito·DTI a la torta GENERAL del Dashboard
+// -- pero ahí la base es distinta: TODO el gasto ARS del mes que se está mirando
+// (efectivo + débito + tarjeta), no sólo lo financiado en cuotas vía "Ciclo de
+// tarjeta". Reusa el mismo criterio CAT_NECESARIO/CAT_DISCRECIONAL/CAT_BUENA y
+// los mismos 3 umbrales (<20% sano, 20-40% moderado, ≥40% alto) que ya usa todo
+// el dashboard -- pero con letra propia, porque acá no hay "financiado"/"cuotas"/
+// "TNA" (puede ser plata que salió del bolsillo en efectivo).
+const VEREDICTO_GASTO_ROJO = [
+  m => `Boludo, el ${m}% de lo que gastaste este mes fue puro gustito. A este ritmo no ahorrás un carajo.`,
+  m => `${m}% del mes se te fue en joda. Así el sueldo se te escapa de las manos, no hay VISA que te salve de esto.`,
+  m => `Un ${m}% de este mes fue a pavadas. Cortala un rato y mirá para dónde se te va la guita.`
+];
+const VEREDICTO_GASTO_AMARILLO = [
+  m => `${m}% del mes en gustitos -- no es un desastre, pero es zona de alerta antes de que se te vaya de mambo.`,
+  m => `Vas con ${m}% en discrecional este mes. Todavía manejable, pero vigilalo.`
+];
+const VEREDICTO_GASTO_VERDE = [
+  m => `Bien ahí -- sólo ${m}% de este mes fue en gustitos. Así se cuida la plata.`,
+  m => `${m}% en consumo discrecional este mes. Disciplina real -- seguí así.`
+];
+function generarVeredictoGastoGeneral(bc, seed){
+  const total = Object.values(bc).reduce((s,v)=>s+v, 0);
+  if (total <= 0) return null;
+  let malo = 0;
+  Object.entries(bc).forEach(([c,v]) => { if (CAT_DISCRECIONAL.has(c)) malo += v; });
+  const pct = (malo / total * 100);
+  const pctStr = pct.toFixed(0);
+  let banco, col, bg, emoji;
+  if (pct >= 40){ banco = VEREDICTO_GASTO_ROJO; col = 'var(--red)'; bg = 'var(--red-l)'; emoji = '🔴'; }
+  else if (pct >= 20){ banco = VEREDICTO_GASTO_AMARILLO; col = 'var(--amber)'; bg = 'var(--amber-l)'; emoji = '🟡'; }
+  else { banco = VEREDICTO_GASTO_VERDE; col = 'var(--green)'; bg = 'var(--green-l)'; emoji = '🟢'; }
+  let idx;
+  if (seed){
+    let h = 0; const s = String(seed);
+    for (let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) >>> 0; }
+    idx = h % banco.length;
+  } else {
+    idx = Math.floor(Math.random()*banco.length);
+  }
+  const msg = banco[idx](pctStr);
+  return { col, bg, html: `${emoji} ${msg}` };
+}
 function updatePie(gas){
   const bc={};
   gas.filter(e=>e.moneda==='ARS').forEach(e=>{bc[e.categoria]=(bc[e.categoria]||0)+e.monto;});
@@ -1851,13 +2071,20 @@ function updatePie(gas){
   pieChart.data.labels=sorted.map(([k])=>CM[k]?.n||k);
   pieChart.data.datasets[0].data=sorted.map(([,v])=>v);
   pieChart.update();
-  const leg=$('pie-leg'); if(!leg) return;
-  leg.innerHTML=sorted.slice(0,6).map(([k,v],i)=>
-    `<div style="display:flex;align-items:center;gap:8px;font-size:12px;">
-      <span style="width:9px;height:9px;border-radius:2px;background:${COLORS[i]};flex-shrink:0;"></span>
-      <span style="flex:1;color:var(--text2);">${CM[k]?.n||k}</span>
-      <span style="font-weight:600;font-variant-numeric:tabular-nums;">${fmt(v)}</span></div>`
-  ).join('');
+  const leg=$('pie-leg');
+  if (leg){
+    leg.innerHTML=sorted.slice(0,6).map(([k,v],i)=>
+      `<div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+        <span style="width:9px;height:9px;border-radius:2px;background:${COLORS[i]};flex-shrink:0;"></span>
+        <span style="flex:1;color:var(--text2);">${CM[k]?.n||k}</span>
+        <span style="font-weight:600;font-variant-numeric:tabular-nums;">${fmt(v)}</span></div>`
+    ).join('');
+  }
+  const veredictoEl = $('pie-veredicto');
+  if (veredictoEl){
+    const veredicto = generarVeredictoGastoGeneral(bc, `${S.year}-${S.month}`);
+    veredictoEl.innerHTML = veredicto ? `<div style="padding:10px 12px;border-radius:8px;background:${veredicto.bg};border-left:3px solid ${veredicto.col};font-size:11px;line-height:1.5;font-weight:600;color:var(--text);">${veredicto.html}</div>` : '';
+  }
 }
 
 async function loadHist(){
@@ -2016,6 +2243,9 @@ function recalcDTI(){
   // El consejo del balance por resumen usa este mismo DTI — si cambió, se repinta.
   if (typeof renderResumenBalance === 'function') renderResumenBalance();
   if (typeof renderCreditoBuenoMalo === 'function') renderCreditoBuenoMalo();
+  // Proyección DTI (13/09/2026) — ahora se deriva de CUO_TOT/DEUDAS_LIVE, así que
+  // se repinta sola cada vez que el DTI cambia (nueva deuda, cuota pagada, etc.).
+  if (typeof renderDTIProj === 'function') renderDTIProj();
 }
 // ── Ciclo de tarjeta: resúmenes + imputación de compras en cuotas ───────────
 // Agregado 30/08/2026 (pedido de Pedro) — porta a ZAR Finance la lógica que ya
@@ -2242,6 +2472,76 @@ function generarConsejoResumen(comp, dti){
   }
   return { col, bg, html:`${emoji} <strong>${pct.toFixed(0)}%</strong> de este resumen fue a <strong>${nombre}</strong> — ${frase}` };
 }
+// ── Veredicto del resumen — feedback con personalidad (agregado 13/09/2026) ─
+// Mismo criterio de "malo" que renderCreditoBuenoMalo (CAT_DISCRECIONAL) pero
+// aplicado al ULTIMO resumen puntual, no al acumulado historico. Pedido de
+// Pedro: reto con lenguaje fuerte si el % de consumo discrecional financiado
+// en ESE resumen es alto, felicitacion si es bajo -- mismos 3 umbrales que ya
+// usa todo el dashboard (<20% sano, 20-40% moderado, >=40% alto). Banco de
+// varias frases por nivel, elegida al azar, para que no sea siempre la misma.
+const VEREDICTO_ROJO = [
+  m => `Boludo, te fumaste el ${m}% de este resumen en pavadas. A la tasa que te cobra el banco, estas financiando joda, no vida.`,
+  m => `${m}% en consumo que se evapora al toque. Dejate de cagarte solo -- la timba a la TNA de esta tarjeta no perdona a nadie.`,
+  m => `Un ${m}% de este resumen en gustitos financiados. Asi no se construye un carajo, che -- cortala.`
+];
+const VEREDICTO_AMARILLO = [
+  m => `${m}% en consumo discrecional financiado -- no es un desastre, pero vigilalo antes de que se te vaya de mambo.`,
+  m => `${m}% en gustitos este resumen. Todavia manejable, pero es la zona donde despues te quejas de la tarjeta.`
+];
+const VEREDICTO_VERDE = [
+  m => `Bien ahi -- solo el ${m}% de este resumen fue en gustitos. Asi se maneja la joda, sin financiar boludeces.`,
+  m => `${m}% en consumo discrecional. Disciplina de verdad -- seguí asi y la tarjeta deja de ser un problema.`
+];
+function generarVeredictoResumen(comp, seed){
+  if (!comp || comp.total <= 0) return null;
+  let malo = 0;
+  Object.entries(comp.porCat).forEach(([c,v]) => { if (CAT_DISCRECIONAL.has(c)) malo += v; });
+  const pct = (malo / comp.total * 100);
+  const pctStr = pct.toFixed(0);
+  let banco, col, bg, emoji;
+  if (pct >= 40){ banco = VEREDICTO_ROJO; col = 'var(--red)'; bg = 'var(--red-l)'; emoji = '🔴'; }
+  else if (pct >= 20){ banco = VEREDICTO_AMARILLO; col = 'var(--amber)'; bg = 'var(--amber-l)'; emoji = '🟡'; }
+  else { banco = VEREDICTO_VERDE; col = 'var(--green)'; bg = 'var(--green-l)'; emoji = '🟢'; }
+  // Con seed (id del resumen) la frase queda fija para siempre -- necesario para
+  // que lo que se archiva en la bóveda (agregado 13/09/2026, tarde) no cambie
+  // cada vez que se recalcula. Sin seed, mantiene el azar de antes.
+  let idx;
+  if (seed){
+    let h = 0; const s = String(seed);
+    for (let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) >>> 0; }
+    idx = h % banco.length;
+  } else {
+    idx = Math.floor(Math.random()*banco.length);
+  }
+  const msg = banco[idx](pctStr);
+  return { col, bg, html: `${emoji} ${msg}` };
+}
+
+// ── Bóveda histórica (Firebase) — agregado 13/09/2026, tarde ────────────────
+// Pedido de Pedro: archivo permanente multi-año, APARTE del nodo operativo
+// tarjeta/{uid}/resumenes (que sigue siendo el compartido con el militar).
+// Se puebla sola en segundo plano cada vez que se renderiza Crédito·DTI --
+// mismo cálculo que ya hace renderCreditoBuenoMalo para el agregado -- sin
+// que Pedro tenga que apretar nada. Estructura con capa de tipo de crédito
+// desde ya (aunque hoy sólo exista VISA) para poder sumar, el día de mañana,
+// hipoteca o crédito personal sin migrar nada: boveda/{uid}/{año}/{tipo}/{id}.
+function guardarEnBoveda(id, r, comp){
+  if (!r || !r.cierre || !comp || !comp.total) return;
+  const year = String(r.cierre).slice(0,4);
+  if (!/^\d{4}$/.test(year)) return;
+  let malo = 0;
+  Object.entries(comp.porCat).forEach(([c,v]) => { if (CAT_DISCRECIONAL.has(c)) malo += v; });
+  const pctDiscrecional = comp.total > 0 ? (malo / comp.total * 100) : 0;
+  const nivel = pctDiscrecional >= 40 ? 'rojo' : (pctDiscrecional >= 20 ? 'amarillo' : 'verde');
+  const veredicto = generarVeredictoResumen(comp, id);
+  update(ref(db, `boveda/${uid}/${year}/visa/${id}`), {
+    tipo: 'visa', cierre: r.cierre, vencimiento: r.vencimiento || null,
+    saldo: r.saldo != null ? +r.saldo : null, total: comp.total, porCat: comp.porCat,
+    pctDiscrecional: Math.round(pctDiscrecional * 10) / 10, nivel,
+    veredictoHtml: veredicto ? veredicto.html : null,
+    actualizado: new Date().toISOString()
+  }).catch(()=>{});
+}
 let resumenPieChart = null, resumenTrendChart = null;
 let objetivoChart = null;
 function renderResumenBalance(){
@@ -2256,9 +2556,11 @@ function renderResumenBalance(){
   if (pieTtl) pieTtl.textContent = `Composición del resumen de cierre ${fD(ultimoR.cierre)}`;
 
   if (resumenPieChart){ resumenPieChart.destroy(); resumenPieChart = null; }
+  const veredictoEl = $('resumen-veredicto');
   if (!comp || !comp.total){
     if (pieCv) pieCv.style.display = 'none';
     if (consejoEl) consejoEl.innerHTML = `<div style="font-size:11px;color:var(--text3);margin-top:8px;">Sin compras registradas todavía vía "Ciclo de tarjeta" para este resumen. Cargá una compra en cuotas o un gasto con tarjeta arriba para ver el balance acá.</div>`;
+    if (veredictoEl) veredictoEl.innerHTML = '';
   } else {
     if (pieCv){
       pieCv.style.display = '';
@@ -2275,6 +2577,10 @@ function renderResumenBalance(){
     const consejo = generarConsejoResumen(comp, dti);
     if (consejoEl && consejo){
       consejoEl.innerHTML = `<div style="margin-top:8px;padding:9px 11px;border-radius:8px;background:${consejo.bg};border-left:3px solid ${consejo.col};font-size:11px;line-height:1.5;color:var(--text2);">${consejo.html}</div>`;
+    }
+    const veredicto = generarVeredictoResumen(comp, ultimoId);
+    if (veredictoEl){
+      veredictoEl.innerHTML = veredicto ? `<div style="padding:11px 13px;border-radius:8px;background:${veredicto.bg};border-left:3px solid ${veredicto.col};font-size:12px;line-height:1.5;font-weight:600;color:var(--text);">${veredicto.html}</div>` : '';
     }
   }
 
@@ -2328,9 +2634,11 @@ function renderCreditoBuenoMalo(){
     huboDatos = true;
     total += comp.total;
     Object.entries(comp.porCat).forEach(([c,v]) => { agregado[c] = (agregado[c]||0) + v; });
+    guardarEnBoveda(id, RESUMENES_LIVE[id], comp);
   });
   if (!huboDatos || total <= 0){ wrap.style.display = 'none'; return; }
   wrap.style.display = '';
+  poblarSelectorAnioBoveda();
 
   const sum = cats => cats.reduce((s,c) => s + (agregado[c]||0), 0);
   const buena = sum([...CAT_BUENA]);
@@ -2375,6 +2683,57 @@ function renderCreditoBuenoMalo(){
       filaBucket('🟢', 'Crédito bueno (educación / inversión)', buena, pctBuena, 'var(--green)', [...CAT_BUENA]) +
       filaBucket('⚪', 'Neutro / necesario', neutra, pctNeutra, 'var(--text2)', ['alimentacion', ...CAT_NECESARIO]) +
       filaBucket('🔴', 'Crédito malo (consumo que se deprecia)', mala, pctMala, 'var(--red)', [...CAT_DISCRECIONAL]);
+  }
+}
+// ── Selector de año + export de la bóveda a JSON (agregado 13/09/2026, tarde) ─
+// El "Excel final" queda para después (pedido explícito de Pedro, "luego
+// sumamos a un excel") -- este botón deja armado y descargable todo lo que
+// hace falta para ese paso: resúmenes archivados + gráficos capturados del
+// propio HTML (canvas.toDataURL, nada reconstruido con otra librería, tal
+// como pidió Pedro) + veredictos ya congelados por guardarEnBoveda().
+function poblarSelectorAnioBoveda(){
+  const sel = $('boveda-export-year'); if (!sel) return;
+  const years = [...new Set(Object.values(RESUMENES_LIVE)
+    .map(r => String(r.cierre||'').slice(0,4))
+    .filter(y => /^\d{4}$/.test(y)))].sort().reverse();
+  if (!years.length) return;
+  const prev = sel.value;
+  sel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+  if (years.includes(prev)) sel.value = prev;
+}
+async function exportarAnioCompleto(){
+  const sel = $('boveda-export-year'), resultEl = $('boveda-export-result');
+  const year = sel && sel.value;
+  if (!year){ if (resultEl) resultEl.textContent = 'No hay años archivados todavía.'; return; }
+  if (resultEl) resultEl.textContent = 'Armando el export…';
+  try {
+    const snap = await get(ref(db, `boveda/${uid}/${year}/visa`));
+    const data = snap.val() || {};
+    const resumenes = Object.entries(data)
+      .map(([id, r]) => ({ id, ...r }))
+      .sort((a,b) => (a.cierre||'').localeCompare(b.cierre||''));
+    if (!resumenes.length){
+      if (resultEl) resultEl.textContent = `No hay resúmenes archivados en la bóveda para ${year} todavía.`;
+      return;
+    }
+    const graficos = {};
+    const pieCv = $('resumen-pie-ch'), trendCv = $('resumen-trend-ch');
+    if (pieCv && pieCv.style.display !== 'none') graficos.pieVigente = pieCv.toDataURL('image/png');
+    if (trendCv && trendCv.style.display !== 'none') graficos.tendenciaVigente = trendCv.toDataURL('image/png');
+    const bundle = {
+      anio: year, generado: new Date().toISOString(), resumenes, graficos,
+      notaGraficos: 'pieVigente/tendenciaVigente son el gráfico del resumen más reciente cargado, tal como se ve ahora en "Balance del último resumen" -- no uno por cada resumen histórico del año.'
+    };
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `boveda_visa_${year}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    if (resultEl) resultEl.textContent = `Exportado: ${resumenes.length} resumen(es) de ${year}, total archivado $${fmt(resumenes.reduce((s,r)=>s+(r.total||0),0))}.`;
+  } catch (err){
+    console.error(err);
+    if (resultEl) resultEl.textContent = 'Error al exportar -- revisá la consola.';
   }
 }
 function renderPendientes(){
@@ -2461,17 +2820,55 @@ async function registrarCompraCuotas(){
   }catch(err){ res.style.color='var(--red)'; res.textContent = 'Error: '+err.message; }
 }
 
+// Proyección DTI — AUTOMATIZADA (13/09/2026, a pedido de Pedro; antes era un
+// array hardcodeado con meses fijos que nadie actualizaba y quedó viejo). Ahora
+// se arma sola desde las mismas fuentes que ya alimentan el DTI real de arriba
+// (DEUDAS + DEUDAS_LIVE vía liveDeudasNormalized()): toma cada deuda con cuota
+// fija y cuotas restantes conocidas ('c' y 'r' no nulos), calcula en qué mes
+// termina (mes actual + r-1) y proyecta cómo baja el DTI a medida que cada una
+// se liquida. Items sin cronograma (ej. "Otros consumos/rotativo", r:null) ya
+// quedan afuera del DTI hoy (c:null) y por lo tanto tampoco entran acá — no
+// tienen fecha de fin. Sólo muestra hacia adelante: los meses ya pasados quedan
+// mejor reflejados en el gráfico de Saneamiento de deuda VISA, que sí es histórico.
 function renderDTIProj(){
   const el=$('dti-proj'); if(!el) return;
-  const pts=[
-    {l:'Junio 2026',    dti:40.4, note:''},
-    {l:'Julio 2026',    dti:21.7, note:'✓ Plan V 70,89% liquidado'},
-    {l:'Agosto 2026',   dti:21.7, note:''},
-    {l:'Set–Oct 2026',  dti:6.4,  note:'✓ Plan V 62,74% vence (ago)'},
-    {l:'Nov 2026 +',    dti:0,    note:'✓ Plan V 73% vence (oct)'},
-  ];
+
+  const live = liveDeudasNormalized();
+  const items = [...DEUDAS, ...live].filter(d => d.c != null && d.r != null && d.r > 0);
+
+  const curY = +S.year, curM = +S.month;
+  const addMonths = (y, m, n) => { const d = new Date(y, (m - 1) + n, 1); return { y: d.getFullYear(), m: d.getMonth() + 1 }; };
+  const key = (y, m) => `${y}-${String(m).padStart(2,'0')}`;
+  const cmp = (a, b) => key(a.y,a.m).localeCompare(key(b.y,b.m));
+
+  const withEnd = items.map(d => ({ ...d, end: addMonths(curY, curM, d.r - 1) }));
+
+  const pts = [{
+    l: `${MESES[curM - 1]} ${curY}`,
+    dti: ING_REF > 0 ? (CUO_TOT / ING_REF * 100) : 0,
+    note: ''
+  }];
+
+  const seen = new Set();
+  const milestones = withEnd.map(d => d.end)
+    .filter(m => { const k = key(m.y,m.m); if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort(cmp);
+
+  milestones.forEach(ms => {
+    const finishing = withEnd.filter(d => key(d.end.y,d.end.m) === key(ms.y,ms.m));
+    const remaining = withEnd.filter(d => cmp(d.end, ms) > 0);
+    const total = remaining.reduce((s, d) => s + d.c, 0);
+    const next = addMonths(ms.y, ms.m, 1);
+    const nombres = finishing.map(d => d.n.split(' (')[0]).join(', ');
+    pts.push({
+      l: `${MESES[next.m - 1]} ${next.y} +`,
+      dti: ING_REF > 0 ? (total / ING_REF * 100) : 0,
+      note: `✓ ${nombres} vence (${MESES[ms.m - 1].slice(0,3)})`
+    });
+  });
+
   el.innerHTML=pts.map(p=>{
-    const col=p.dti<36?'var(--green)':p.dti<50?'var(--amber)':'var(--red)';
+    const col=p.dti<20?'var(--green)':p.dti<36?'var(--amber)':'var(--red)';
     return `<div style="margin-bottom:10px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
         <span style="font-size:12px;font-weight:500;">${p.l}</span>
