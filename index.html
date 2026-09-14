@@ -359,7 +359,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
               Saldo real post-pago: <strong>$1.752.324,38</strong> (cierre 27/08 → vto 09/09). El Plan V TNA 62,74% quedó liquidado ese mismo ciclo; el de TNA 73% sigue activo, restan 2 cuotas.
             </div>
             <table class="tbl">
-              <thead><tr><th>Acreedor</th><th>Saldo</th><th>Cuota/mes</th><th>Rest.</th><th>Vto.</th><th></th></tr></thead>
+              <thead><tr><th>Acreedor</th><th>Saldo</th><th>Cuota/mes</th><th>Rest.</th><th>Vto.</th><th></th><th>Acción</th></tr></thead>
               <tbody id="debt-tb"></tbody>
             </table>
             <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border2);display:flex;justify-content:space-between;font-size:13px;">
@@ -439,6 +439,8 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <input type="file" id="rs-pdf-input" accept="application/pdf" style="display:none;" onchange="onResumenPdfSeleccionado(event)">
             <button class="hdr-btn" style="width:100%;margin-bottom:6px;" onclick="document.getElementById('rs-pdf-input').click()">📄 Leer PDF del resumen (autocompletar)</button>
             <div id="rs-pdf-status" style="font-size:11px;color:var(--text3);margin-bottom:10px;min-height:14px;"></div>
+            <div id="rs-veredicto" style="font-size:11px;margin-bottom:10px;min-height:14px;"></div>
+            <div id="rs-tx-preview" style="display:none;margin-bottom:10px;"></div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
               <div class="sim-field" style="margin:0;"><span class="sim-lbl">Cierre</span><input class="sim-input" type="date" id="rs-cierre"></div>
               <div class="sim-field" style="margin:0;"><span class="sim-lbl">Vencimiento</span><input class="sim-input" type="date" id="rs-vencimiento"></div>
@@ -446,9 +448,14 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             </div>
             <button class="hdr-btn pri" style="width:100%;margin-bottom:12px;" onclick="addResumenUI()">+ Agregar resumen</button>
             <table class="tbl">
-              <thead><tr><th>Cierre</th><th>Vto.</th><th>Saldo</th><th></th></tr></thead>
-              <tbody id="resumenes-tb"><tr><td colspan="4" style="color:var(--text3);font-size:12px;">Cargando…</td></tr></tbody>
+              <thead><tr><th>Cierre</th><th>Vto.</th><th>Saldo</th><th>Pagado</th><th></th></tr></thead>
+              <tbody id="resumenes-tb"><tr><td colspan="5" style="color:var(--text3);font-size:12px;">Cargando…</td></tr></tbody>
             </table>
+            <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border2);">
+              <div style="font-size:12px;font-weight:700;margin-bottom:6px;">📅 Próximo resumen (estimado)</div>
+              <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">Piso mínimo de cuotas ya comprometidas (Plan V, Tactical Ledger, compras en cuotas) — no incluye gasto de pago único nuevo ni el saldo revolving de "Otros consumos".</div>
+              <div id="proximo-resumen-est"></div>
+            </div>
           </div>
           <div>
             <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Nueva compra en cuotas</div>
@@ -465,6 +472,8 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
                 <option value="transporte">🚗 Transporte</option>
                 <option value="servicios">🏠 Servicios Básicos</option>
                 <option value="streaming">📺 Streaming</option>
+                <option value="delivery">🛵 Delivery</option>
+                <option value="suscripciones">📱 Suscripciones</option>
                 <option value="salud">🏥 Salud / OSDE</option>
                 <option value="ropa">👕 Ropa / Personal</option>
                 <option value="judo">🥋 Judo / Deporte</option>
@@ -494,6 +503,8 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
                 <option value="transporte">🚗 Transporte</option>
                 <option value="servicios">🏠 Servicios Básicos</option>
                 <option value="streaming">📺 Streaming</option>
+                <option value="delivery">🛵 Delivery</option>
+                <option value="suscripciones">📱 Suscripciones</option>
                 <option value="salud">🏥 Salud / OSDE</option>
                 <option value="ropa">👕 Ropa / Personal</option>
                 <option value="judo">🥋 Judo / Deporte</option>
@@ -524,6 +535,8 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
               <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;" id="resumen-pie-ttl">Composición por categoría</div>
               <div style="position:relative;height:190px;"><canvas id="resumen-pie-ch"></canvas></div>
               <div id="resumen-consejo"></div>
+              <div id="resumen-detalle-toggle" style="display:none;font-size:10px;color:var(--blue);cursor:pointer;margin-top:6px;font-weight:600;" onclick="toggleDetalleResumenTx()"></div>
+              <div id="resumen-detalle-tx" style="display:none;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:0 8px;margin-top:6px;"></div>
             </div>
             <div>
               <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;">Tendencia por categoría entre resúmenes</div>
@@ -914,6 +927,27 @@ window._listenDeudas = cb => {
   onValue(ref(db, `deudas/${uid}`), s => cb(s.val() || {}));
 };
 
+// ── Deudas fijas de tarjeta — estado editable en vivo (14/09/2026) ──────────
+// Nodo deudasFijasEstado/{uid}/{id}: {cuotasPagadas} para deudas tipo 'cuotas' (Plan V), o
+// {saldoActual} para tipo 'revolving' (Otros consumos). Antes esto vivía sólo en el array
+// DEUDAS_DEF del código y lo actualizaba Claude a mano cada vez que Pedro pagaba una cuota.
+// Ahora Pedro lo hace solo desde "Deudas activas" (botón ✓ cuota pagada / campo de saldo
+// editable) — Claude sigue pudiendo escribir acá también (sesión sin tokens, plan nuevo, etc.).
+window._listenDeudasFijas = cb => {
+  onValue(ref(db, `deudasFijasEstado/${uid}`), s => cb(s.val() || {}));
+};
+window._marcarCuotaPagada = async (id, delta) => {
+  const def = DEUDAS_DEF.find(d => d.id === id);
+  if (!def || def.tipo !== 'cuotas') return;
+  const snap = await get(ref(db, `deudasFijasEstado/${uid}/${id}/cuotasPagadas`));
+  const actual = snap.exists() ? +snap.val() : (DEUDAS_ESTADO_SEED[id]?.cuotasPagadas || 0);
+  const nuevo = Math.max(0, Math.min(def.cuotaTotal, actual + delta));
+  await set(ref(db, `deudasFijasEstado/${uid}/${id}/cuotasPagadas`), nuevo);
+};
+window._setSaldoRevolving = async (id, monto) => {
+  await set(ref(db, `deudasFijasEstado/${uid}/${id}/saldoActual`), +monto);
+};
+
 // ── Vivienda / Alquileres (nodo aparte, agregado 13/09/2026 tarde) ──────────
 // Migrado del array hardcodeado VIVIENDA_HIST -- cada mes vivía en el código y
 // había que editarlo a mano (yo) cada vez que llegaba un comprobante. Ahora es
@@ -936,14 +970,26 @@ window._deleteViviendaMes = async key => {
 window._listenResumenes = cb => {
   onValue(ref(db, `tarjeta/${uid}/resumenes`), s => cb(s.val() || {}));
 };
-window._addResumen = async (cierre, vencimiento, saldo) => {
+window._addResumen = async (cierre, vencimiento, saldo, transacciones) => {
   const id = push(ref(db, `tarjeta/${uid}/resumenes`)).key;
-  await set(ref(db, `tarjeta/${uid}/resumenes/${id}`), {
-    cierre, vencimiento, saldo: +saldo, timestamp: serverTimestamp()
-  });
+  const payload = { cierre, vencimiento, saldo: +saldo, timestamp: serverTimestamp() };
+  if (transacciones && transacciones.length) payload.transacciones = transacciones;
+  await set(ref(db, `tarjeta/${uid}/resumenes/${id}`), payload);
+  return id;
 };
 window._deleteResumen = async id => {
   await remove(ref(db, `tarjeta/${uid}/resumenes/${id}`));
+};
+// Marcar un resumen como pagado (14/09/2026, pedido de Pedro) — tilde simple para no perder de
+// vista qué resúmenes ya se abonaron, independiente del estado de las deudas fijas de arriba.
+window._marcarResumenPagado = async (id, pagado) => {
+  await update(ref(db, `tarjeta/${uid}/resumenes/${id}`), { pagado });
+};
+// Corrige a mano la categoría auto-adivinada de una compra parseada del PDF (14/09/2026) --
+// necesario sobre todo para las MERPAGO*<nombre de persona> (transferencias P2P) que las
+// reglas automáticas no pueden clasificar solas por no ser un rubro identificable por texto.
+window._setCategoriaTransaccion = async (resumenId, idx, categoria) => {
+  await update(ref(db, `tarjeta/${uid}/resumenes/${resumenId}/transacciones/${idx}`), { categoria });
 };
 
 // ── Compras financiadas: imputación automática + escritura dual ────────────
@@ -1160,10 +1206,25 @@ let TC = 1420, ING_REF = 2890677, CUO_TOT = 627869;
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const COLORS = ['#0066FF','#10B981','#F59E0B','#8B5CF6','#EF4444','#06B6D4','#EC4899','#84CC16','#F97316','#6B7280'];
 
-const DEUDAS = [
-  {n:'Plan V — TNA 73.00% (4/6 facturadas, restan 2)',    s:371632.00,  c:185816.00, r:2,    v:'10/2026', b:'r'},
-  {n:'Otros consumos / rotativo / USD / imp.',            s:1380692.38, c:null,       r:null, v:'—',       b:'r'},
+// DEUDAS_DEF (14/09/2026): definición ESTRUCTURAL de cada deuda fija de tarjeta (nombre, cuota
+// mensual, cantidad total de cuotas) — esto casi no cambia, sólo cuando arranca un plan Plan V
+// nuevo. El ESTADO de pago (cuotas pagadas / saldo revolving) se mudó a Firebase
+// (deudasFijasEstado/{uid}/{id}, ver manejarDeudasFijasLive más abajo) a pedido de Pedro: antes
+// esto era un array fijo que sólo Claude editaba a mano cada vez que llegaba un resumen nuevo;
+// ahora Pedro puede tildar "cuota pagada" o ajustar el saldo revolving directo desde el dashboard.
+// Claude sigue pudiendo escribir en el nodo también (fallback si Pedro se queda sin tokens de
+// sesión o para cargar un plan nuevo) — no se pierde esa vía, se suma la manual.
+const DEUDAS_DEF = [
+  {id:'planv73', n:'Plan V — TNA 73.00% (6 cuotas)',        tipo:'cuotas',    cuotaTotal:6, c:185816.00, v:'10/2026', b:'r'},
+  {id:'otros',   n:'Otros consumos / rotativo / USD / imp.', tipo:'revolving', cuotaTotal:null, c:null, v:'—', b:'r'},
 ];
+// Semilla inicial (14/09/2026) — refleja el resumen de agosto (cierre 27/08): Plan V 73% con 4/6
+// cuotas facturadas (restan 2), Otros consumos en $1.380.692,38. Se usa UNA sola vez si el nodo
+// todavía está vacío (mismo patrón que VIVIENDA_HIST_SEED) — después, Firebase manda.
+const DEUDAS_ESTADO_SEED = {
+  planv73: { cuotasPagadas: 4 },
+  otros:   { saldoActual: 1380692.38 },
+};
 // ✅ Plan V TNA 70.89% (3 cuotas, $574.861,75/mes) — LIQUIDADO en julio/26, ya no figura como deuda activa.
 // ✅ Plan V TNA 62.74% (6 cuotas, $442.053,44/mes) — LIQUIDADO en el resumen de agosto/26 (cierre 27/08,
 // última cuota 6/6 facturada ese ciclo, confirmado por el cargo de IVA sobre interés de ese plan en el
@@ -1221,6 +1282,18 @@ function manejarViviendaLive(d){
     }
   }
   renderVivienda();
+}
+let deudasFijasSeedIntentada = false;
+function manejarDeudasFijasLive(d){
+  DEUDAS_FIJAS_LIVE = d || {};
+  if (!deudasFijasSeedIntentada){
+    deudasFijasSeedIntentada = true;
+    if (!Object.keys(DEUDAS_FIJAS_LIVE).length){
+      Object.entries(DEUDAS_ESTADO_SEED).forEach(([id,v]) => set(ref(db, `deudasFijasEstado/${uid}/${id}`), v).catch(()=>{}));
+      return; // el propio set() dispara onValue de nuevo con los datos ya sembrados
+    }
+  }
+  renderDebtTable();
 }
 async function guardarMesVivienda(){
   const st = $('viv-form-status');
@@ -1453,16 +1526,18 @@ const CM = {
   inversiones:{e:'📈',n:'Inversiones'},    varios:{e:'📦',n:'Varios'},
   finanzas:{e:'💹',n:'Finanzas / Trading'},
   educacion:{e:'🎓',n:'Educación'},
+  delivery:{e:'🛵',n:'Delivery'},          suscripciones:{e:'📱',n:'Suscripciones'},
   salario:{e:'💼',n:'Salario'},            bono:{e:'⭐',n:'Bono / Extra'},
   trading:{e:'📊',n:'Trading / Alyc'},     otro:{e:'💵',n:'Otro Ingreso'},
 };
-const CG = ['alimentacion','transporte','servicios','streaming','salud','ropa','judo','ocio','inversiones','finanzas','educacion','varios'];
+const CG = ['alimentacion','transporte','servicios','streaming','salud','ropa','judo','ocio','delivery','suscripciones','inversiones','finanzas','educacion','varios'];
 const CI = ['salario','bono','trading','otro'];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const S = { type:'g', cur:'ARS', cat:null, year:'', month:'', data:{gastos:{},ingresos:{}}, hist:{} };
 let pieChart, barChart;
 let DEUDAS_LIVE = {}; // deudas/{uid}/ desde Firebase — cargadas por ZAR Tactical Ledger
+let DEUDAS_FIJAS_LIVE = {}; // deudasFijasEstado/{uid}/ — estado editable de DEUDAS_DEF (14/09/2026)
 let RESUMENES_LIVE = {}; // tarjeta/{uid}/resumenes desde Firebase — compartido con ZAR Tactical Ledger
 let VIVIENDA_LIVE = {}; // vivienda/{uid} desde Firebase — migrado del array hardcodeado VIVIENDA_HIST (13/09/2026, tarde)
 let PENDIENTES_LIVE = {}; // comprasPendientes/{uid} — compras posteriores al último cierre cargado
@@ -1484,7 +1559,7 @@ const RESUMEN_GASTOS_LISTENING = new Set();
 // "educacion" siempre se lee como inversión, nunca como consumo/lujo.
 // "inversiones"/"finanzas" no son gasto de consumo, quedan fuera del consejo.
 const CAT_NECESARIO = new Set(['servicios', 'salud', 'transporte']);
-const CAT_DISCRECIONAL = new Set(['ropa', 'ocio', 'streaming', 'judo', 'varios']);
+const CAT_DISCRECIONAL = new Set(['ropa', 'ocio', 'streaming', 'judo', 'varios', 'delivery', 'suscripciones']);
 // "Crédito bueno" (13/09/2026): mismo criterio que ya usa generarConsejoResumen para
 // tratar educación/inversiones/finanzas como "no es consumo" — acá se lo nombra explícito.
 const CAT_BUENA = new Set(['educacion', 'inversiones', 'finanzas']);
@@ -1859,6 +1934,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window._listenVivienda) window._listenVivienda(manejarViviendaLive);
     });
   }
+  if (window._listenDeudasFijas) {
+    window._listenDeudasFijas(manejarDeudasFijasLive);
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenDeudasFijas) window._listenDeudasFijas(manejarDeudasFijasLive);
+    });
+  }
 
   document.addEventListener('fb-auth-error', () => {
     alert('No se pudo iniciar sesión anónima en Firebase (' + (window._fbAuthError||'error desconocido') + ').\n\nProbable causa: "Anonymous" no está habilitado en Firebase Console → Authentication → Sign-in method. Activalo y recargá la página.');
@@ -1911,8 +1993,32 @@ function loadPeriod(val){
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
+// Compras de tarjeta (ya categorizadas por resumen, ver Ciclo de tarjeta) que vencen
+// en el mes y/m pedido, en forma de "gasto" sintético compatible con sARS/updatePie/
+// renderTx (mismos campos: monto, moneda, categoria) -- para que la torta general y
+// los totales del Dashboard reflejen también lo que se fue en tarjeta ese mes, sin
+// necesitar que Pedro cargue nada a mano en "Movimientos" (14/09/2026, pedido de Pedro:
+// conectar el desglose de "Ciclo de tarjeta" con "la torta general").
+function gastosResumenParaMes(y, m){
+  const out = [];
+  const mm = String(m).padStart(2,'0');
+  Object.entries(RESUMENES_LIVE).forEach(([rid, r]) => {
+    if (!r.vencimiento || !r.transacciones) return;
+    const [ry, rm] = r.vencimiento.split('-');
+    if (ry !== String(y) || rm !== mm) return;
+    Object.entries(r.transacciones).forEach(([txId, t]) => {
+      if (!t.pesos) return; // sólo ARS -- lo puro USD no se mezcla con el ARS del dashboard
+      out.push({
+        id: `rsm_${rid}_${txId}`, fecha: r.vencimiento, monto: t.pesos, moneda: 'ARS',
+        categoria: t.categoria || 'varios', nota: t.detalle, resumenCierre: r.cierre, _origenTarjeta: true
+      });
+    });
+  });
+  return out;
+}
 function renderDash(){
-  const gas=fl(S.data.gastos), ing=fl(S.data.ingresos);
+  const gasTarjeta = gastosResumenParaMes(S.year, S.month);
+  const gas=[...fl(S.data.gastos), ...gasTarjeta], ing=fl(S.data.ingresos);
   const tG=sARS(gas), tI=sARS(ing), sal=tI-tG, tasa=tI>0?sal/tI*100:0;
   set('k-ing',fmt(tI)); set('k-ing2',`≈ USD ${Math.round(tI/TC).toLocaleString('es-AR')}`);
   set('k-gas',fmt(tG)); set('k-gas2',tI>0?`${Math.round(tG/tI*100)}% del ingreso`:'—');
@@ -2073,12 +2179,13 @@ function updatePie(gas){
   pieChart.update();
   const leg=$('pie-leg');
   if (leg){
+    const nTarjeta = gas.filter(e=>e._origenTarjeta).length;
     leg.innerHTML=sorted.slice(0,6).map(([k,v],i)=>
       `<div style="display:flex;align-items:center;gap:8px;font-size:12px;">
         <span style="width:9px;height:9px;border-radius:2px;background:${COLORS[i]};flex-shrink:0;"></span>
         <span style="flex:1;color:var(--text2);">${CM[k]?.n||k}</span>
         <span style="font-weight:600;font-variant-numeric:tabular-nums;">${fmt(v)}</span></div>`
-    ).join('');
+    ).join('') + (nTarjeta ? `<div style="font-size:10px;color:var(--text3);margin-top:6px;">Incluye ${nTarjeta} compras de tarjeta del resumen que vence este mes (ver detalle en Crédito·DTI).</div>` : '');
   }
   const veredictoEl = $('pie-veredicto');
   if (veredictoEl){
@@ -2104,7 +2211,7 @@ function updateBar(){
   const ks=Object.keys(S.hist).sort();
   barChart.data.labels=ks.map(k=>{const[y,m]=k.split('-');return new Date(y,m-1).toLocaleDateString('es-AR',{month:'short'});});
   barChart.data.datasets[0].data=ks.map(k=>sARS(fl(S.hist[k].ingresos)));
-  barChart.data.datasets[1].data=ks.map(k=>sARS(fl(S.hist[k].gastos)));
+  barChart.data.datasets[1].data=ks.map(k=>{ const [y,m]=k.split('-'); return sARS([...fl(S.hist[k].gastos), ...gastosResumenParaMes(y,m)]); });
   barChart.update();
 }
 
@@ -2179,18 +2286,50 @@ function liveDeudasNormalized(){
     _id: id
   }));
 }
+// deudasFijasNormalized() (14/09/2026): combina DEUDAS_DEF (estructura fija) con
+// DEUDAS_FIJAS_LIVE (estado editable en Firebase) para producir el mismo shape {n,s,c,r,v,b}
+// que ya consumían renderDebtTable/recalcDTI/renderDTIProj — reemplaza el uso directo del
+// viejo array DEUDAS (ahora DEUDAS_DEF es sólo definición, sin estado de pago).
+function deudasFijasNormalized(){
+  return DEUDAS_DEF.map(def => {
+    const est = DEUDAS_FIJAS_LIVE[def.id] || {};
+    const seed = DEUDAS_ESTADO_SEED[def.id] || {};
+    if (def.tipo === 'cuotas'){
+      const pagadas = est.cuotasPagadas != null ? est.cuotasPagadas : (seed.cuotasPagadas || 0);
+      const restantes = Math.max(0, def.cuotaTotal - pagadas);
+      return { n: def.n, s: restantes * def.c, c: def.c, r: restantes, v: def.v, b: def.b, _id: def.id, _tipo: 'cuotas', _pagadas: pagadas, _total: def.cuotaTotal };
+    }
+    const saldo = est.saldoActual != null ? est.saldoActual : (seed.saldoActual || 0);
+    return { n: def.n, s: saldo, c: def.c, r: null, v: def.v, b: def.b, _id: def.id, _tipo: 'revolving' };
+  });
+}
 function renderDebtTable(){
   const tb=$('debt-tb'); if(!tb) return;
   const live = liveDeudasNormalized();
-  const all = [...DEUDAS, ...live];
-  tb.innerHTML=all.map(d=>`<tr>
+  const fijas = deudasFijasNormalized();
+  const all = [...fijas, ...live];
+  tb.innerHTML=all.map(d=>{
+    const saldoCell = d._tipo === 'revolving'
+      ? `<input class="sim-input" type="number" value="${d.s}" style="width:110px;padding:4px 6px;font-size:12px;" onchange="actualizarSaldoRevolvingUI('${d._id}', this.value)">`
+      : fmt(d.s);
+    let accionCell = '';
+    if (d._tipo === 'cuotas'){
+      accionCell = `<div style="display:flex;gap:4px;align-items:center;">
+        <button class="hdr-btn" style="padding:3px 7px;font-size:11px;width:auto;margin:0;" title="Marcar cuota pagada" ${d._pagadas>=d._total?'disabled':''} onclick="marcarCuotaPagadaUI('${d._id}',1)">✓ Cuota</button>
+        <button style="border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;" title="Deshacer última cuota" ${d._pagadas<=0?'disabled':''} onclick="marcarCuotaPagadaUI('${d._id}',-1)">↩</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px;">${d._pagadas}/${d._total} cuotas</div>`;
+    }
+    return `<tr>
     <td>${d.n}</td>
-    <td style="font-weight:600;font-variant-numeric:tabular-nums;">${fmt(d.s)}</td>
+    <td style="font-weight:600;font-variant-numeric:tabular-nums;">${saldoCell}</td>
     <td style="font-variant-numeric:tabular-nums;">${d.c?fmt(d.c):'—'}</td>
     <td>${d.r!=null?d.r+'c':'—'}</td>
     <td style="color:var(--text3);">${d.v}</td>
     <td><span class="badge ${d.b}">${d.b==='y'?'⚠️':d.b==='r'?'🔴':d.b==='b'?'🎒':'🔵'}</span></td>
-  </tr>`).join('');
+    <td>${accionCell}</td>
+  </tr>`;
+  }).join('');
 
   const totalSaldo = all.reduce((s,d)=>s+(d.s||0),0);
   set('debt-total', fmt(totalSaldo));
@@ -2202,7 +2341,7 @@ function renderDebtTable(){
   }
 
   // DTI dinámico: cuota fija VISA (DEUDAS) + cuotas de ítems financiados en vivo
-  CUO_TOT = DEUDAS.reduce((s,d)=>s+(d.c||0),0) + live.reduce((s,d)=>s+(d.c||0),0);
+  CUO_TOT = deudasFijasNormalized().reduce((s,d)=>s+(d.c||0),0) + live.reduce((s,d)=>s+(d.c||0),0);
   recalcDTI();
 }
 
@@ -2246,6 +2385,8 @@ function recalcDTI(){
   // Proyección DTI (13/09/2026) — ahora se deriva de CUO_TOT/DEUDAS_LIVE, así que
   // se repinta sola cada vez que el DTI cambia (nueva deuda, cuota pagada, etc.).
   if (typeof renderDTIProj === 'function') renderDTIProj();
+  // Próximo resumen estimado (14/09/2026) — misma lógica de arriba, se repinta junto con el resto.
+  if (typeof renderProximoResumen === 'function') renderProximoResumen();
 }
 // ── Ciclo de tarjeta: resúmenes + imputación de compras en cuotas ───────────
 // Agregado 30/08/2026 (pedido de Pedro) — porta a ZAR Finance la lógica que ya
@@ -2257,17 +2398,41 @@ function getUltimoResumen(){
   if (!arr.length) return null;
   return arr.reduce((a,b) => (a.cierre > b.cierre ? a : b));
 }
+// Próximo resumen estimado (14/09/2026, pedido de Pedro): distingue lo que YA se sabe que va a
+// seguir facturando el próximo ciclo (cuotas comprometidas -- Plan V vía deudasFijasNormalized(),
+// Tactical Ledger + compras en cuotas de Ciclo de tarjeta vía liveDeudasNormalized(), ambas ya
+// filtran r>0) de lo que es imposible de predecir (gasto de pago único futuro, saldo revolving de
+// "Otros consumos"). No es feature nueva de datos -- sólo expone la misma suma que ya usa el DTI
+// (CUO_TOT), separada por ítem y con la aclaración de que es un piso, no un total.
+function proximoResumenEstimado(){
+  const fijas = deudasFijasNormalized().filter(d => d._tipo === 'cuotas' && d.r > 0);
+  const live = liveDeudasNormalized().filter(d => d.c != null && d.r != null && d.r > 0);
+  const items = [...fijas, ...live];
+  const total = items.reduce((s,d)=>s+(d.c||0),0);
+  return { total, items };
+}
+function renderProximoResumen(){
+  const el = $('proximo-resumen-est'); if (!el) return;
+  const { total, items } = proximoResumenEstimado();
+  if (!items.length){
+    el.innerHTML = '<div style="font-size:11px;color:var(--text3);">Sin cuotas activas comprometidas para el próximo ciclo.</div>';
+    return;
+  }
+  const filas = items.map(d => `<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;"><span style="color:var(--text2);">${d.n}</span><span style="font-weight:600;">${fmt(d.c)}</span></div>`).join('');
+  el.innerHTML = `<div style="font-size:22px;font-weight:700;color:var(--amber);">${fmt(total)}</div><div style="margin-top:6px;">${filas}</div>`;
+}
 function renderResumenes(){
   const tb = $('resumenes-tb'); if (!tb) return;
   const arr = Object.entries(RESUMENES_LIVE).sort((a,b)=> b[1].cierre.localeCompare(a[1].cierre));
   if (!arr.length){
-    tb.innerHTML = '<tr><td colspan="4" style="color:var(--text3);font-size:12px;">Sin resúmenes cargados todavía.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="5" style="color:var(--text3);font-size:12px;">Sin resúmenes cargados todavía.</td></tr>';
     return;
   }
   tb.innerHTML = arr.map(([id,r],i)=>`<tr>
     <td>${fD(r.cierre)}</td>
     <td>${fD(r.vencimiento)}</td>
     <td style="font-variant-numeric:tabular-nums;">${fmt(r.saldo)}</td>
+    <td style="text-align:center;"><input type="checkbox" ${r.pagado?'checked':''} onchange="toggleResumenPagadoUI('${id}', this.checked)" title="Marcar como pagado"></td>
     <td>${i===0?'<span style="font-size:10px;font-weight:700;color:var(--blue);">ÚLTIMO</span> ':''}<button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px;" onclick="deleteResumenUI(\'${id}\')" title="Eliminar">✕</button></td>
   </tr>`).join('');
 }
@@ -2328,19 +2493,141 @@ async function extraerTextoPdfResumen(file){
 function parsearResumenVisa(textoCrudo){
   const t = textoCrudo.replace(/\s+/g, ' ');
   const out = { cierre: null, vencimiento: null, saldo: null };
-  let m = t.match(/CIERRE ACTUAL:?\s*(\d{1,2})\s*([A-Za-zé]{3,4})\.?\s*(\d{2,4})/i);
+  // Fix 14/09: en resumen agosto.pdf el encabezado sale pegado sin espacios
+  // ("CIERREACTUAL:VENCIMIENTOSALDO$SALDOU$S...") y la fecha de vencimiento viene
+  // pegada directo al monto ("09Set261.752.324,38") — pdf.js no deja gap >1pt entre
+  // esas columnas en este resumen puntual. Se usa \s* (cero o más) en vez de \s+, se
+  // salta el resto del encabezado con [\s\S]{0,N}? hasta la primera fecha real, el año
+  // se captura de forma no-codiciosa (\d{2,4}?) para no comerse el dígito del monto
+  // siguiente, y se exige que el monto tenga coma decimal (,XX) para no confundirlo con
+  // el N° de cuenta u otro dato intercalado en el medio.
+  let m = t.match(/CIERRE\s*ACTUAL:?[\s\S]{0,200}?(\d{1,2})\s*([A-Za-zé]{3,4})\.?\s*(\d{2,4}?)(?=\D)/i);
   if (m) out.cierre = _fechaAbbrAISO(m[1], m[2], m[3]);
-  m = t.match(/VENCIMIENTO\s+SALDO\s*\$\s*SALDO\s*U\$S[\s\S]{0,250}?(\d{1,2})\s*([A-Za-zé]{3,4})\.?\s*(\d{2,4})\s+([\d.,]+)\s+([\d.,]+)/i);
+  m = t.match(/VENCIMIENTO\s*SALDO\s*\$?\s*SALDO\s*U\$S[\s\S]{0,250}?(\d{1,2})\s*([A-Za-zé]{3,4})\.?\s*(\d{2,4}?)\s*([\d.]+,\d{2})/i);
   if (m) {
     out.vencimiento = _fechaAbbrAISO(m[1], m[2], m[3]);
     out.saldo = parseFloat(m[4].replace(/\./g, '').replace(',', '.'));
   } else {
-    const m2 = t.match(/VENCIMIENTO ACTUAL:?\s*(\d{1,2})\s*([A-Za-zé]{3,4})\.?\s*(\d{2,4})/i);
+    const m2 = t.match(/VENCIMIENTO\s*ACTUAL:?\s*(\d{1,2})\s*([A-Za-zé]{3,4})\.?\s*(\d{2,4}?)(?=\D)/i);
     if (m2) out.vencimiento = _fechaAbbrAISO(m2[1], m2[2], m2[3]);
-    const m3 = t.match(/SALDO ACTUAL:?\s*\$\s*([\d.,]+)/i);
+    const m3 = t.match(/SALDO\s*ACTUAL:?\s*\$\s*([\d.,]+)/i);
     if (m3) out.saldo = parseFloat(m3[1].replace(/\./g, '').replace(',', '.'));
   }
   return out;
+}
+// Desglose automático de compras del resumen por categoría (14/09/2026): Pedro pidió ver
+// en qué se fue la plata de cada resumen sin cargar cada compra a mano en "Nueva compra en
+// cuotas"/"Gasto con tarjeta" -- para eso hace falta leer la tabla completa de "DETALLE DE
+// TRANSACCION" del PDF (no sólo cierre/vencimiento/saldo de la 1ª página), clasificar cada
+// línea por rubro, y excluir lo que no es consumo nuevo de este período (pagos hechos, un
+// ajuste de deuda en USD, y el alta original de compras en Plan V que ya se trackea aparte
+// en "Deudas fijas" con su cuota mensual real).
+const REGLAS_CATEGORIA_VISA = [
+  { cat: 'delivery',      rx: /PEDIDOSYA|RAPPI|UBER\s*EATS/i },
+  { cat: 'suscripciones', rx: /APPLE\.COM|PLAYSTATION|MUBI|EPOCH\.COM|GMBILL|GOOGLE\s*\*|NETFLIX|SPOTIFY|YOUTUBE|DISNEY|HBO|PRIME\s*VIDEO|VIDEO\s*ENT/i },
+  { cat: 'transporte',    rx: /\bUBER\b(?!\s*EATS)|CABIFY|\bSUBE\b|\bYPF\b|\bSHELL\b|\bAXION\b|PEAJE/i },
+  { cat: 'alimentacion',  rx: /GASTROBUS|SUPERMERC|CARREFOUR|\bCOTO\b|\bJUMBO\b|\bDIA\s|\bVEA\s|\bDISCO\s/i },
+  { cat: 'servicios',     rx: /EDESUR|EDENOR|METROGAS|\bAYSA\b|PERSONAL\b|MOVISTAR|\bCLARO\b|TELECOM/i },
+  { cat: 'salud',         rx: /FARMACIA|\bOSDE\b|SWISS\s*MEDICAL|GALENO/i },
+  { cat: 'educacion',     rx: /UDEMY|COURSERA|PLATZI|\bUBA\b|UNIVERSIDAD/i },
+  { cat: 'finanzas',      rx: /IMPUESTO\s*DE\s*SELLOS|INTERESES\s*FINANCIACION|IIBB\s*PERCEP|IVA\s*RG|DB\.?\s*IVA|DB\.?\s*RG/i },
+];
+function categorizarTransaccionVisa(detalle){
+  for (const r of REGLAS_CATEGORIA_VISA) if (r.rx.test(detalle)) return r.cat;
+  return 'varios';
+}
+function esLineaExcluidaVisa(detalle){
+  return /^SU PAGO|TRANSFERENCIA DEUDA|^VISA PLAN V/i.test(detalle.trim());
+}
+async function extraerTextoPdfTodasPaginas(file){
+  if (!window.pdfjsLib){
+    throw new Error('La librería de lectura de PDF no cargó (revisá tu conexión a internet) — recargá la página e intentá de nuevo.');
+  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let textoCompleto = '';
+  for (let p = 1; p <= pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const items = content.items
+      .filter(it => it.str.trim() !== '')
+      .map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5], w: it.width || 0 }));
+    items.sort((a,b) => b.y - a.y || a.x - b.x);
+    const lineas = []; let actual = []; let lastY = null;
+    for (const it of items){
+      if (lastY === null || Math.abs(it.y - lastY) <= 3) actual.push(it);
+      else { lineas.push(actual); actual = [it]; }
+      lastY = it.y;
+    }
+    if (actual.length) lineas.push(actual);
+    const textoPag = lineas.map(l => {
+      const ordenado = l.slice().sort((a,b)=>a.x-b.x);
+      let out = ''; let prevEnd = null;
+      for (const it of ordenado){
+        if (prevEnd !== null && (it.x - prevEnd) > 1) out += ' ';
+        out += it.str;
+        prevEnd = it.x + it.w;
+      }
+      return out;
+    }).join('\n');
+    textoCompleto += (textoCompleto ? '\n' : '') + textoPag;
+  }
+  return textoCompleto;
+}
+function parsearTransaccionesVisa(textoCompleto){
+  const MONEY_RX = /-?[\d.]+,\d{2}/g;
+  const out = [];
+  textoCompleto.split('\n').forEach(raw => {
+    const m = raw.match(/^(\d{2}\.\d{2}\.\d{2})\s+(?:(\d{6})\s+)?(.+)$/);
+    if (!m) return;
+    const [, fecha, comprobante, resto] = m;
+    const money = [...resto.matchAll(MONEY_RX)];
+    if (money.length < 2) return;
+    const dolarM = money[money.length - 1], pesosM = money[money.length - 2];
+    const detalle = resto.slice(0, pesosM.index).trim().replace(/\s+/g, ' ');
+    if (!detalle) return;
+    const pesos = parseFloat(pesosM[0].replace(/\./g,'').replace(',','.'));
+    const dolar = parseFloat(dolarM[0].replace(/\./g,'').replace(',','.'));
+    if (esLineaExcluidaVisa(detalle)) return;
+    out.push({ fecha, comprobante: comprobante || null, detalle, pesos, dolar, categoria: categorizarTransaccionVisa(detalle) });
+  });
+  return out;
+}
+// Veredicto de saldo del resumen (14/09/2026, pedido de Pedro): feedback inmediato al leer el PDF
+// o al confirmar "+ Agregar resumen", comparando el saldo nuevo contra el último resumen ya
+// cargado -- mismo espíritu que VEREDICTO_GASTO_* del Dashboard, pero para deuda de tarjeta: acá
+// bajar SIEMPRE es la buena noticia, no hay "zona sana" de subida como en gasto discrecional.
+const VEREDICTO_SALDO_ROJO = [
+  (p,m) => `Subió ${p}% ($${m}) respecto al resumen anterior -- che, ojo con eso.`,
+  (p,m) => `${p}% más que el resumen pasado (+$${m}). Se te está yendo de mambo la tarjeta.`,
+];
+const VEREDICTO_SALDO_AMARILLO = [
+  (p,m) => `Subió ${p}% respecto al anterior -- no es grave, pero vigilalo.`,
+  (p,m) => `Se movió ${p}% para arriba (+$${m}). Zona de alerta, nada más.`,
+];
+const VEREDICTO_SALDO_VERDE = [
+  (p,m) => `Bien ahí -- bajó ${p}% ($${m}) respecto al resumen anterior.`,
+  (p,m) => `Bajó ${p}% ($${m}). Así se sanea la deuda, seguí así.`,
+];
+function generarVeredictoSaldo(saldoNuevo, saldoAnterior){
+  if (saldoAnterior == null || saldoAnterior <= 0 || saldoNuevo == null || isNaN(saldoNuevo)) return null;
+  const delta = saldoNuevo - saldoAnterior;
+  const pctStr = Math.abs(delta / saldoAnterior * 100).toFixed(0);
+  const montoStr = fmt(Math.abs(delta));
+  let banco, col, bg, emoji;
+  if (delta > saldoAnterior * 0.05){ banco = VEREDICTO_SALDO_ROJO; col='var(--red)'; bg='var(--red-l)'; emoji='🔴'; }
+  else if (delta > -saldoAnterior * 0.01){ banco = VEREDICTO_SALDO_AMARILLO; col='var(--amber)'; bg='var(--amber-l)'; emoji='🟡'; }
+  else { banco = VEREDICTO_SALDO_VERDE; col='var(--green)'; bg='var(--green-l)'; emoji='🟢'; }
+  const msg = banco[Math.floor(Math.random()*banco.length)](pctStr, montoStr);
+  return { col, bg, html: `${emoji} ${msg}` };
+}
+function pintarVeredictoSaldo(saldoNuevo){
+  const el = $('rs-veredicto'); if (!el) return;
+  const anterior = getUltimoResumen();
+  const v = generarVeredictoSaldo(saldoNuevo, anterior ? anterior.saldo : null);
+  if (!v){ el.innerHTML = ''; return; }
+  el.innerHTML = `<span style="color:${v.col};font-weight:500;">${v.html}</span>`;
 }
 async function onResumenPdfSeleccionado(ev){
   const file = ev.target.files[0];
@@ -2355,6 +2642,8 @@ async function onResumenPdfSeleccionado(ev){
   }
   status.textContent = 'Leyendo ' + file.name + '…';
   status.style.color = 'var(--text3)';
+  _pdfTxPendientes = null;
+  renderRevisionTransacciones();
   try {
     const texto = await extraerTextoPdfResumen(file);
     const r = parsearResumenVisa(texto);
@@ -2362,30 +2651,76 @@ async function onResumenPdfSeleccionado(ev){
     if (r.cierre) $('rs-cierre').value = r.cierre; else faltantes.push('cierre');
     if (r.vencimiento) $('rs-vencimiento').value = r.vencimiento; else faltantes.push('vencimiento');
     if (r.saldo != null && !isNaN(r.saldo)) $('rs-saldo').value = r.saldo; else faltantes.push('saldo');
+    let txMsg = '';
+    try {
+      const textoCompleto = await extraerTextoPdfTodasPaginas(file);
+      const txs = parsearTransaccionesVisa(textoCompleto);
+      if (txs.length){ _pdfTxPendientes = txs; txMsg = ` — se detectaron ${txs.length} compras, revisalas abajo antes de confirmar.`; }
+    } catch(e2){ /* si falla el desglose de compras no bloquea el autocompletar de cierre/venc/saldo */ }
     if (faltantes.length) {
       status.textContent = `⚠️ No se pudo leer: ${faltantes.join(', ')}. Completá a mano lo que falte y revisá el resto antes de confirmar.`;
       status.style.color = 'var(--amber)';
     } else {
-      status.textContent = `✅ Leído de "${file.name}" — revisá los 3 campos y tocá "+ Agregar resumen" para confirmar.`;
+      status.textContent = `✅ Leído de "${file.name}" — revisá los 3 campos y tocá "+ Agregar resumen" para confirmar.${txMsg}`;
       status.style.color = 'var(--green)';
+      pintarVeredictoSaldo(r.saldo);
     }
+    renderRevisionTransacciones();
   } catch (err) {
     status.textContent = '⚠️ ' + err.message;
     status.style.color = 'var(--red)';
   }
 }
+function renderRevisionTransacciones(){
+  const el = $('rs-tx-preview'); if (!el) return;
+  if (!_pdfTxPendientes || !_pdfTxPendientes.length){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  const optsFor = sel => CG.map(c => `<option value="${c}"${c===sel?' selected':''}>${CM[c]?.e||''} ${CM[c]?.n||c}</option>`).join('');
+  const filas = _pdfTxPendientes.map((t,i) => `
+      <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;">
+        <span style="color:var(--text3);width:52px;flex-shrink:0;">${t.fecha}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${t.detalle}">${t.detalle}</span>
+        <span style="width:80px;text-align:right;flex-shrink:0;">${t.pesos>0?'$'+fmt(t.pesos):(t.dolar>0?'US$'+t.dolar.toFixed(2):'$0')}</span>
+        <select style="font-size:11px;padding:2px 4px;border-radius:5px;border:1px solid var(--border);" onchange="_pdfTxPendientes[${i}].categoria=this.value">${optsFor(t.categoria)}</select>
+      </div>`).join('');
+  el.innerHTML = `
+    <div style="font-size:11px;font-weight:700;margin:8px 0 6px;">🧾 Compras detectadas en el PDF (revisá/corregí la categoría antes de confirmar)</div>
+    <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:0 8px;">${filas}</div>`;
+}
 async function addResumenUI(){
   const cierre = $('rs-cierre').value, vencimiento = $('rs-vencimiento').value, saldo = parseFloat($('rs-saldo').value);
   if (!cierre || !vencimiento || isNaN(saldo)){ alert('Completá cierre, vencimiento y saldo'); return; }
+  const anterior = getUltimoResumen(); // capturado ANTES de agregar -- si no, "último" pasaría a ser el que recién se carga
   try{
-    await window._addResumen(cierre, vencimiento, saldo);
+    await window._addResumen(cierre, vencimiento, saldo, _pdfTxPendientes);
     $('rs-cierre').value=''; $('rs-vencimiento').value=''; $('rs-saldo').value='';
+    _pdfTxPendientes = null;
+    renderRevisionTransacciones();
+    const el = $('rs-veredicto');
+    if (el){
+      const v = generarVeredictoSaldo(saldo, anterior ? anterior.saldo : null);
+      el.innerHTML = v ? `<span style="color:${v.col};font-weight:500;">${v.html}</span>` : '';
+    }
   }catch(err){ alert('Error al guardar el resumen: '+err.message); }
 }
 async function deleteResumenUI(id){
   if (!confirm('¿Eliminar este resumen del historial?')) return;
   try{ await window._deleteResumen(id); }
   catch(err){ alert('Error: '+err.message); }
+}
+async function toggleResumenPagadoUI(id, pagado){
+  try{ await window._marcarResumenPagado(id, pagado); }
+  catch(err){ alert('No se pudo actualizar: '+err.message); }
+}
+async function marcarCuotaPagadaUI(id, delta){
+  try{ await window._marcarCuotaPagada(id, delta); }
+  catch(err){ alert('No se pudo actualizar la cuota: '+err.message); }
+}
+async function actualizarSaldoRevolvingUI(id, valor){
+  const monto = parseFloat(valor);
+  if (isNaN(monto) || monto < 0){ alert('Monto inválido.'); renderDebtTable(); return; }
+  try{ await window._setSaldoRevolving(id, monto); }
+  catch(err){ alert('No se pudo actualizar el saldo: '+err.message); }
 }
 function eligibleResumenesFor(pend){
   return Object.entries(RESUMENES_LIVE).filter(([,r]) => pend.fechaCompra <= r.cierre);
@@ -2413,13 +2748,23 @@ function ensureResumenGastosListeners(){
 // ESTE resumen (resumenCierre) — así no mezcla, por ejemplo, un gasto normal
 // del formulario general que caiga casualmente en el mismo mes.
 function composicionResumen(id){
-  const r = RESUMENES_LIVE[id], cache = RESUMEN_GASTOS_CACHE[id];
-  if (!r || !cache) return null;
+  const r = RESUMENES_LIVE[id];
+  if (!r) return null;
+  if (r.transacciones){
+    const entries = Object.entries(r.transacciones).map(([txId,t]) => ({ ...t, txId, monto: t.pesos||0 }));
+    const porCat = {};
+    entries.forEach(e => { const c = e.categoria || 'varios'; porCat[c] = (porCat[c]||0) + (+e.monto||0); });
+    const total = entries.reduce((s,e)=>s+(+e.monto||0), 0);
+    const usdPuro = entries.filter(e => !e.monto && e.dolar).reduce((s,e)=>s+(+e.dolar||0), 0);
+    return { total, porCat, entries, usdPuro, fuente: 'pdf' };
+  }
+  const cache = RESUMEN_GASTOS_CACHE[id];
+  if (!cache) return null;
   const entries = flId(cache.gastos).filter(e => e.resumenCierre === r.cierre);
   const porCat = {};
   entries.forEach(e => { const c = e.categoria || 'varios'; porCat[c] = (porCat[c]||0) + (+e.monto||0); });
   const total = entries.reduce((s,e)=>s+(+e.monto||0), 0);
-  return { total, porCat, entries };
+  return { total, porCat, entries, fuente: 'manual' };
 }
 // Consejo cualitativo: qué categoría domina + qué tan grave es según el DTI
 // actual. Mapeo fijo Fase 1 (CAT_NECESARIO/CAT_DISCRECIONAL más arriba);
@@ -2543,6 +2888,8 @@ function guardarEnBoveda(id, r, comp){
   }).catch(()=>{});
 }
 let resumenPieChart = null, resumenTrendChart = null;
+let _pdfTxPendientes = null;
+let _verDetalleResumenTx = false;
 let objetivoChart = null;
 function renderResumenBalance(){
   const wrap = $('resumen-balance-wrap'); if (!wrap) return;
@@ -2559,7 +2906,7 @@ function renderResumenBalance(){
   const veredictoEl = $('resumen-veredicto');
   if (!comp || !comp.total){
     if (pieCv) pieCv.style.display = 'none';
-    if (consejoEl) consejoEl.innerHTML = `<div style="font-size:11px;color:var(--text3);margin-top:8px;">Sin compras registradas todavía vía "Ciclo de tarjeta" para este resumen. Cargá una compra en cuotas o un gasto con tarjeta arriba para ver el balance acá.</div>`;
+    if (consejoEl) consejoEl.innerHTML = `<div style="font-size:11px;color:var(--text3);margin-top:8px;">Sin compras detectadas para este resumen -- releé el PDF con "Leer PDF del resumen" (o cargá una compra en cuotas / un gasto con tarjeta arriba) para ver el balance acá.</div>`;
     if (veredictoEl) veredictoEl.innerHTML = '';
   } else {
     if (pieCv){
@@ -2581,6 +2928,28 @@ function renderResumenBalance(){
     const veredicto = generarVeredictoResumen(comp, ultimoId);
     if (veredictoEl){
       veredictoEl.innerHTML = veredicto ? `<div style="padding:11px 13px;border-radius:8px;background:${veredicto.bg};border-left:3px solid ${veredicto.col};font-size:12px;line-height:1.5;font-weight:600;color:var(--text);">${veredicto.html}</div>` : '';
+    }
+    const detToggleEl = $('resumen-detalle-toggle'), detListEl = $('resumen-detalle-tx');
+    if (detToggleEl && detListEl){
+      if (comp.fuente === 'pdf' && comp.entries.length){
+        detToggleEl.style.display = '';
+        detToggleEl.textContent = _verDetalleResumenTx ? `▲ Ocultar detalle de compras (${comp.entries.length})` : `▾ Ver detalle de compras (${comp.entries.length}) — editar categoría`;
+        if (_verDetalleResumenTx){
+          const optsFor = sel => CG.map(c => `<option value="${c}"${c===sel?' selected':''}>${CM[c]?.e||''} ${CM[c]?.n||c}</option>`).join('');
+          detListEl.style.display = '';
+          detListEl.innerHTML = comp.entries.slice().sort((a,b)=>(b.pesos||0)-(a.pesos||0)).map(e => `
+            <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;">
+              <span style="color:var(--text3);width:52px;flex-shrink:0;">${e.fecha||''}</span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.detalle||''}">${e.detalle||''}</span>
+              <span style="width:80px;text-align:right;flex-shrink:0;">${e.pesos>0?'$'+fmt(e.pesos):(e.dolar>0?'US$'+e.dolar.toFixed(2):'$0')}</span>
+              <select style="font-size:11px;padding:2px 4px;border-radius:5px;border:1px solid var(--border);" onchange="window._setCategoriaTransaccion('${ultimoId}','${e.txId}',this.value)">${optsFor(e.categoria)}</select>
+            </div>`).join('');
+        } else {
+          detListEl.style.display = 'none'; detListEl.innerHTML = '';
+        }
+      } else {
+        detToggleEl.style.display = 'none'; detListEl.style.display = 'none'; detListEl.innerHTML = '';
+      }
     }
   }
 
@@ -2616,6 +2985,7 @@ function renderResumenBalance(){
     });
   }
 }
+function toggleDetalleResumenTx(){ _verDetalleResumenTx = !_verDetalleResumenTx; renderResumenBalance(); }
 // ── Crédito bueno vs. crédito malo (agregado 13/09/2026) ────────────────────
 // Reusa la misma distinción NECESARIO/DISCRECIONAL (CAT_NECESARIO/CAT_DISCRECIONAL,
 // definidas arriba) que ya usa generarConsejoResumen — no inventa una taxonomía
@@ -2834,7 +3204,7 @@ function renderDTIProj(){
   const el=$('dti-proj'); if(!el) return;
 
   const live = liveDeudasNormalized();
-  const items = [...DEUDAS, ...live].filter(d => d.c != null && d.r != null && d.r > 0);
+  const items = [...deudasFijasNormalized(), ...live].filter(d => d.c != null && d.r != null && d.r > 0);
 
   const curY = +S.year, curM = +S.month;
   const addMonths = (y, m, n) => { const d = new Date(y, (m - 1) + n, 1); return { y: d.getFullYear(), m: d.getMonth() + 1 }; };
