@@ -368,6 +368,19 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             </div>
             <div id="debt-live-note" style="font-size:10px;color:var(--text3);margin-top:6px;"></div>
             <div id="bna-countdown" style="margin-top:10px;padding:9px 12px;border-radius:8px;font-size:12px;font-weight:500;text-align:center;"></div>
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2);">
+              <button class="hdr-btn" style="width:auto;" onclick="togglePagoTarjetaForm()">💳 Registrar pago de tarjeta</button>
+              <div id="pago-tarjeta-form" style="display:none;margin-top:10px;">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Un pago de tarjeta no es un gasto nuevo -- esas compras ya se cuentan (o se van a contar) al facturarse en el resumen. Esto sólo baja la deuda: se aplica primero a cuotas Plan V completas, el resto a "Otros consumos".</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <input class="sim-input" type="number" id="pt-monto" placeholder="Monto ARS pagado" style="flex:1;min-width:140px;">
+                  <input class="sim-input" type="date" id="pt-fecha" style="flex:1;min-width:140px;">
+                </div>
+                <button class="panel-sub" style="margin-top:8px;" onclick="registrarPagoTarjetaUI()">Aplicar pago</button>
+                <div id="pago-tarjeta-status" style="font-size:12px;margin-top:8px;color:var(--text2);"></div>
+                <div id="pagos-tarjeta-list" style="font-size:11px;color:var(--text3);margin-top:10px;"></div>
+              </div>
+            </div>
           </div>
           <div class="card">
             <div class="card-ttl">Saneamiento de deuda VISA</div>
@@ -626,6 +639,27 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div class="dti-bg"><div id="arkad-bar" class="dti-fill" style="width:0%;background:var(--green);transition:width .4s;"></div></div>
             <div style="font-size:10px;color:var(--text3);margin-top:4px;">Meta mínima: 10% · Meta ideal: 20%</div>
           </div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2);">
+            <button class="hdr-btn" style="width:auto;" onclick="toggleDestinoIngresoForm()">📌 Registrar destino de un ingreso</button>
+            <div id="destino-ingreso-form" style="display:none;margin-top:10px;">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Para hacer seguimiento de a qué destinaste tus ingresos del mes (Inversiones, Fondo de Emergencia, etc.) -- no reemplaza "Registrar movimiento", es sólo para anotarlo.</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <input class="sim-input" type="number" id="di-monto" placeholder="Monto ARS" style="flex:1;min-width:120px;">
+                <select class="sim-input" id="di-destino" style="flex:1;min-width:140px;">
+                  <option value="inversiones">Inversiones</option>
+                  <option value="fondo_emergencia">Fondo de Emergencia</option>
+                  <option value="ambos">Ambos</option>
+                  <option value="gastos_corrientes">Gastos corrientes</option>
+                  <option value="otro">Otro</option>
+                </select>
+                <input class="sim-input" type="date" id="di-fecha" style="flex:1;min-width:120px;">
+              </div>
+              <input class="sim-input" type="text" id="di-nota" placeholder="Nota (opcional)" style="margin-top:8px;width:100%;">
+              <button class="panel-sub" style="margin-top:8px;" onclick="registrarDestinoIngresoUI()">Guardar</button>
+              <div id="destino-ingreso-status" style="font-size:12px;margin-top:8px;color:var(--text2);"></div>
+              <div id="destinos-ingreso-list" style="font-size:11px;color:var(--text3);margin-top:10px;"></div>
+            </div>
+          </div>
         </div>
           <div class="sim-field"><span class="sim-lbl">Salario base ARS</span><input class="sim-input" type="number" id="si-base" value="1000000" oninput="calcInf()"></div>
           <div class="sim-field"><span class="sim-lbl">Salario actual ARS</span><input class="sim-input" type="number" id="si-act" value="1650000" oninput="calcInf()"></div>
@@ -783,6 +817,20 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
 
           <div style="position:relative;height:220px;margin-top:14px;"><canvas id="obj-ch"></canvas></div>
         </div>
+      </div>
+
+      <div class="card" id="nota-ingreso-wrap">
+        <div class="card-ttl">📝 Nota del mes — ¿por qué no hiciste un ingreso extra?</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">
+          Espacio libre para anotar, mes a mes, si no pudiste hacer un aporte/ingreso extra y por qué (ej: "no me alcanzó", "gasto imprevisto"). No es obligatorio -- es sólo para vos, para tener contexto después. Guardar de nuevo sobre el mismo mes pisa la nota anterior.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
+          <div class="sim-field" style="margin:0;flex:1;min-width:140px;"><span class="sim-lbl">Mes</span><input class="sim-input" type="month" id="ni-mes"></div>
+        </div>
+        <textarea class="sim-input" id="ni-motivo" rows="2" placeholder="Ej: Este mes no hice ingreso extra, no me alcanzó." style="width:100%;resize:vertical;"></textarea>
+        <button class="hdr-btn pri" style="margin-top:8px;" onclick="guardarNotaIngresoMensual()">Guardar nota</button>
+        <div id="nota-ingreso-status" style="font-size:12px;margin-top:8px;color:var(--text2);"></div>
+        <div id="notas-ingreso-list" style="font-size:12px;color:var(--text3);margin-top:14px;"></div>
       </div>
     </div>
 
@@ -948,6 +996,39 @@ window._setSaldoRevolving = async (id, monto) => {
   await set(ref(db, `deudasFijasEstado/${uid}/${id}/saldoActual`), +monto);
 };
 
+// ── Pagos de tarjeta — historial (16/09/2026) ───────────────────────────────
+// Log de pagos aplicados vía "Registrar pago de tarjeta" (Crédito·DTI) -- Pedro pidió poder
+// marcar un pago de tarjeta él mismo sin depender de pedirle a Claude que edite el saldo/las
+// cuotas a mano cada vez. Este nodo es sólo trazabilidad ("qué pasó con cada pago"); la fuente
+// de verdad del saldo sigue siendo deudasFijasEstado/{uid} (la función que llama a esto ya
+// escribió ahí antes de loguear).
+window._logPagoTarjeta = async (entry) => {
+  await push(ref(db, `pagosTarjeta/${uid}`), { ...entry, timestamp: serverTimestamp() });
+};
+window._listenPagosTarjeta = cb => {
+  onValue(ref(db, `pagosTarjeta/${uid}`), s => cb(s.val() || {}));
+};
+// Borrado de una entrada del historial (16/09/2026) -- sólo borra el LOG/trazabilidad, nunca
+// revierte las cuotas Plan V ni el saldo revolving que ese pago ya aplicó (eso ya quedó escrito
+// en deudasFijasEstado por separado). Pensado para limpiar duplicados por doble click.
+window._deletePagoTarjeta = async (id) => {
+  await remove(ref(db, `pagosTarjeta/${uid}/${id}`));
+};
+
+// ── Destino de ingresos (16/09/2026) -- a qué destinó Pedro un ingreso del mes
+// (Inversiones, Fondo de Emergencia, ambos, gastos corrientes u otro). Vive en
+// Simuladores, debajo de Meta Arkad -- log aparte, no modifica gastos/ingresos
+// ni el flujo de "Registrar movimiento".
+window._logDestinoIngreso = async (entry) => {
+  await push(ref(db, `destinosIngreso/${uid}`), { ...entry, timestamp: serverTimestamp() });
+};
+window._listenDestinosIngreso = cb => {
+  onValue(ref(db, `destinosIngreso/${uid}`), s => cb(s.val() || {}));
+};
+window._deleteDestinoIngreso = async (id) => {
+  await remove(ref(db, `destinosIngreso/${uid}/${id}`));
+};
+
 // ── Vivienda / Alquileres (nodo aparte, agregado 13/09/2026 tarde) ──────────
 // Migrado del array hardcodeado VIVIENDA_HIST -- cada mes vivía en el código y
 // había que editarlo a mano (yo) cada vez que llegaba un comprobante. Ahora es
@@ -961,6 +1042,19 @@ window._setViviendaMes = async (key, data) => {
 };
 window._deleteViviendaMes = async key => {
   await remove(ref(db, `vivienda/${uid}/${key}`));
+};
+
+// ── Nota mensual de ingresos (16/09/2026) -- por qué no se hizo un ingreso/aporte
+// extra ese mes. Vive en Objetivos Financieros, clave YYYY-MM (mismo patrón que
+// vivienda/{uid}) -- guardar de nuevo sobre el mismo mes pisa la nota anterior.
+window._listenNotasIngresoMensual = cb => {
+  onValue(ref(db, `notasIngresoMensual/${uid}`), s => cb(s.val() || {}));
+};
+window._setNotaIngresoMensual = async (mes, data) => {
+  await set(ref(db, `notasIngresoMensual/${uid}/${mes}`), data);
+};
+window._deleteNotaIngresoMensual = async mes => {
+  await remove(ref(db, `notasIngresoMensual/${uid}/${mes}`));
 };
 
 // ── Ciclo de tarjeta VISA — resúmenes (cierre/vencimiento/saldo) ────────────
@@ -1295,6 +1389,18 @@ function manejarDeudasFijasLive(d){
   }
   renderDebtTable();
 }
+function manejarPagosTarjetaLive(d){
+  PAGOS_TARJETA_LIVE = d || {};
+  renderPagosTarjeta();
+}
+function manejarDestinosIngresoLive(d){
+  DESTINOS_INGRESO_LIVE = d || {};
+  renderDestinosIngreso();
+}
+function manejarNotasIngresoLive(d){
+  NOTAS_INGRESO_LIVE = d || {};
+  renderNotasIngresoMensual();
+}
 async function guardarMesVivienda(){
   const st = $('viv-form-status');
   const mesEl = $('viv-mes');
@@ -1538,6 +1644,9 @@ const S = { type:'g', cur:'ARS', cat:null, year:'', month:'', data:{gastos:{},in
 let pieChart, barChart;
 let DEUDAS_LIVE = {}; // deudas/{uid}/ desde Firebase — cargadas por ZAR Tactical Ledger
 let DEUDAS_FIJAS_LIVE = {}; // deudasFijasEstado/{uid}/ — estado editable de DEUDAS_DEF (14/09/2026)
+let PAGOS_TARJETA_LIVE = {}; // pagosTarjeta/{uid}/ — historial de pagos aplicados (16/09/2026)
+let DESTINOS_INGRESO_LIVE = {}; // destinosIngreso/{uid}/ — a qué destinó Pedro cada ingreso (16/09/2026)
+let NOTAS_INGRESO_LIVE = {}; // notasIngresoMensual/{uid}/ — nota mensual de por qué no hubo ingreso extra (16/09/2026)
 let RESUMENES_LIVE = {}; // tarjeta/{uid}/resumenes desde Firebase — compartido con ZAR Tactical Ledger
 let VIVIENDA_LIVE = {}; // vivienda/{uid} desde Firebase — migrado del array hardcodeado VIVIENDA_HIST (13/09/2026, tarde)
 let PENDIENTES_LIVE = {}; // comprasPendientes/{uid} — compras posteriores al último cierre cargado
@@ -1941,6 +2050,27 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window._listenDeudasFijas) window._listenDeudasFijas(manejarDeudasFijasLive);
     });
   }
+  if (window._listenPagosTarjeta) {
+    window._listenPagosTarjeta(manejarPagosTarjetaLive);
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenPagosTarjeta) window._listenPagosTarjeta(manejarPagosTarjetaLive);
+    });
+  }
+  if (window._listenDestinosIngreso) {
+    window._listenDestinosIngreso(manejarDestinosIngresoLive);
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenDestinosIngreso) window._listenDestinosIngreso(manejarDestinosIngresoLive);
+    });
+  }
+  if (window._listenNotasIngresoMensual) {
+    window._listenNotasIngresoMensual(manejarNotasIngresoLive);
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenNotasIngresoMensual) window._listenNotasIngresoMensual(manejarNotasIngresoLive);
+    });
+  }
 
   document.addEventListener('fb-auth-error', () => {
     alert('No se pudo iniciar sesión anónima en Firebase (' + (window._fbAuthError||'error desconocido') + ').\n\nProbable causa: "Anonymous" no está habilitado en Firebase Console → Authentication → Sign-in method. Activalo y recargá la página.');
@@ -2026,6 +2156,8 @@ function renderDash(){
   set('k-sal2',`${tasa>=0?'+':''}${tasa.toFixed(1)}% tasa de ahorro`);
   updatePie(gas); renderTx(); populateCatFilter();
   renderArkad();
+  renderDestinosIngreso();
+  renderNotasIngresoMensual();
 }
 
 // ── Charts ────────────────────────────────────────────────────────────────────
@@ -2341,7 +2473,10 @@ function renderDebtTable(){
   }
 
   // DTI dinámico: cuota fija VISA (DEUDAS) + cuotas de ítems financiados en vivo
-  CUO_TOT = deudasFijasNormalized().reduce((s,d)=>s+(d.c||0),0) + live.reduce((s,d)=>s+(d.c||0),0);
+  // Fix 16/09/2026: una deuda tipo 'cuotas' ya liquidada (r<=0, ej. Plan V pagado del todo con
+  // el nuevo botón "Registrar pago de tarjeta") no debe seguir sumando su cuota fija al total --
+  // antes este cálculo usaba d.c a secas y seguía contando la cuota de un plan en $0.
+  CUO_TOT = deudasFijasNormalized().reduce((s,d)=>s+((d._tipo==='cuotas'&&d.r<=0)?0:(d.c||0)),0) + live.reduce((s,d)=>s+(d.c||0),0);
   recalcDTI();
 }
 
@@ -2721,6 +2856,164 @@ async function actualizarSaldoRevolvingUI(id, valor){
   if (isNaN(monto) || monto < 0){ alert('Monto inválido.'); renderDebtTable(); return; }
   try{ await window._setSaldoRevolving(id, monto); }
   catch(err){ alert('No se pudo actualizar el saldo: '+err.message); }
+}
+// ── Registrar pago de tarjeta (16/09/2026) ──────────────────────────────────
+// Pedro pidió poder cargar un pago de tarjeta él mismo y que se refleje solo en Crédito·DTI,
+// sin depender de pedirle a Claude que edite el saldo/las cuotas a mano cada vez. Reparto
+// automático confirmado por Pedro: primero completa cuotas Plan V (son fijas, $185.816 c/u),
+// el resto baja "Otros consumos" (revolving). No toca Gastos/Ingresos -- un pago de tarjeta no
+// es un gasto nuevo, las compras detrás de ese saldo ya se cuentan vía Ciclo de tarjeta VISA.
+function togglePagoTarjetaForm(){
+  const el = $('pago-tarjeta-form');
+  if (!el) return;
+  const show = el.style.display === 'none';
+  el.style.display = show ? 'block' : 'none';
+  const fechaEl = $('pt-fecha');
+  if (show && fechaEl && !fechaEl.value) fechaEl.value = new Date().toISOString().split('T')[0];
+}
+async function registrarPagoTarjetaUI(){
+  const montoEl = $('pt-monto'), fechaEl = $('pt-fecha'), st = $('pago-tarjeta-status');
+  const monto = parseFloat(montoEl?.value);
+  const fecha = fechaEl?.value || new Date().toISOString().split('T')[0];
+  if (!monto || monto <= 0){ if (st) st.textContent = '⚠️ Ingresá un monto válido.'; return; }
+  const def = DEUDAS_DEF.find(d => d.id === 'planv73');
+  const estPlanV = DEUDAS_FIJAS_LIVE.planv73 || {};
+  const cuotasAntes = estPlanV.cuotasPagadas != null ? estPlanV.cuotasPagadas : (DEUDAS_ESTADO_SEED.planv73?.cuotasPagadas || 0);
+  const estOtros = DEUDAS_FIJAS_LIVE.otros || {};
+  const otrosAntes = estOtros.saldoActual != null ? estOtros.saldoActual : (DEUDAS_ESTADO_SEED.otros?.saldoActual || 0);
+  const cuotasFaltantes = Math.max(0, def.cuotaTotal - cuotasAntes);
+  const cuotasAPagar = Math.min(cuotasFaltantes, Math.floor(monto / def.c));
+  const aPlanV = cuotasAPagar * def.c;
+  const restanteTrasPlanV = monto - aPlanV;
+  const aOtros = Math.min(otrosAntes, restanteTrasPlanV);
+  const sobrante = Math.max(0, restanteTrasPlanV - aOtros);
+  const otrosDespues = Math.max(0, otrosAntes - restanteTrasPlanV);
+  const cuotasDespues = cuotasAntes + cuotasAPagar;
+  if (st) st.textContent = 'Aplicando…';
+  try{
+    if (cuotasAPagar > 0) await window._marcarCuotaPagada('planv73', cuotasAPagar);
+    if (otrosDespues !== otrosAntes) await window._setSaldoRevolving('otros', otrosDespues);
+    await window._logPagoTarjeta({ fecha, monto, aPlanV, cuotasAPagar, aOtros, sobrante, cuotasAntes, cuotasDespues, otrosAntes, otrosDespues });
+    const partes = [];
+    if (cuotasAPagar > 0) partes.push(`${cuotasAPagar} cuota${cuotasAPagar===1?'':'s'} Plan V (${fmt(aPlanV)})`);
+    if (aOtros > 0) partes.push(`${fmt(aOtros)} a Otros consumos`);
+    let msg = '✅ Aplicado: ' + (partes.length ? partes.join(' + ') : 'nada (la deuda ya estaba en $0)');
+    if (sobrante > 0) msg += ` — sobraron ${fmt(sobrante)} sin aplicar (deuda ya saldada)`;
+    if (st) st.textContent = msg;
+    if (montoEl) montoEl.value = '';
+  } catch(err){
+    if (st) st.textContent = '⚠️ No se pudo aplicar: ' + err.message;
+  }
+}
+function renderPagosTarjeta(){
+  const el = $('pagos-tarjeta-list'); if (!el) return;
+  const entries = Object.entries(PAGOS_TARJETA_LIVE || {}).sort((a,b) => (b[1].fecha||'').localeCompare(a[1].fecha||''));
+  if (!entries.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div style="font-weight:600;color:var(--text2);margin-bottom:4px;">Pagos registrados</div>' + entries.slice(0,8).map(([id,p]) => {
+    const partes = [];
+    if (p.cuotasAPagar) partes.push(`${p.cuotasAPagar} cuota${p.cuotasAPagar===1?'':'s'} Plan V`);
+    if (p.aOtros) partes.push(`${fmt(p.aOtros)} Otros`);
+    return `<div style="padding:4px 0;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <span>${p.fecha} — ${fmt(p.monto)} (${partes.join(' + ')||'sin aplicar'})</span>
+      <button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px;flex-shrink:0;" onclick="eliminarPagoTarjetaUI('${id}')" title="Eliminar del historial (no revierte el saldo)">✕</button>
+    </div>`;
+  }).join('');
+}
+async function eliminarPagoTarjetaUI(id){
+  if (!confirm('¿Eliminar este pago del historial? Esto sólo borra el registro -- NO revierte las cuotas ni el saldo que ya aplicó.')) return;
+  try{ await window._deletePagoTarjeta(id); }
+  catch(err){ alert('No se pudo eliminar: '+err.message); }
+}
+// ── Destino de ingresos (16/09/2026) ────────────────────────────────────────
+// Pedro pidió poder anotar a qué destinó un ingreso del mes (Inversiones, Fondo
+// de Emergencia, ambos, gastos corrientes u otro), separado del flujo de
+// "Registrar movimiento" -- vive acá, debajo de Meta Arkad en Simuladores.
+function toggleDestinoIngresoForm(){
+  const el = $('destino-ingreso-form');
+  if (!el) return;
+  const show = el.style.display === 'none';
+  el.style.display = show ? 'block' : 'none';
+  const fechaEl = $('di-fecha');
+  if (show && fechaEl && !fechaEl.value) fechaEl.value = new Date().toISOString().split('T')[0];
+}
+async function registrarDestinoIngresoUI(){
+  const montoEl = $('di-monto'), destinoEl = $('di-destino'), fechaEl = $('di-fecha'), notaEl = $('di-nota'), st = $('destino-ingreso-status');
+  const monto = parseFloat(montoEl?.value);
+  const destino = destinoEl?.value || 'otro';
+  const fecha = fechaEl?.value || new Date().toISOString().split('T')[0];
+  const nota = (notaEl?.value || '').trim();
+  if (!monto || monto <= 0){ if (st) st.textContent = '⚠️ Ingresá un monto válido.'; return; }
+  if (st) st.textContent = 'Guardando…';
+  try{
+    await window._logDestinoIngreso({ fecha, monto, destino, nota });
+    if (st) st.textContent = '✅ Guardado.';
+    if (montoEl) montoEl.value = '';
+    if (notaEl) notaEl.value = '';
+  } catch(err){
+    if (st) st.textContent = '⚠️ No se pudo guardar: ' + err.message;
+  }
+}
+const DESTINO_INGRESO_LABEL = { inversiones:'Inversiones', fondo_emergencia:'Fondo de Emergencia', ambos:'Ambos', gastos_corrientes:'Gastos corrientes', otro:'Otro' };
+function renderDestinosIngreso(){
+  const el = $('destinos-ingreso-list'); if (!el) return;
+  const entries = Object.entries(DESTINOS_INGRESO_LIVE || {}).sort((a,b) => (b[1].fecha||'').localeCompare(a[1].fecha||''));
+  if (!entries.length){ el.innerHTML = ''; return; }
+  const mesActual = `${S.year}-${S.month}`;
+  const delMes = entries.filter(([,e]) => (e.fecha||'').startsWith(mesActual));
+  let resumenHtml = '';
+  if (delMes.length){
+    const porDestino = {};
+    delMes.forEach(([,e]) => { porDestino[e.destino] = (porDestino[e.destino]||0) + (e.monto||0); });
+    resumenHtml = `<div style="font-weight:600;color:var(--text2);margin-bottom:6px;">Este mes: ` +
+      Object.entries(porDestino).map(([k,v]) => `${DESTINO_INGRESO_LABEL[k]||k} ${fmt(v)}`).join(' · ') + `</div>`;
+  }
+  el.innerHTML = resumenHtml + '<div style="font-weight:600;color:var(--text2);margin-bottom:4px;">Historial</div>' + entries.slice(0,8).map(([id,e]) => {
+    return `<div style="padding:4px 0;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <span>${e.fecha} — ${fmt(e.monto)} → ${DESTINO_INGRESO_LABEL[e.destino]||e.destino}${e.nota?' ('+e.nota+')':''}</span>
+      <button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px;flex-shrink:0;" onclick="eliminarDestinoIngresoUI('${id}')" title="Eliminar del historial">✕</button>
+    </div>`;
+  }).join('');
+}
+async function eliminarDestinoIngresoUI(id){
+  if (!confirm('¿Eliminar este registro de destino de ingreso?')) return;
+  try{ await window._deleteDestinoIngreso(id); }
+  catch(err){ alert('No se pudo eliminar: '+err.message); }
+}
+// ── Nota mensual de ingresos (16/09/2026) ───────────────────────────────────
+// Pedro pidió un lugar para anotar, mes a mes, por qué no hizo un ingreso/aporte
+// extra (ej. "no me alcanzó") -- vive en Objetivos Financieros, una nota por mes.
+async function guardarNotaIngresoMensual(){
+  const mesEl = $('ni-mes'), motivoEl = $('ni-motivo'), st = $('nota-ingreso-status');
+  const mes = mesEl?.value;
+  const motivo = (motivoEl?.value || '').trim();
+  if (!mes){ if (st) st.textContent = '⚠️ Elegí un mes.'; return; }
+  if (!motivo){ if (st) st.textContent = '⚠️ Escribí algo antes de guardar.'; return; }
+  if (st) st.textContent = 'Guardando…';
+  try{
+    await window._setNotaIngresoMensual(mes, { motivo });
+    if (st) st.textContent = `✅ Guardado para ${viviendaKeyToLabel(mes)}.`;
+    motivoEl.value = '';
+  } catch(err){
+    if (st) st.textContent = '⚠️ No se pudo guardar: ' + err.message;
+  }
+}
+function renderNotasIngresoMensual(){
+  const el = $('notas-ingreso-list'); if (!el) return;
+  const mesEl = $('ni-mes');
+  if (mesEl && !mesEl.value) mesEl.value = `${S.year}-${S.month}`;
+  const entries = Object.entries(NOTAS_INGRESO_LIVE || {}).sort((a,b) => b[0].localeCompare(a[0]));
+  if (!entries.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div style="font-weight:600;color:var(--text2);margin-bottom:4px;">Notas guardadas</div>' + entries.map(([mes,n]) => {
+    return `<div style="padding:4px 0;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <span><strong>${viviendaKeyToLabel(mes)}:</strong> ${n.motivo||''}</span>
+      <button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px;flex-shrink:0;" onclick="eliminarNotaIngresoUI('${mes}')" title="Eliminar nota">✕</button>
+    </div>`;
+  }).join('');
+}
+async function eliminarNotaIngresoUI(mes){
+  if (!confirm('¿Eliminar la nota de este mes?')) return;
+  try{ await window._deleteNotaIngresoMensual(mes); }
+  catch(err){ alert('No se pudo eliminar: '+err.message); }
 }
 function eligibleResumenesFor(pend){
   return Object.entries(RESUMENES_LIVE).filter(([,r]) => pend.fechaCompra <= r.cierre);
