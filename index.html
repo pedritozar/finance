@@ -350,6 +350,11 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Evolución al vencer deudas</div>
             <div id="dti-proj"></div>
           </div>
+          <div class="card">
+            <div class="card-ttl">Cash-flow proyectado — 90 días</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Deuda fija + vivienda vs. ingreso de referencia</div>
+            <div id="cashflow90"></div>
+          </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:14px;">
           <div class="card">
@@ -597,6 +602,17 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div class="card-ttl">Snapshot Alfy — 07/09/2026</div>
             <div id="inv-snap"></div>
             <div style="margin-top:14px;height:170px;"><canvas id="inv-bar-ch"></canvas></div>
+            <div id="inv-concentracion"></div>
+          </div>
+          <div class="card">
+            <div class="card-ttl">IPS-lite — Alfy</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Política de inversión resumida (patrón de 6 componentes de un IPS institucional)</div>
+            <div style="font-size:12px;line-height:1.7;color:var(--text2);">
+              <div><strong style="color:var(--text);">Objetivo:</strong> sin número de rentabilidad objetivo -- foco en crecimiento de largo plazo, sin benchmark.</div>
+              <div><strong style="color:var(--text);">Horizonte:</strong> largo plazo, sin fecha de consumo. Complementa al Fondo de Emergencia (liquidez) y a Cocos Capital de ZAR Vanguard (core defensivo) -- Alfy es el satélite de crecimiento.</div>
+              <div><strong style="color:var(--text);">% máximo por posición:</strong> <span id="ips-umbral">30</span>% (dispara la alerta de arriba; ≥45% escala a roja).</div>
+              <div><strong style="color:var(--text);">Ante la alerta:</strong> solo informativa -- sin regla automática de venta. La decisión (sostener, vender, redirigir aportes nuevos) se toma caso a caso.</div>
+            </div>
           </div>
           <div class="card">
             <div class="card-ttl">Fondo de Emergencia</div>
@@ -613,6 +629,11 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
               <span id="mkt-ts" style="font-size:10px;color:var(--text3);">—</span>
             </div>
             <div id="tickers"></div>
+          </div>
+          <div class="card">
+            <div class="card-ttl">Buckets — Liquidez vs. Crecimiento</div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:10px;">Reclasificación de lo que ya existe (patrón JP Morgan / UBS) -- no son datos nuevos.</div>
+            <div id="inv-buckets"></div>
           </div>
         </div>
       </div>
@@ -1609,7 +1630,7 @@ const INV_DETALLE = [ // desglose por instrumento (para el gráfico de barras); 
   {c:'GOOGL (Cedear)',       m:389340.00, p:-3.34,  color:0},
   {c:'META (Cedear)',        m:285040.00, p:3.47,   color:3},
   {c:'NVDA (Cedear)',        m:258740.00, p:-0.27,  color:1},
-  {c:'Disponible (ARS+USD)', m:9689.30,   p:null,   color:9},
+  {c:'Disponible (ARS+USD)', m:9689.30,   p:null,   color:9, cash:true},
 ];
 const INV_SNAP = [
   {c:'Acciones (LOMA)',               m:29295.00,  p:3.01, b:'r'},
@@ -1978,8 +1999,12 @@ document.addEventListener('DOMContentLoaded', () => {
   safe(renderResumenes, 'renderResumenes');
   safe(renderPendientes, 'renderPendientes');
   safe(renderDTIProj, 'renderDTIProj');
+  safe(renderCashflow90, 'renderCashflow90');
   safe(renderInvSnap, 'renderInvSnap');
   safe(renderInvBar, 'renderInvBar');
+  safe(renderConcentracionAlfy, 'renderConcentracionAlfy');
+  safe(renderBucketsLiquidez, 'renderBucketsLiquidez');
+  safe(renderIPSAlfy, 'renderIPSAlfy');
   safe(renderCarteraHist, 'renderCarteraHist');
   safe(renderVivienda, 'renderVivienda');
   safe(initICLDefaults, 'initICLDefaults');
@@ -2532,6 +2557,45 @@ function getUltimoResumen(){
   const arr = Object.values(RESUMENES_LIVE);
   if (!arr.length) return null;
   return arr.reduce((a,b) => (a.cierre > b.cierre ? a : b));
+}
+// Cash-flow proyectado a 90 días (agregado 16/09/2026, noche) -- pedido de Pedro a
+// partir del research de tesorería corporativa (13-week cash flow), adaptado a 90
+// días para uso personal. Deliberadamente CONSERVADOR en lo que suma, siguiendo la
+// regla del número real del proyecto: solo combina lo que ya es un dato conocido o
+// de referencia (deuda fija comprometida vía deudasFijasNormalized()/liveDeudasNormalized(),
+// mismo criterio que proximoResumenEstimado() de abajo + último dato real de vivienda +
+// ING_REF, el mismo ingreso de referencia que ya usa el DTI) -- NO promedia gastos
+// variables (alimentación, ocio, servicios, suscripciones) porque mezclarlos con las
+// cuotas de tarjeta arriesga doble conteo con lo que ya entra vía "Ciclo de tarjeta
+// VISA" a la torta general del Dashboard. El resultado es "lo que queda antes de
+// gastos del día a día", no un cash-flow completo del mes.
+function cashflow90Deuda(){
+  const fijas = deudasFijasNormalized().filter(d => d.c != null && d.r != null && d.r > 0);
+  const live = liveDeudasNormalized().filter(d => d.c != null && d.r != null && d.r > 0);
+  return [...fijas, ...live].reduce((s,d) => s + d.c * Math.min(d.r, 3), 0);
+}
+function cashflow90Vivienda(){
+  const entradas = Object.entries(VIVIENDA_LIVE).sort((a,b) => a[0].localeCompare(b[0]));
+  let lastAlq = null, lastExp = null;
+  entradas.forEach(([,r]) => {
+    if (r.alquiler != null) lastAlq = r.alquiler;
+    if (r.expensas != null) lastExp = r.expensas;
+  });
+  return ((lastAlq || 0) + (lastExp || 0)) * 3;
+}
+function renderCashflow90(){
+  const el = $('cashflow90'); if (!el) return;
+  const ingreso = (ING_REF || 0) * 3;
+  const deuda = cashflow90Deuda();
+  const vivienda = cashflow90Vivienda();
+  const disponible = ingreso - deuda - vivienda;
+  const col = disponible >= 0 ? 'var(--green)' : 'var(--red)';
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:var(--text2);">Ingreso esperado (3 meses, ref. actual)</span><span style="font-weight:600;">${fmt(ingreso)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;"><span style="color:var(--text2);">Deuda comprometida (cuotas fijas)</span><span style="font-weight:600;color:var(--red);">-${fmt(deuda)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0 10px;border-bottom:1px solid var(--border2);"><span style="color:var(--text2);">Vivienda estimada (alquiler+expensas)</span><span style="font-weight:600;color:var(--red);">-${fmt(vivienda)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:14px;padding:10px 0 4px;"><span style="font-weight:600;">Disponible antes del día a día</span><span style="font-weight:700;color:${col};">${fmt(disponible)}</span></div>
+    <div style="font-size:10px;color:var(--text3);margin-top:6px;">No incluye gastos variables (alimentación, transporte, ocio, servicios, suscripciones) -- esos se ven mes a mes en el Dashboard. Vivienda repite el último dato real cargado, no proyecta aumentos.</div>`;
 }
 // Próximo resumen estimado (14/09/2026, pedido de Pedro): distingue lo que YA se sabe que va a
 // seguir facturando el próximo ciclo (cuotas comprometidas -- Plan V vía deudasFijasNormalized(),
@@ -3546,6 +3610,68 @@ function renderDTIProj(){
 }
 
 // ── Inversiones ───────────────────────────────────────────────────────────────
+// Alerta de concentración de cartera (agregado 16/09/2026, noche) -- pedido de
+// Pedro tras el research de prácticas de private banking (JP Morgan/UBS):
+// alertar cuando una sola posición de Alfy pesa "demasiado" del total.
+// Umbral elegido por Pedro: 30%. Excluye "Disponible" (cash, flag `cash:true`
+// en INV_DETALLE) -- no es una posición de riesgo. Se calcula al vuelo desde
+// INV_DETALLE/TOTAL_INV (mismo patrón que la torta general del Dashboard: no
+// persiste nada nuevo en Firebase). >=45% escala a rojo, mismo criterio de
+// severidad de 2 niveles que ya usa el resto del dashboard (ej. DTI 20/36%).
+const CONCENTRACION_UMBRAL = 30;
+
+// Buckets de liquidez vs. crecimiento (agregado 16/09/2026, noche) -- reclasifica
+// lo que ya existe según el patrón de 2 lentes de JP Morgan/UBS (Liquidez /
+// Crecimiento), sin tocar el modelo de datos. FE_ACTUAL/FE_META reflejan el
+// mismo estado real que ya se muestra hardcodeado en la card "Fondo de
+// Emergencia" de esta pestaña ($0 de $3.600.000, sin iniciar) -- actualizar
+// ambos lados a mano hasta que el Fondo de Emergencia esté wireado a Firebase
+// (bloqueado por "abrir Alyc renta fija", ver changelog).
+const FE_ACTUAL = 0;
+const FE_META = 3600000;
+function renderBucketsLiquidez(){
+  const el = $('inv-buckets'); if (!el) return;
+  const disponible = (INV_DETALLE || []).filter(i => i.cash).reduce((s,i)=>s+i.m, 0);
+  const liquidez = FE_ACTUAL + disponible;
+  const crecimiento = Math.max((TOTAL_INV || 0) - disponible, 0);
+  const total = liquidez + crecimiento;
+  const pctLiq = total > 0 ? (liquidez/total*100) : 0;
+  const pctCre = total > 0 ? (crecimiento/total*100) : 0;
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2);font-size:13px;">
+      <span style="color:var(--text2);">Liquidez (Fondo Emergencia + disponible Alfy)</span>
+      <span style="font-weight:600;">${fmt(liquidez)} <span style="color:var(--text3);font-size:11px;">(${pctLiq.toFixed(0)}%)</span></span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;font-size:13px;">
+      <span style="color:var(--text2);">Crecimiento (Alfy: LOMA + Cedears)</span>
+      <span style="font-weight:600;">${fmt(crecimiento)} <span style="color:var(--text3);font-size:11px;">(${pctCre.toFixed(0)}%)</span></span>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:8px;">Fondo de Emergencia: ${fmt(FE_ACTUAL)} de ${fmt(FE_META)} (piso, sin iniciar). No incluye lo que falta para la meta -- solo lo efectivamente líquido hoy.</div>`;
+}
+// IPS-lite de Alfy (agregado 16/09/2026, noche) -- objetivo/horizonte/postura ante
+// la alerta son texto fijo, decisiones de Pedro (sin objetivo numérico, horizonte
+// largo sin fecha de consumo, alerta solo informativa -- ver charter/changelog).
+// El % máximo se lee de CONCENTRACION_UMBRAL para no duplicar el número.
+function renderIPSAlfy(){
+  const el = $('ips-umbral'); if (el) el.textContent = CONCENTRACION_UMBRAL;
+}
+function renderConcentracionAlfy(){
+  const el = $('inv-concentracion'); if (!el) return;
+  const posiciones = (INV_DETALLE || []).filter(i => !i.cash);
+  if (!posiciones.length || !TOTAL_INV){ el.innerHTML = ''; return; }
+  let peor = null;
+  posiciones.forEach(i => {
+    const pct = (i.m / TOTAL_INV) * 100;
+    if (!peor || pct > peor.pct) peor = { nombre: i.c, pct };
+  });
+  if (!peor || peor.pct < CONCENTRACION_UMBRAL){ el.innerHTML = ''; return; }
+  const alta = peor.pct >= 45;
+  const col = alta ? 'var(--red)' : 'var(--amber)';
+  const bg = alta ? 'var(--red-l)' : 'var(--amber-l)';
+  const emoji = alta ? '🔴' : '⚠️';
+  const califica = alta ? 'muy concentrada' : 'concentrada';
+  el.innerHTML = `<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:${bg};border-left:3px solid ${col};font-size:11px;line-height:1.5;font-weight:600;color:var(--text);">${emoji} ${peor.pct.toFixed(0)}% de tu cartera está en ${peor.nombre} -- posición ${califica} (umbral ${CONCENTRACION_UMBRAL}%).</div>`;
+}
 function renderInvSnap(){
   const el=$('inv-snap'); if(!el) return;
   el.innerHTML=INV_SNAP.map(i=>
