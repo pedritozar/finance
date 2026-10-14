@@ -561,10 +561,11 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
                 <option value="servicios">🏠 Servicios Básicos</option>
                 <option value="streaming">📺 Streaming</option>
                 <option value="delivery">🛵 Delivery</option>
+                <option value="oficina">💼 Compras de oficina</option>
                 <option value="suscripciones">📱 Suscripciones</option>
                 <option value="salud">🏥 Salud / OSDE</option>
                 <option value="ropa">👕 Ropa / Personal</option>
-                <option value="judo">🥋 Judo / Deporte</option>
+                <option value="judo">🥋 Judo / Juegos / Deporte</option>
                 <option value="ocio">🎮 Ocio / Salidas</option>
                 <option value="inversiones">📈 Inversiones</option>
                 <option value="finanzas">💹 Finanzas / Trading</option>
@@ -599,10 +600,11 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
                 <option value="servicios">🏠 Servicios Básicos</option>
                 <option value="streaming">📺 Streaming</option>
                 <option value="delivery">🛵 Delivery</option>
+                <option value="oficina">💼 Compras de oficina</option>
                 <option value="suscripciones">📱 Suscripciones</option>
                 <option value="salud">🏥 Salud / OSDE</option>
                 <option value="ropa">👕 Ropa / Personal</option>
-                <option value="judo">🥋 Judo / Deporte</option>
+                <option value="judo">🥋 Judo / Juegos / Deporte</option>
                 <option value="ocio">🎮 Ocio / Salidas</option>
                 <option value="educacion">🎓 Educación</option>
                 <option value="inversiones">📈 Inversiones</option>
@@ -895,6 +897,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         </div>
         <div id="icl-result" style="font-size:12px;color:var(--text2);line-height:1.6;"></div>
       </div>
+      <div class="card" id="viv-det"></div>
       <div class="card" id="viv-alert"></div>
       <div class="card">
         <div class="card-ttl">💡 Servicios básicos — último pago (15/08/2026)</div>
@@ -1319,6 +1322,10 @@ window._setViviendaMes = async (key, data) => {
 };
 window._deleteViviendaMes = async key => {
   await remove(ref(db, `vivienda/${uid}/${key}`));
+};
+// Banco de expensas (06/10/2026): detalle de la liquidación dentro del mismo registro del mes.
+window._setViviendaDetalle = async (key, det) => {
+  await update(ref(db, `vivienda/${uid}/${key}`), { detalle: det });
 };
 
 // ── Nota mensual de ingresos (16/09/2026) -- por qué no se hizo un ingreso/aporte
@@ -1833,6 +1840,124 @@ function manejarNotasIngresoLive(d){
   NOTAS_INGRESO_LIVE = d || {};
   renderNotasIngresoMensual();
 }
+// ── Banco de datos de expensas por rubro (06/10/2026, pedido de Pedro) ─────────
+// Vive DENTRO del registro del mes en vivienda/{uid}/{YYYY-MM}/detalle (misma clave = mes
+// de vencimiento), así no hace falta una regla de Firebase nueva. Se carga por mensaje
+// (Pedro pasa el PDF de la liquidación) con window._setViviendaDetalle; no hay formulario.
+// Vista por año calendario + export a CSV (Excel). Sin límite de años en la base.
+let vivDetAnio = null, vivDetChart = null;
+const VD_RUBROS = [['sueldos','Sueldos y cargas sociales'],['servPublicos','Servicios públicos'],['abonos','Abonos de servicios'],['mantenimiento','Mantenimiento partes comunes'],['reparaciones','Reparaciones en unidades'],['bancarios','Gastos bancarios'],['limpieza','Limpieza'],['admin','Administración'],['seguros','Seguros'],['otros','Otros']];
+function vdAnios(){
+  const set = new Set();
+  Object.entries(VIVIENDA_LIVE).forEach(([k, r]) => { if (r && r.detalle) set.add(k.slice(0, 4)); });
+  return [...set].sort();
+}
+function vdSetAnio(y){ vivDetAnio = y; renderViviendaDetalle(); }
+function vdPct(a, b){ return (a != null && b != null && b !== 0) ? (a / b - 1) * 100 : null; }
+function vdDelta(p){
+  if (p == null) return '<span style="color:var(--text3);">—</span>';
+  const c = p > 0.05 ? 'var(--red)' : (p < -0.05 ? 'var(--green)' : 'var(--text3)');
+  return `<span style="color:${c};">${p >= 0 ? '+' : ''}${p.toFixed(1)}%</span>`;
+}
+function vdMoney(v){ return v != null ? (v < 0 ? '-' + fmt(-v) : fmt(v)) : '<span style="color:var(--text3);">—</span>'; }
+function renderViviendaDetalle(){
+  const box = $('viv-det'); if (!box) return;
+  const anios = vdAnios();
+  if (!anios.length){
+    box.innerHTML = '<div class="card-ttl">🧾 Expensas por rubro — banco de datos</div><div style="font-size:11px;color:var(--text3);">Todavía no hay liquidaciones cargadas. Pasale a Claude el PDF de la liquidación y la carga.</div>';
+    return;
+  }
+  if (!vivDetAnio || !anios.includes(vivDetAnio)) vivDetAnio = anios[anios.length - 1];
+  const todas = Object.entries(VIVIENDA_LIVE).filter(([, r]) => r && r.detalle).sort((a, b) => a[0].localeCompare(b[0]));
+  const ent = todas.filter(([k]) => k.startsWith(vivDetAnio));
+  const prevDe = k => { const i = todas.findIndex(([kk]) => kk === k); return i > 0 ? todas[i - 1][1].detalle : null; };
+  const filasCuota = ent.map(([k, r]) => {
+    const d = r.detalle, p = prevDe(k);
+    return `<tr><td>${viviendaKeyToLabel(k)}</td><td style="color:var(--text3);">${d.liq ? viviendaKeyToLabel(d.liq) : '—'}</td><td>${vdMoney(d.A)}</td><td>${vdMoney(d.C)}</td><td>${vdMoney(d.D)}</td><td><b>${vdMoney(d.puras)}</b></td><td>${vdDelta(vdPct(d.puras, p && p.puras))}</td><td>${vdMoney(d.intereses)}</td><td>${vdMoney(d.remanente)}</td><td>${vdMoney(r.expensas)}</td></tr>`;
+  }).join('');
+  const conCons = ent.filter(([, r]) => r.detalle.consorcio || r.detalle.seguridad != null);
+  const lineas = [['seguridad', 'SEGURARG (seguridad)', d => d.seguridad]]
+    .concat(VD_RUBROS.map(([k, n]) => [k, n, d => d.consorcio ? d.consorcio[k] : null]))
+    .concat([['total', 'TOTAL gastos del consorcio', d => d.consorcio ? d.consorcio.total : null],
+             ['saldoCierre', 'Saldo del consorcio al cierre', d => d.consorcio ? d.consorcio.saldoCierre : null],
+             ['morosos', 'Deuda de morosos', d => d.consorcio ? d.consorcio.morosos : null]]);
+  const ultimoDe = fn => { // Δ entre los dos últimos meses (de toda la base) que tengan ese dato
+    const v = todas.map(([, r]) => fn(r.detalle)).filter(x => x != null);
+    return v.length >= 2 ? vdPct(v[v.length - 1], v[v.length - 2]) : null;
+  };
+  const thMeses = (conCons.length ? conCons : ent).map(([k]) => `<th>${viviendaKeyToLabel(k)}</th>`).join('');
+  const filasRub = lineas.map(([k, n, fn]) => {
+    const tds = (conCons.length ? conCons : ent).map(([, r]) => `<td>${vdMoney(fn(r.detalle))}</td>`).join('');
+    const bold = (k === 'total');
+    return `<tr${bold ? ' style="font-weight:700;"' : ''}><td>${n}</td>${tds}<td>${vdDelta(ultimoDe(fn))}</td></tr>`;
+  }).join('');
+  box.innerHTML = `
+    <div class="card-ttl">🧾 Expensas por rubro — banco de datos</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+      Tu cuota (UF 7-44) y en qué gasta el consorcio, mes a mes, tal cual dice cada liquidación. La clave es el mes de vencimiento. Se guarda en Firebase sin límite de años; acá ves un año calendario a la vez y podés exportarlo a Excel.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--text3);">Año:</span>
+      ${anios.map(a => `<button class="hdr-btn${a === vivDetAnio ? ' pri' : ''}" style="padding:4px 10px;font-size:11px;" onclick="vdSetAnio('${a}')">${a}</button>`).join('')}
+      <button class="hdr-btn" style="padding:4px 10px;font-size:11px;margin-left:auto;" onclick="exportarExpensasAnio()">⬇ Exportar ${vivDetAnio} a CSV (Excel)</button>
+    </div>
+    <div style="position:relative;height:170px;margin-bottom:12px;"><canvas id="viv-det-ch"></canvas></div>
+    <div style="overflow-x:auto;margin-bottom:14px;">
+      <table class="tbl">
+        <thead><tr><th>Vence en</th><th>Liquidación</th><th>Gastos A</th><th>Gastos C</th><th>Gastos D</th><th>Expensas puras</th><th>Δ puras</th><th>Intereses</th><th>Remanente</th><th>Total a pagar</th></tr></thead>
+        <tbody>${filasCuota}</tbody>
+      </table>
+    </div>
+    <div style="font-size:11px;font-weight:600;margin-bottom:6px;">Gastos del consorcio por rubro</div>
+    <div style="overflow-x:auto;">
+      <table class="tbl">
+        <thead><tr><th>Rubro</th>${thMeses}<th>Δ último mes</th></tr></thead>
+        <tbody>${filasRub}</tbody>
+      </table>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:8px;">"Expensas puras" = Gastos A + C + D de tu unidad, sin intereses ni remanente. "Total a pagar" es lo que dice el aviso (neto de intereses y remanente). Meses sin dato aparecen con —.</div>`;
+  const cv = $('viv-det-ch');
+  const conA = ent.filter(([, r]) => r.detalle.A != null);
+  if (vivDetChart){ vivDetChart.destroy(); vivDetChart = null; }
+  if (cv && conA.length){
+    vivDetChart = new Chart(cv.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: conA.map(([k]) => viviendaKeyToLabel(k)),
+        datasets: [
+          { label: 'Gastos A', data: conA.map(([, r]) => r.detalle.A), backgroundColor: '#0066FF' },
+          { label: 'Gastos C (seguridad)', data: conA.map(([, r]) => r.detalle.C), backgroundColor: '#F59E0B' },
+          { label: 'Gastos D', data: conA.map(([, r]) => r.detalle.D), backgroundColor: '#10B981' }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'top', labels: { font: { size: 10 }, boxWidth: 10 } },
+          tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.parsed.y)}` } } },
+        scales: { x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+                  y: { stacked: true, grid: { color: '#F1F5F9' }, ticks: { font: { size: 10 }, callback: v => '$' + fmtK(v) } } } }
+    });
+  } else if (cv){
+    cv.style.display = 'none';
+  }
+}
+function exportarExpensasAnio(){
+  const y = vivDetAnio; if (!y) return;
+  const ent = Object.entries(VIVIENDA_LIVE).filter(([k, r]) => r && r.detalle && k.startsWith(y)).sort((a, b) => a[0].localeCompare(b[0]));
+  if (!ent.length) return;
+  const n2 = v => v == null ? '' : (+v).toFixed(2).replace('.', ',');
+  const cab = ['Vence en','Liquidación','Vencimiento 1','Vencimiento 2','Gastos A','Gastos C','Gastos D','Expensas puras','Intereses','Remanente','Total a pagar','Total 2do vto','SEGURARG']
+    .concat(VD_RUBROS.map(x => x[1])).concat(['Total consorcio','Saldo anterior consorcio','Saldo cierre consorcio','Deuda morosos']);
+  const filas = ent.map(([k, r]) => {
+    const d = r.detalle, c = d.consorcio || {};
+    return [k, d.liq || '', d.vto || '', d.vto2 || '', n2(d.A), n2(d.C), n2(d.D), n2(d.puras), n2(d.intereses), n2(d.remanente), n2(r.expensas), n2(d.total2), n2(d.seguridad)]
+      .concat(VD_RUBROS.map(x => n2(c[x[0]]))).concat([n2(c.total), n2(c.saldoAnterior), n2(c.saldoCierre), n2(c.morosos)]);
+  });
+  const csv = '﻿' + [cab].concat(filas).map(f => f.map(x => '"' + String(x).replace(/"/g, '""') + '"').join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `expensas_UF7-44_${y}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
 async function guardarMesVivienda(){
   const st = $('viv-form-status');
   const mesEl = $('viv-mes');
@@ -1840,6 +1965,8 @@ async function guardarMesVivienda(){
   if (!key){ if (st) st.textContent = 'Elegí un mes primero.'; return; }
   const num = id => { const v = $(id)?.value; return (v === '' || v == null) ? null : +v; };
   const data = { alquiler: num('viv-alquiler'), expensas: num('viv-expensas'), ipcIndec: num('viv-ipc-indec'), ipcCaba: num('viv-ipc-caba') };
+  // el set pisa todo el registro: conservar el detalle de la liquidación (banco de expensas) si ya existe
+  const _prevViv = VIVIENDA_LIVE[key]; if (_prevViv && _prevViv.detalle) data.detalle = _prevViv.detalle;
   try {
     await window._setViviendaMes(key, data);
     if (st) st.textContent = `Guardado: ${viviendaKeyToLabel(key)}.`;
@@ -1851,7 +1978,12 @@ async function guardarMesVivienda(){
 }
 async function borrarMesVivienda(key){
   if (!window._deleteViviendaMes) return;
-  try { await window._deleteViviendaMes(key); } catch (err){ console.error(err); }
+  try {
+    const _pv = VIVIENDA_LIVE[key];
+    // si el mes tiene detalle de liquidación, borrar solo los datos de la tabla y conservar el banco
+    if (_pv && _pv.detalle) await window._setViviendaMes(key, { detalle: _pv.detalle });
+    else await window._deleteViviendaMes(key);
+  } catch (err){ console.error(err); }
 }
 async function consultarICL(){
   const desdeEl = $('icl-desde'), hastaEl = $('icl-hasta'), resEl = $('icl-result');
@@ -1970,6 +2102,7 @@ function renderVivienda(){
   }
 
   renderOsde();
+  try { renderViviendaDetalle(); } catch (e){ console.error(e); }
 
   // Alertas: comparamos último salto real vs IPC acumulado del mismo tramo
   const alertEl = $('viv-alert');
@@ -1982,8 +2115,11 @@ function renderVivienda(){
         <b>Alquiler Feb→Jun (4 meses):</b> +9,6% vs IPC INDEC acumulado del período ~10,4% y CABA ~9,7% — en línea, incluso levemente por debajo. Bien hasta ahí.<br>
         <b>Expensas Jul→Ago:</b> +6,3% ($518.000 → $550.619,44). Según la liquidación real de julio (Nacht, Cabrera 2951): el salto de junio a julio se explica en gran parte por un ítem nuevo — SEGURARG S.R.L. (seguridad/vigilancia) $15.750.480 a prorratear entre todo el edificio, categoría "Gastos C" completa. Si esa categoría no existía antes, es un servicio nuevo que subió la base fija, no inflación.<br>
         <b>Expensas Ago→Set:</b> -5,6% ($550.619,44 → $519.752,44). Bajó respecto de agosto, según la liquidación real de agosto (vencimiento 10/09/2026). SEGURARG se repite por el mismo monto total ($16.308.480) — confirma que es costo fijo nuevo, no un cargo único de julio.<br>
-        <b>⚠️ Cuota extra terraza sigue pendiente para tu unidad:</b> la administración ya empezó a cobrarla este mes — a otras unidades del edificio (ej. UF 7-37 pagó $480.000 de cuota extra) — pero a tu UF 7-44 todavía NO se le cargó en esta liquidación. Es cuestión de tiempo que aparezca; cuando llegue el próximo resumen conviene revisar si te tocó.<br>
-        <b>Recupero de indemnización ($3.500.000):</b> mencionado por la administración en el resumen de julio, no aparece referenciado en las notas de esta liquidación de agosto — no hay confirmación de que se haya aplicado ni de que se haya dado de baja. Sin dato nuevo, queda sin resolver.
+        <b>Expensas Set→Oct (liquidación de setiembre, UF 7-44):</b> +0,1% ($519.752,44 → $520.331,44). Vence 10/10/2026; el 2do vencimiento (22/10) es $530.738,44, o sea ~$10.407 de recargo (2%) por pagar tarde. OJO: ese total viene neto de dos ajustes — remanente a favor −$14.394,56 (el 16/09 pagaste $534.147 contra $519.752,44) e intereses por mora +$10.395,00 (por pagar después del 10/09). Las expensas puras del mes son $524.331,32 (Gastos A $206.977,62 + C $231.492,46 + D $85.861,24): +0,9% vs agosto, en línea con la inflación.<br>
+        <b>En qué se gastó (liquidación de setiembre):</b> total del consorcio $37.389.198,36. SEGURARG (seguridad) $16.336.800 (+0,17% vs agosto) = 44% del gasto total y de tu cuota (tu Gastos C es $231.492,46 de $524.331,32). Mantenimiento de partes comunes $6.714.700 (impermeabilización $3.430.000, poda $1.030.000, plomería $620.000, ascensor cuota 3/4 $325.000). Servicios públicos $7.683.344 (gas de portería $3.936.605, agua $2.230.596, luz $1.392.697). Gastos bancarios $465.773,53 (1,25% del total, con cuenta nueva en Santander — alto, vale preguntar). Honorarios de administración $653.806. Seguro Allianz cuota 1/5 $443.434 (quedan 4 hasta feb/2027).<br>
+        <b>Salud del consorcio:</b> el saldo en banco bajó de $7.536.760,76 a $6.206.370,93 (−$1,33M: se gastó más de lo que se cobró) y hay $3.179.100 de deuda de unidades morosas. Es presión a futuro sobre las expensas. Próximos movimientos conocidos: ascensor cuota 4/4 ($325.000); impermeabilización — el proveedor recibió $4.865.000 para materiales y esta liquidación imputó $3.430.000, revisar si queda saldo en la de octubre.<br>
+        <b>⚠️ Cuota extra terraza:</b> en la liquidación de setiembre la columna CUOTA EXT figura en $0 para TODAS las unidades (incluida la tuya), así que este mes no se cobró a nadie. Sigue pendiente de aparecer: revisar la próxima liquidación.<br>
+        <b>Recupero de indemnización ($3.500.000):</b> tampoco aparece en la liquidación de setiembre (se revisó el PDF completo). Sin dato nuevo, queda sin resolver.
       </div>`;
   }
 }
@@ -2060,16 +2196,17 @@ const CM = {
   alimentacion:{e:'🛒',n:'Alimentación'},  transporte:{e:'🚗',n:'Transporte'},
   servicios:{e:'🏠',n:'Servicios Básicos'},streaming:{e:'📺',n:'Streaming'},
   salud:{e:'🏥',n:'Salud / OSDE'},         ropa:{e:'👕',n:'Ropa / Personal'},
-  judo:{e:'🥋',n:'Judo / Deporte'},        ocio:{e:'🎮',n:'Ocio / Salidas'},
+  judo:{e:'🥋',n:'Judo / Juegos / Deporte'},        ocio:{e:'🎮',n:'Ocio / Salidas'},
   inversiones:{e:'📈',n:'Inversiones'},    varios:{e:'📦',n:'Varios'},
   finanzas:{e:'💹',n:'Finanzas / Trading'},
   costofin:{e:'🏦',n:'Costo financiero (intereses / impuestos)'},
   educacion:{e:'🎓',n:'Educación'},
+  oficina:{e:'💼',n:'Compras de oficina'},
   delivery:{e:'🛵',n:'Delivery'},          suscripciones:{e:'📱',n:'Suscripciones'},
   salario:{e:'💼',n:'Salario'},            bono:{e:'⭐',n:'Bono / Extra'},
   trading:{e:'📊',n:'Trading / Alyc'},     otro:{e:'💵',n:'Otro Ingreso'},
 };
-const CG = ['alimentacion','transporte','servicios','streaming','salud','ropa','judo','ocio','delivery','suscripciones','inversiones','finanzas','costofin','educacion','varios'];
+const CG = ['alimentacion','transporte','servicios','streaming','salud','ropa','judo','ocio','delivery','oficina','suscripciones','inversiones','finanzas','costofin','educacion','varios'];
 const CI = ['salario','bono','trading','otro'];
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -2103,7 +2240,7 @@ const RESUMEN_GASTOS_LISTENING = new Set();
 // "educacion" siempre se lee como inversión, nunca como consumo/lujo.
 // "inversiones"/"finanzas" no son gasto de consumo, quedan fuera del consejo.
 const CAT_NECESARIO = new Set(['servicios', 'salud', 'transporte']);
-const CAT_DISCRECIONAL = new Set(['ropa', 'ocio', 'streaming', 'judo', 'varios', 'delivery', 'suscripciones']);
+const CAT_DISCRECIONAL = new Set(['ropa', 'ocio', 'streaming', 'judo', 'varios', 'delivery', 'suscripciones', 'oficina']);
 // "Crédito bueno" (13/09/2026): mismo criterio que ya usa generarConsejoResumen para
 // tratar educación/inversiones/finanzas como "no es consumo" — acá se lo nombra explícito.
 const CAT_BUENA = new Set(['educacion', 'inversiones', 'finanzas']);
