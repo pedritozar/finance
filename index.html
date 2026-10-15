@@ -871,10 +871,10 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
       <div class="card">
         <div class="card-ttl">➕ Cargar / editar mes (Alquiler · Expensas · IPC)</div>
         <div style="font-size:10px;color:var(--text3);margin-bottom:10px;">
-          Se guarda en Firebase (nodo <code>vivienda/{uid}</code>, aparte de todo lo demás) -- ya no hace falta editar código para sumar un mes o completar un dato que faltaba. Si el mes ya existe, lo pisa con lo que cargues acá (dejá un campo vacío para no tocarlo... en realidad si lo dejás vacío se guarda vacío, así que completá también los que ya tenías si sólo querés agregar un dato nuevo al mismo mes).
+          Se guarda en Firebase (nodo <code>vivienda/{uid}</code>, aparte de todo lo demás) -- ya no hace falta editar código para sumar un mes o completar un dato que faltaba. Si el mes ya existe, se actualizan SOLO los campos que completes y el resto queda como estaba. Para corregir o borrar un valor, tocá el lápiz ✏️ de esa fila: carga el mes en el formulario y, ahí sí, un campo que vacíes se borra.
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
-          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Mes</span><input class="sim-input" type="month" id="viv-mes"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Mes</span><div style="display:flex;gap:6px;"><select class="sim-input" id="viv-mes-m" style="flex:1.4;" onchange="vivMesCambio()"><option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option><option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option><option value="07">Julio</option><option value="08">Agosto</option><option value="09">Setiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option></select><select class="sim-input" id="viv-mes-y" style="flex:1;" onchange="vivMesCambio()"><option>2025</option><option>2026</option><option>2027</option><option>2028</option></select></div></div>
           <div class="sim-field" style="margin:0;"><span class="sim-lbl">Alquiler ARS</span><input class="sim-input" type="number" id="viv-alquiler" placeholder="vacío = falta dato"></div>
           <div class="sim-field" style="margin:0;"><span class="sim-lbl">Expensas ARS</span><input class="sim-input" type="number" id="viv-expensas" placeholder="vacío = falta dato"></div>
         </div>
@@ -1319,6 +1319,9 @@ window._listenVivienda = cb => {
 };
 window._setViviendaMes = async (key, data) => {
   await set(ref(db, `vivienda/${uid}/${key}`), data);
+};
+window._updateViviendaMes = async (key, data) => {
+  await update(ref(db, `vivienda/${uid}/${key}`), data);
 };
 window._deleteViviendaMes = async key => {
   await remove(ref(db, `vivienda/${uid}/${key}`));
@@ -1800,6 +1803,7 @@ const VIVIENDA_HIST_SEED = {
 };
 const MESES_ABR_VIV = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Set','Oct','Nov','Dic'];
 function viviendaKeyToLabel(key){
+  if (!/^\d{4}-\d{2}$/.test(String(key))) return String(key);
   const [y,m] = key.split('-');
   return `${MESES_ABR_VIV[(+m)-1]||m} ${y}`;
 }
@@ -1958,19 +1962,53 @@ function exportarExpensasAnio(){
   a.download = `expensas_UF7-44_${y}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
 }
+let vivEditKey = null; // mes cargado con el lápiz: ahí un campo vacío SÍ borra el valor
+function vivMesKey(){
+  const m = $('viv-mes-m'), y = $('viv-mes-y');
+  return (m && y && m.value && y.value) ? `${y.value}-${m.value}` : '';
+}
+function vivMesInit(){
+  const m = $('viv-mes-m'), y = $('viv-mes-y'); if (!m || !y || m.dataset.init) return;
+  const hoy = new Date(); m.value = String(hoy.getMonth() + 1).padStart(2, '0');
+  if (![...y.options].some(o => o.value === String(hoy.getFullYear()))) y.add(new Option(hoy.getFullYear(), hoy.getFullYear()));
+  y.value = String(hoy.getFullYear()); m.dataset.init = '1';
+}
+function vivMesCambio(){
+  const st = $('viv-form-status'), key = vivMesKey();
+  if (vivEditKey && vivEditKey !== key) vivEditKey = null;
+  const r = VIVIENDA_LIVE[key];
+  if (st) st.textContent = r ? `${viviendaKeyToLabel(key)} ya existe: se actualizan solo los campos que completes. Para corregir o borrar un valor usá el lápiz ✏️ de la fila.` : '';
+}
+function editarMesVivienda(key){
+  const r = VIVIENDA_LIVE[key]; if (!r || !/^\d{4}-\d{2}$/.test(key)) return;
+  const [y, m] = key.split('-'), ye = $('viv-mes-y');
+  if (![...ye.options].some(o => o.value === y)) ye.add(new Option(y, y));
+  ye.value = y; $('viv-mes-m').value = m;
+  const set = (id, v) => { const e = $(id); if (e) e.value = (v == null ? '' : v); };
+  set('viv-alquiler', r.alquiler); set('viv-expensas', r.expensas); set('viv-ipc-indec', r.ipcIndec); set('viv-ipc-caba', r.ipcCaba);
+  vivEditKey = key;
+  const st = $('viv-form-status');
+  if (st) st.textContent = `Editando ${viviendaKeyToLabel(key)}: cambiá lo que haga falta y guardá. Un campo que vacíes se borra.`;
+  const f = $('viv-alquiler'); if (f && f.scrollIntoView) f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 async function guardarMesVivienda(){
   const st = $('viv-form-status');
-  const mesEl = $('viv-mes');
-  const key = mesEl && mesEl.value;
-  if (!key){ if (st) st.textContent = 'Elegí un mes primero.'; return; }
+  const key = vivMesKey();
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(key)){ if (st) st.textContent = 'Elegí mes y año primero.'; return; }
   const num = id => { const v = $(id)?.value; return (v === '' || v == null) ? null : +v; };
-  const data = { alquiler: num('viv-alquiler'), expensas: num('viv-expensas'), ipcIndec: num('viv-ipc-indec'), ipcCaba: num('viv-ipc-caba') };
-  // el set pisa todo el registro: conservar el detalle de la liquidación (banco de expensas) si ya existe
-  const _prevViv = VIVIENDA_LIVE[key]; if (_prevViv && _prevViv.detalle) data.detalle = _prevViv.detalle;
+  const todo = { alquiler: num('viv-alquiler'), expensas: num('viv-expensas'), ipcIndec: num('viv-ipc-indec'), ipcCaba: num('viv-ipc-caba') };
+  const editando = vivEditKey === key;
+  // Modo normal: solo se escriben los campos completados (no se pisa nada más, ni el detalle de la liquidación).
+  // Modo edición (lápiz): los campos vacíos se borran (null en update = quitar el dato).
+  const data = {};
+  Object.entries(todo).forEach(([k, v]) => { if (v != null || editando) data[k] = v; });
+  if (!Object.keys(data).length){ if (st) st.textContent = 'No completaste ningún campo.'; return; }
+  if (Object.entries(data).some(([, v]) => v != null && !isFinite(v))){ if (st) st.textContent = 'Hay un valor que no es un número.'; return; }
   try {
-    await window._setViviendaMes(key, data);
-    if (st) st.textContent = `Guardado: ${viviendaKeyToLabel(key)}.`;
+    await window._updateViviendaMes(key, data);
+    if (st) st.textContent = `Guardado: ${viviendaKeyToLabel(key)}${editando ? ' (editado)' : ''}.`;
     ['viv-alquiler','viv-expensas','viv-ipc-indec','viv-ipc-caba'].forEach(id => { const e = $(id); if (e) e.value = ''; });
+    vivEditKey = null;
   } catch (err){
     console.error(err);
     if (st) st.textContent = 'Error al guardar -- revisá la consola.';
@@ -1978,6 +2016,8 @@ async function guardarMesVivienda(){
 }
 async function borrarMesVivienda(key){
   if (!window._deleteViviendaMes) return;
+  const tieneDet = !!(VIVIENDA_LIVE[key] && VIVIENDA_LIVE[key].detalle);
+  if (!window.confirm(`¿Borrar alquiler, expensas e IPC de ${viviendaKeyToLabel(key)}?` + (tieneDet ? ' (El detalle de la liquidación de expensas se conserva.)' : ''))) return;
   try {
     const _pv = VIVIENDA_LIVE[key];
     // si el mes tiene detalle de liquidación, borrar solo los datos de la tabla y conservar el banco
@@ -2045,6 +2085,7 @@ const OSDE_HIST = [
 ];
 function renderVivienda(){
   const tb = $('viv-tb'); if(!tb) return;
+  try { vivMesInit(); } catch (e){ console.error(e); }
   let lastAlq = null, lastExp = null;
   const entradas = Object.entries(VIVIENDA_LIVE).sort((a,b) => a[0].localeCompare(b[0]));
   const rows = entradas.map(([key, r])=>{
@@ -2065,7 +2106,7 @@ function renderVivienda(){
       <td style="color:${dExp.startsWith('+')?'var(--red)':'var(--text3)'};">${dExp}</td>
       <td>${r.ipcIndec!=null?r.ipcIndec.toFixed(1)+'%':'<span style="color:var(--text3);">—</span>'}</td>
       <td>${r.ipcCaba!=null?r.ipcCaba.toFixed(1)+'%':'<span style="color:var(--text3);">—</span>'}</td>
-      <td><button class="hdr-btn" style="padding:2px 8px;font-size:11px;" onclick="borrarMesVivienda('${key}')">✕</button></td>
+      <td style="white-space:nowrap;">${/^\d{4}-\d{2}$/.test(key) ? `<button class="hdr-btn" title="Editar este mes" style="padding:2px 8px;font-size:11px;" onclick="editarMesVivienda('${key}')">✏️</button> ` : ''}<button class="hdr-btn" title="Borrar este mes" style="padding:2px 8px;font-size:11px;" onclick="borrarMesVivienda('${key}')">✕</button></td>
     </tr>`;
   });
   tb.innerHTML = rows.join('') || `<tr><td colspan="8" style="color:var(--text3);font-size:12px;">Sin meses cargados todavía.</td></tr>`;
