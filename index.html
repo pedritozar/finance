@@ -7268,10 +7268,12 @@ if (window._fbOK) iaBriefingSuscribir();
 // ── Plan de pagos VISA (techo de resumen) ───────────────────────────────────
 // Acordado 05/10/2026: pagar todo lo que queda después de vivienda, sin Plan V y sin volver al mínimo.
 // Escenario oficial: mamá cubre las expensas en los primeros 3 pagos (oct-dic); aguinaldo en el resumen de enero.
-const PP_DEF = { sueldo: 870000, bono: 1800000, alquiler: 867000, expensas: 530000, servicios: 97000, otrosFijos: 51000, creditoMP: 184000, abl: 0, usdMes: 130, pesosMes: 150000, aguinaldo: 1750000, mamaMeses: 3, techo: 1000000 };
+// 15/10/2026: alquiler real $925.000 y expensa de setiembre $520.331. Mercado Pago es VARIABLE (cuotas sueltas): creditoMP = lo que vence ahora ($206.296 al 13/10),
+// creditoMPSig = estimación para los pagos siguientes (~$15.000 = lo que sigue vigente en las capturas, sin consumos nuevos). Ajustable en la card.
+const PP_DEF = { sueldo: 870000, bono: 1800000, alquiler: 925000, expensas: 520331, servicios: 97000, otrosFijos: 51000, creditoMP: 206296, creditoMPSig: 15000, abl: 0, usdMes: 130, pesosMes: 150000, aguinaldo: 1750000, mamaMeses: 3, techo: 1000000 };
 const PP_CAMPOS = [
   ['sueldo', 'Sueldo neto por mes'], ['bono', 'Bono de desempeño por mes (conservador)'], ['alquiler', 'Alquiler'], ['expensas', 'Expensas'],
-  ['servicios', 'Wifi + luz'], ['otrosFijos', 'Otros fijos (Silvina)'], ['creditoMP', 'Crédito Mercado Pago (cuota)'], ['abl', 'ABL (pendiente de cargar)'],
+  ['servicios', 'Wifi + luz'], ['otrosFijos', 'Otros fijos (Silvina)'], ['creditoMP', 'Crédito Mercado Pago, este mes (cuota)'], ['creditoMPSig', 'Crédito Mercado Pago, desde el 2.º pago (cuota)'], ['abl', 'ABL (pendiente de cargar)'],
   ['usdMes', 'Gasto en USD por resumen (US$, sin percepción)'], ['pesosMes', 'Súper y necesidades en pesos por resumen'], ['aguinaldo', 'Aguinaldo (se aplica al resumen de enero)'],
   ['mamaMeses', 'Pagos en que mamá cubre expensas (desde el 1.º)'], ['techo', 'Techo de resumen (tu meta)']
 ];
@@ -7299,8 +7301,8 @@ function ppSimular(b, c, tc, mamaMeses){
   const i0 = b.info, saldo0 = (+b.r.saldo || 0) + (+i0.saldoUsd || 0) * tc;
   const tem = (i0.tem != null ? +i0.tem : (+i0.tna || 75) / 12) / 100;
   const f = 1 + tem * 1.21;
-  const fijos = PP.alquiler + PP.servicios + PP.otrosFijos + PP.creditoMP + PP.abl;
-  const R = idx => PP.sueldo + PP.bono - fijos - (idx < mamaMeses ? 0 : PP.expensas);
+  const fijosBase = PP.alquiler + PP.servicios + PP.otrosFijos + PP.abl; // Mercado Pago aparte: la cuota es variable
+  const R = idx => PP.sueldo + PP.bono - fijosBase - (idx === 0 ? PP.creditoMP : PP.creditoMPSig) - (idx < mamaMeses ? 0 : PP.expensas);
   const filas = []; let U = saldo0, interesTot = 0, pagoTot = 0, cero = null;
   const pago0 = Math.max(0, Math.min(R(0), U)); U -= pago0; pagoTot += pago0;
   filas.push({ cierre: b.r.cierre, vto: b.r.vencimiento, stmt: saldo0, interes: 0, cuotas: 0, pago: pago0, queda: U, capacidad: R(0) });
@@ -7371,7 +7373,7 @@ function ppContextoIA(){
   const S = ppSimular(x.b, x.c, x.tc, PP.mamaMeses), S0 = ppSimular(x.b, x.c, x.tc, 0);
   const filas = S.filas.map(r => `${fD(r.vto)}: resumen ${fmt(r.stmt)} → pago ${fmt(r.pago)} → queda ${fmt(r.queda)}`).join(' | ');
   return [`PLAN DE PAGOS ACORDADO (Pedro y Claude, 05/10/2026; parámetros editables en la card "Plan de pagos"): sin Plan V, sin volver al pago mínimo, pagar cada mes lo que queda después de vivienda.`,
-    `- Supuestos: sueldo ${fmt(PP.sueldo)}, bono mensual ${fmt(PP.bono)} (los últimos 4 fueron entre $1,96M y $2,29M), vivienda+fijos ${fmt(PP.alquiler + PP.servicios + PP.otrosFijos + PP.creditoMP + PP.abl)} sin expensas (ABL pendiente de cargar), expensas ${fmt(PP.expensas)} (mamá las cubre en los primeros ${PP.mamaMeses} pagos), gasto operativo nuevo por resumen ${fmt(ppOperativo(x.tc))} (US$ ${PP.usdMes} con percepción 30% + súper y necesidades en pesos ${fmt(PP.pesosMes)}; Pedro todavía decide cuáles suscripciones en USD mantiene), aguinaldo ${fmt(PP.aguinaldo)} en enero. Techo de resumen: ${fmt(PP.techo)}.`,
+    `- Supuestos: sueldo ${fmt(PP.sueldo)}, bono mensual ${fmt(PP.bono)} (los últimos 4 fueron entre $1,96M y $2,29M), vivienda+fijos del 1.er pago ${fmt(PP.alquiler + PP.servicios + PP.otrosFijos + PP.creditoMP + PP.abl)} sin expensas (Mercado Pago es variable: baja a ${fmt(PP.creditoMPSig)} desde el 2.º pago; ABL pendiente de cargar), expensas ${fmt(PP.expensas)} (mamá las cubre en los primeros ${PP.mamaMeses} pagos), gasto operativo nuevo por resumen ${fmt(ppOperativo(x.tc))} (US$ ${PP.usdMes} con percepción 30% + súper y necesidades en pesos ${fmt(PP.pesosMes)}; Pedro todavía decide cuáles suscripciones en USD mantiene), aguinaldo ${fmt(PP.aguinaldo)} en enero. Techo de resumen: ${fmt(PP.techo)}.`,
     `- Resultado estimado: deuda en cero ${S.cero ? ppMesTxt(S.cero) : 'más de 14 meses'}, interés ~${fmt(S.interesTot)}; resumen ≤ techo desde ${S.bajoTecho ? ppMesTxt(S.bajoTecho) : 'no en el período'}. Sin ayuda de mamá: cero en ${S0.cero ? ppMesTxt(S0.cero) : 'más de 14 meses'}, interés ~${fmt(S0.interesTot)}.`,
     `- Cadena: ${filas}.`].join('\n');
 }
