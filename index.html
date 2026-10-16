@@ -2362,7 +2362,9 @@ function renderArkad() {
   const elP = document.getElementById('arkad-pct');
   const elB = document.getElementById('arkad-bar');
   if (!elS) return;
-  const ing = fl(S.data?.ingresos), gas = fl(S.data?.gastos);
+  // 15/10/2026: mismos gastos que el Dashboard (movimientos + compras del resumen de tarjeta del mes);
+  // antes sólo contaba los movimientos manuales y mostraba 49,2% con el Dashboard en -39,6%.
+  const ing = fl(S.data?.ingresos), gas = [...fl(S.data?.gastos), ...gastosResumenParaMes(S.year, S.month)];
   const tI  = sARS(ing), tG = sARS(gas);
   const dti = tI > 0 ? CUO_TOT / tI : 1;
   // Inactivo mientras DTI > 50%
