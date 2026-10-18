@@ -219,6 +219,15 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     <div class="sec-lbl">Categoría</div>
     <div class="cat-grid" id="mv-cg"></div>
   </div>
+  <div class="cat-sec" id="mv-mediowrap">
+    <div class="sec-lbl">Medio de pago</div>
+    <div class="cur-row" id="mv-md" style="flex-wrap:wrap;gap:6px;">
+      <button class="cur-btn" data-medio="efectivo" onclick="setMedio('efectivo')">Efectivo</button>
+      <button class="cur-btn" data-medio="debito" onclick="setMedio('debito')">Débito</button>
+      <button class="cur-btn" data-medio="transferencia" onclick="setMedio('transferencia')">Transfer.</button>
+      <button class="cur-btn" data-medio="credito" onclick="setMedio('credito')">Crédito</button>
+    </div>
+  </div>
   <div class="note-sec">
     <div class="sec-lbl" style="margin-bottom:4px;">Fecha</div>
     <input class="sim-input" type="date" id="mv-fc" style="width:100%;">
@@ -272,6 +281,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
   <nav class="dv-tabs">
     <div class="tab-btn on" data-tab="dash"  onclick="showTab('dash')">Dashboard</div>
     <div class="tab-btn"    data-tab="cred"  onclick="showTab('cred')">Crédito · DTI</div>
+    <div class="tab-btn"    data-tab="deb"   onclick="showTab('deb')">💵 Débito</div>
     <div class="tab-btn"    data-tab="inv"   onclick="showTab('inv')">Inversiones</div>
     <div class="tab-btn"    data-tab="sims"  onclick="showTab('sims')">Simuladores</div>
     <div class="tab-btn"    data-tab="hist"  onclick="showTab('hist')">Histórico</div>
@@ -729,6 +739,50 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     </div>
 
     <!-- Inversiones -->
+    <!-- Débito — banco de datos de consumo líquido (18/10/2026) -->
+    <div class="tab-pane" id="t-deb">
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+          <div class="card-ttl" style="margin:0;">💵 Consumo líquido</div>
+          <div style="flex:1;"></div>
+          <select class="sim-input" id="deb-m" style="width:auto;" onchange="debCambio()"></select>
+          <select class="sim-input" id="deb-y" style="width:auto;" onchange="debCambio()"></select>
+          <button class="hdr-btn" onclick="debCSV()">↓ Exportar CSV</button>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.55;">
+          Efectivo, débito y transferencia: lo que sale de tu cuenta. Lo que pagás con la VISA no entra al total de acá, se ve en <a href="javascript:showTab('cred')" style="color:var(--blue);font-weight:600;">Crédito · DTI</a>.<br>
+          <strong>Por qué no coincide con el Dashboard:</strong> esta pestaña fecha cada gasto el día que lo hiciste; el Dashboard imputa las compras de tarjeta al mes en que vence el resumen. Son dos preguntas distintas (cuándo gastaste vs. cuándo lo pagás) y las dos cifras son correctas.
+        </div>
+        <div class="kpi-row" id="deb-kpis" style="grid-template-columns:repeat(4,1fr);"></div>
+      </div>
+      <div class="card">
+        <div class="card-ttl">En qué se fue</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+          <div>
+            <div style="position:relative;height:230px;"><canvas id="deb-pie"></canvas></div>
+            <div id="deb-cats" style="margin-top:12px;"></div>
+          </div>
+          <div>
+            <div style="position:relative;height:230px;"><canvas id="deb-trend"></canvas></div>
+            <div id="deb-trend-note" style="font-size:10px;color:var(--text3);margin-top:8px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="deb-sinclas-card" style="display:none;">
+        <div class="card-ttl">⚠️ Sin clasificar</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Gastos cargados antes de que existiera el campo de medio de pago. No suman al líquido hasta que les digas con qué los pagaste. Clasificalos de a poco, no hace falta de una.</div>
+        <div id="deb-sinclas"></div>
+      </div>
+      <div class="card">
+        <div class="card-ttl">Movimientos del mes</div>
+        <table class="tbl">
+          <thead><tr><th>Fecha</th><th>Categoría</th><th>Detalle</th><th>Medio</th><th style="text-align:right;">Monto</th></tr></thead>
+          <tbody id="deb-tb"></tbody>
+        </table>
+        <div id="deb-tb-note" style="font-size:10px;color:var(--text3);margin-top:8px;"></div>
+      </div>
+    </div>
+
     <div class="tab-pane" id="t-inv">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
         <div style="display:flex;flex-direction:column;gap:14px;">
@@ -1150,6 +1204,16 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <div class="panel-lbl">Categoría</div>
           <div class="panel-cats" id="p-cg"></div>
         </div>
+        <div id="p-mediowrap">
+          <div class="panel-lbl">Medio de pago</div>
+          <div class="cur-row" id="p-md" style="flex-wrap:wrap;">
+            <button class="cur-btn" data-medio="efectivo" onclick="setMedio('efectivo')">Efectivo</button>
+            <button class="cur-btn" data-medio="debito" onclick="setMedio('debito')">Débito</button>
+            <button class="cur-btn" data-medio="transferencia" onclick="setMedio('transferencia')">Transfer.</button>
+            <button class="cur-btn" data-medio="credito" onclick="setMedio('credito')">Crédito</button>
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:5px;">Crédito = lo pagás con la VISA. No suma al gasto líquido y evita que se cuente dos veces cuando cargues el resumen.</div>
+        </div>
         <div>
           <div class="panel-lbl">Fecha</div>
           <input class="sim-input" type="date" id="p-fc" style="width:100%;">
@@ -1199,11 +1263,11 @@ const auth = getAuth(app);
 // ── UID fijo de los DATOS (histórico abr/may/jun/jul) — no confundir con el uid de auth anónima ──
 const uid = 'JsW7CjDObEhn3DoFkwzuJUGLhrB3';
 
-window._write = async (type, monto, moneda, cat, nota) => {
+window._write = async (type, monto, moneda, cat, nota, medio) => {
   const d = new Date(), y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0');
   await push(ref(db, `${type}s/${uid}/${y}/${m}`), {
     fecha: d.toISOString().split('T')[0], monto: +monto,
-    moneda, categoria: cat, nota: nota||'', timestamp: serverTimestamp()
+    moneda, categoria: cat, nota: nota||'', medio: medio||null, timestamp: serverTimestamp()
   });
 };
 
@@ -1228,10 +1292,15 @@ window._hist = async months => {
   return r;
 };
 
-window._writeDate = async (type, monto, moneda, cat, nota, fecha) => {
+// Clasificador de la pestaña Débito: escribe el medio en un gasto ya cargado (18/10/2026).
+window._setMedio = async (y, m, id, medio) => {
+  await set(ref(db, `gastos/${uid}/${y}/${m}/${id}/medio`), medio);
+};
+
+window._writeDate = async (type, monto, moneda, cat, nota, fecha, medio) => {
   const [y,m] = fecha.split('-');
   await push(ref(db, `${type}s/${uid}/${y}/${m}`), {
-    fecha, monto: +monto, moneda, categoria: cat, nota: nota||'', timestamp: serverTimestamp()
+    fecha, monto: +monto, moneda, categoria: cat, nota: nota||'', medio: medio||null, timestamp: serverTimestamp()
   });
 };
 
@@ -2251,7 +2320,7 @@ const CG = ['alimentacion','transporte','servicios','streaming','salud','ropa','
 const CI = ['salario','bono','trading','otro'];
 
 // ── State ─────────────────────────────────────────────────────────────────────
-const S = { type:'g', cur:'ARS', cat:null, year:'', month:'', data:{gastos:{},ingresos:{}}, hist:{} };
+const S = { type:'g', cur:'ARS', cat:null, medio:null, year:'', month:'', data:{gastos:{},ingresos:{}}, hist:{} };
 let pieChart, barChart, tendenciaChart, salRealChart;
 let DEUDAS_LIVE = {}; // deudas/{uid}/ desde Firebase — cargadas por ZAR Tactical Ledger
 let DEUDAS_FIJAS_LIVE = {}; // deudasFijasEstado/{uid}/ — estado editable de DEUDAS_DEF (14/09/2026)
@@ -7552,6 +7621,198 @@ function comerciosSuscribir(){
 }
 document.addEventListener('fb-ok', comerciosSuscribir);
 if (window._fbOK) comerciosSuscribir();
+// ── Pestaña Débito (18/10/2026) ──────────────────────────────────────────────
+// Banco de datos de consumo líquido: en qué se fue el efectivo/débito/transferencia,
+// separado de lo que se pagó con la VISA (eso vive en Crédito·DTI y no se suma acá).
+// Diferencia deliberada con el Dashboard: acá cada gasto se fecha el día en que se
+// hizo la compra (las de tarjeta salen del resumen con su fecha real), mientras que
+// el Dashboard imputa el resumen entero al mes del vencimiento.
+let DEB_CACHE = {}, debPie = null, debTrend = null;
+const DEB_COLORS = ['#2563eb','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#64748b','#14b8a6','#a855f7'];
+
+function _fechaTxISO(f){            // "15.09.26" (resumen VISA) -> "2026-09-15"
+  const m = String(f||'').match(/^(\d{2})\.(\d{2})\.(\d{2})$/);
+  if (m) return '20' + m[3] + '-' + m[2] + '-' + m[1];
+  return /^\d{4}-\d{2}-\d{2}/.test(f||'') ? String(f).slice(0,10) : null;
+}
+function debKey(){ const m=$('deb-m'), y=$('deb-y'); return (m&&y&&m.value&&y.value) ? [y.value,m.value] : null; }
+function debInit(){
+  const m=$('deb-m'), y=$('deb-y'); if(!m||!y||m.dataset.init) return;
+  const hoy=new Date(), ya=hoy.getFullYear();
+  m.innerHTML = Array.from({length:12},(_,i)=>{
+    const k=String(i+1).padStart(2,'0');
+    return '<option value="'+k+'">'+new Date(2000,i).toLocaleDateString('es-AR',{month:'long'})+'</option>';
+  }).join('');
+  const anios=[]; for(let v=2024; v<=ya+1; v++) anios.push(v);
+  y.innerHTML = anios.map(v=>'<option value="'+v+'">'+v+'</option>').join('');
+  m.value=String(hoy.getMonth()+1).padStart(2,'0'); y.value=String(ya); m.dataset.init='1';
+}
+function debCambio(){ safe(renderDeb,'renderDeb'); }
+async function debCargarMes(y,m){
+  const k=y+'-'+m;
+  if(DEB_CACHE[k]) return DEB_CACHE[k];
+  if(typeof HIST12!=='undefined' && HIST12 && HIST12[k]){ DEB_CACHE[k]=HIST12[k]; return DEB_CACHE[k]; }
+  try { const r=await window._hist([{y,m}]); DEB_CACHE[k]=r[k]||{gastos:{},ingresos:{}}; }
+  catch(e){ DEB_CACHE[k]={gastos:{},ingresos:{}}; }
+  return DEB_CACHE[k];
+}
+function debGastos(obj){
+  return Object.entries((obj&&obj.gastos)||{}).map(([id,e])=>Object.assign({},e,{id:id}))
+    .filter(e=>e && e.moneda==='ARS');
+}
+function debCreditoResumen(y,m){
+  const out=[], mm=String(m).padStart(2,'0');
+  const RL = (typeof RESUMENES_LIVE!=='undefined' && RESUMENES_LIVE) ? RESUMENES_LIVE : {};
+  Object.entries(RL).forEach(([rid,r])=>{
+    if(!r || !r.transacciones) return;
+    Object.entries(r.transacciones).forEach(([txId,t])=>{
+      if(!t || !t.pesos) return;
+      const iso=_fechaTxISO(t.fecha); if(!iso) return;
+      const p=iso.split('-'); if(p[0]!==String(y) || p[1]!==mm) return;
+      out.push({ id:rid+'_'+txId, fecha:iso, monto:t.pesos, categoria:catTx(t), nota:t.detalle, _resumen:true });
+    });
+  });
+  return out;
+}
+function debSerie12(){
+  const H = (typeof HIST12!=='undefined' && HIST12) ? HIST12 : {};
+  return Object.keys(H).sort().map(k=>{
+    const g=debGastos(H[k]);
+    return { k:k,
+      liq: g.filter(esLiquido).reduce((a,b)=>a+(+b.monto||0),0),
+      sin: g.filter(e=>!e.medio).reduce((a,b)=>a+(+b.monto||0),0) };
+  });
+}
+const _dsum = a => a.reduce((x,e)=>x+(+e.monto||0),0);
+
+async function renderDeb(){
+  debInit();
+  const kk=debKey(); if(!kk) return;
+  const y=kk[0], m=kk[1];
+  const gs=debGastos(await debCargarMes(y,m));
+  const liq=gs.filter(esLiquido), sinc=gs.filter(e=>!e.medio), credM=gs.filter(e=>e.medio==='credito');
+  const credR=debCreditoResumen(y,m);
+  const tLiq=_dsum(liq), tSin=_dsum(sinc), tCredR=_dsum(credR), tCredM=_dsum(credM);
+
+  const kp=$('deb-kpis');
+  if(kp) kp.innerHTML =
+    '<div class="kpi"><div class="kpi-lbl">Líquido del mes</div><div class="kpi-val r">'+fmt(tLiq)+'</div><div class="kpi-sub">'+liq.length+' movimientos (efectivo, débito, transferencia)</div></div>'+
+    '<div class="kpi"><div class="kpi-lbl">Sin clasificar</div><div class="kpi-val'+(tSin>0?'':' b')+'" style="'+(tSin>0?'color:var(--amber,#f59e0b);':'')+'">'+fmt(tSin)+'</div><div class="kpi-sub">'+sinc.length+' sin medio de pago cargado</div></div>'+
+    '<div class="kpi"><div class="kpi-lbl">Con tarjeta</div><div class="kpi-val b">'+fmt(tCredR)+'</div><div class="kpi-sub">'+(credR.length?credR.length+' compras del resumen':'sin resumen cargado para este mes')+'</div></div>'+
+    '<div class="kpi"><div class="kpi-lbl">Consumo total</div><div class="kpi-val">'+fmt(tLiq+tCredR)+'</div><div class="kpi-sub">líquido + tarjeta'+(tSin>0?', sin contar lo no clasificado':'')+'</div></div>';
+
+  // Torta por categoría del gasto líquido
+  const porCat={};
+  liq.forEach(e=>{ const c=e.categoria||'varios'; porCat[c]=(porCat[c]||0)+(+e.monto||0); });
+  const cats=Object.entries(porCat).sort((a,b)=>b[1]-a[1]);
+  const cv=$('deb-pie');
+  if(cv && window.Chart){
+    if(debPie) debPie.destroy();
+    if(cats.length){
+      debPie=new Chart(cv,{ type:'doughnut',
+        data:{ labels:cats.map(c=>(CM[c[0]]&&CM[c[0]].n)||c[0]),
+               datasets:[{ data:cats.map(c=>c[1]), backgroundColor:cats.map((_,i)=>DEB_COLORS[i%DEB_COLORS.length]), borderWidth:0 }] },
+        options:{ responsive:true, maintainAspectRatio:false, cutout:'62%',
+                  plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>' '+fmt(c.parsed) } } } } });
+    }
+  }
+  const cl=$('deb-cats');
+  if(cl) cl.innerHTML = cats.length
+    ? cats.map((c,i)=>'<div style="display:flex;align-items:center;gap:7px;font-size:12px;padding:3px 0;">'+
+        '<span style="width:9px;height:9px;border-radius:2px;background:'+DEB_COLORS[i%DEB_COLORS.length]+';flex:none;"></span>'+
+        '<span style="flex:1;color:var(--text2);">'+((CM[c[0]]&&CM[c[0]].e)||'')+' '+((CM[c[0]]&&CM[c[0]].n)||c[0])+'</span>'+
+        '<span style="font-weight:600;">'+fmt(c[1])+'</span></div>').join('')
+    : '<div style="font-size:11px;color:var(--text3);">No hay gasto líquido clasificado en este mes.'+(tSin>0?' Hay '+fmt(tSin)+' sin clasificar más abajo: cuando les pongas el medio de pago aparecen acá.':'')+'</div>';
+
+  // Tendencia 12 meses
+  const serie=debSerie12(), tv=$('deb-trend');
+  if(tv && window.Chart && serie.length){
+    if(debTrend) debTrend.destroy();
+    debTrend=new Chart(tv,{ type:'bar',
+      data:{ labels:serie.map(s=>{const p=s.k.split('-');return new Date(p[0],+p[1]-1).toLocaleDateString('es-AR',{month:'short'});}),
+             datasets:[ {label:'Líquido', data:serie.map(s=>s.liq), backgroundColor:'#2563eb'},
+                        {label:'Sin clasificar', data:serie.map(s=>s.sin), backgroundColor:'#cbd5e1'} ] },
+      options:{ responsive:true, maintainAspectRatio:false,
+                scales:{ x:{stacked:true,grid:{display:false}}, y:{stacked:true,ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'}} },
+                plugins:{ legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},
+                          tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+fmt(c.parsed.y)}} } } });
+  }
+  const tn=$('deb-trend-note');
+  if(tn) tn.textContent='Gasto no-tarjeta por mes. El gris es lo que todavía no tiene medio de pago cargado: hasta que lo clasifiques no se sabe si fue líquido o tarjeta.';
+
+  // Sin clasificar + clasificador
+  const sc=$('deb-sinclas'), scc=$('deb-sinclas-card');
+  if(scc) scc.style.display = sinc.length ? '' : 'none';
+  if(sc && sinc.length){
+    sc.innerHTML = sinc.sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha))).map(e=>{
+      const c=CM[e.categoria||'varios']||{e:'',n:e.categoria};
+      const btns=Object.entries(MEDIOS).map(([k,v])=>
+        '<button class="cur-btn" style="padding:3px 9px;font-size:11px;" onclick="debClasificar(\''+y+'\',\''+m+'\',\''+e.id+'\',\''+k+'\')">'+v.n+'</button>').join('');
+      return '<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border2);flex-wrap:wrap;">'+
+        '<span style="font-size:11px;color:var(--text3);width:74px;flex:none;">'+(e.fecha||'')+'</span>'+
+        '<span style="flex:1;min-width:150px;font-size:12px;">'+c.e+' '+(e.nota||c.n)+'</span>'+
+        '<span style="font-weight:600;font-size:12px;">'+fmt(e.monto)+'</span>'+
+        '<span style="display:flex;gap:4px;flex-wrap:wrap;">'+btns+'</span></div>';
+    }).join('');
+  }
+
+  // Tabla de movimientos
+  const filas=[].concat(
+    liq.map(e=>Object.assign({},e,{_m:(MEDIOS[e.medio]&&MEDIOS[e.medio].n)||e.medio})),
+    credM.map(e=>Object.assign({},e,{_m:'Crédito (cargado a mano)'})),
+    credR.map(e=>Object.assign({},e,{_m:'Crédito (del resumen)'})),
+    sinc.map(e=>Object.assign({},e,{_m:'—'}))
+  ).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  const tb=$('deb-tb');
+  const totMes = tLiq + tSin + tCredR;   // todo lo que pasó en el mes, clasificado o no (el crédito cargado a mano no suma: duplicaría al resumen)
+  const filaT = (lbl, val, cls) => '<tr style="'+(cls||'')+'"><td colspan="4" style="text-align:right;color:var(--text2);">'+lbl+'</td>'+
+        '<td style="text-align:right;font-weight:700;">'+fmt(val)+'</td></tr>';
+  if(tb) tb.innerHTML = filas.length
+    ? filas.map(e=>{
+        const c=CM[e.categoria||'varios']||{e:'',n:e.categoria};
+        return '<tr><td>'+(e.fecha||'')+'</td><td>'+c.e+' '+c.n+'</td><td style="color:var(--text2);">'+(e.nota||'')+'</td>'+
+          '<td style="font-size:11px;color:var(--text3);">'+e._m+'</td>'+
+          '<td style="text-align:right;font-weight:600;">'+fmt(e.monto)+'</td></tr>';
+      }).join('')
+      + '<tr><td colspan="5" style="padding:0;border-top:2px solid var(--border);"></td></tr>'
+      + filaT('Líquido (efectivo · débito · transferencia)', tLiq)
+      + (tSin>0 ? filaT('Sin clasificar', tSin) : '')
+      + (tCredR>0 ? filaT('Con tarjeta (del resumen)', tCredR) : '')
+      + filaT('<strong>TOTAL DEL MES</strong>', totMes, 'background:var(--bg2,#f8fafc);')
+    : '<tr><td colspan="5" style="color:var(--text3);font-size:12px;">No hay movimientos cargados en este mes.</td></tr>';
+  const tbn=$('deb-tb-note');
+  const cf = credR.filter(e=>e.categoria==='costofin'), tCF=_dsum(cf);
+  const notas=[];
+  if(tCredM>0) notas.push('Hay '+fmt(tCredM)+' cargados a mano como crédito. No suman al total porque esas mismas compras van a venir en el resumen de la VISA: contarlas sería duplicarlas.');
+  if(tCF>0) notas.push('De lo que figura con tarjeta, '+fmt(tCF)+' ('+Math.round(tCF/tCredR*100)+'%) son intereses, sellos y percepciones del cierre, no compras. El consumo real con tarjeta de este mes aparece cuando cargues el resumen que lo incluya.');
+  tbn.innerHTML = notas.join('<br>');
+}
+function debClasificar(y,m,id,medio){
+  if(!window._setMedio) return;
+  window._setMedio(y,m,id,medio).then(()=>{
+    const k=y+'-'+m;
+    if(DEB_CACHE[k] && DEB_CACHE[k].gastos && DEB_CACHE[k].gastos[id]) DEB_CACHE[k].gastos[id].medio=medio;
+    if(typeof HIST12!=='undefined' && HIST12 && HIST12[k] && HIST12[k].gastos && HIST12[k].gastos[id]) HIST12[k].gastos[id].medio=medio;
+    safe(renderDeb,'renderDeb');
+  }).catch(e=>alert('No se pudo guardar: '+e.message));
+}
+function debCSV(){
+  const kk=debKey(); if(!kk) return;
+  const y=kk[0], m=kk[1], k=y+'-'+m;
+  const gs=debGastos(DEB_CACHE[k]||{}), credR=debCreditoResumen(y,m);
+  const filas=[].concat(
+    gs.map(e=>[e.fecha||'', (CM[e.categoria||'varios']||{}).n||e.categoria||'', e.nota||'',
+               e.medio?((MEDIOS[e.medio]&&MEDIOS[e.medio].n)||e.medio):'sin clasificar', 'manual', e.monto]),
+    credR.map(e=>[e.fecha, (CM[e.categoria]||{}).n||e.categoria, e.nota||'', 'Crédito', 'resumen VISA', e.monto])
+  ).sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
+  const cab=['Fecha','Categoría','Detalle','Medio de pago','Origen','Monto ARS'];
+  const csv='﻿'+[cab].concat(filas).map(f=>f.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='consumo_liquido_'+k+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function showTab(name){
   $$('.tab-pane').forEach(e=>e.classList.remove('on'));
@@ -7559,6 +7820,7 @@ function showTab(name){
   const p=$(`t-${name}`),t=document.querySelector(`[data-tab="${name}"]`);
   if(p) p.classList.add('on');
   if(t) t.classList.add('on');
+  if(name==='deb') safe(renderDeb,'renderDeb');
   // Chart.js no puede dimensionar un canvas creado mientras su pestaña estaba
   // en display:none (queda 0x0 y no se redibuja solo al mostrarse). Al abrir
   // la pestaña forzamos un resize de todos los gráficos que contiene.
@@ -7588,6 +7850,26 @@ function renderCatGrid(pfx){
   }).join('');
 }
 
+// ── Medio de pago (18/10/2026) ────────────────────────────────────────────────
+// Separa el gasto liquido (efectivo/debito/transferencia) del gasto con tarjeta.
+// Sin este dato no hay forma de saber si un gasto cargado a mano ya va a venir
+// tambien en el resumen de la VISA -- era la causa del doble conteo.
+const MEDIOS = { efectivo:{e:'💵',n:'Efectivo'}, debito:{e:'🏧',n:'Débito'},
+                 transferencia:{e:'🔁',n:'Transferencia'}, credito:{e:'💳',n:'Crédito'} };
+const MEDIOS_LIQUIDOS = ['efectivo','debito','transferencia'];
+function esLiquido(e){ return MEDIOS_LIQUIDOS.includes(e && e.medio); }
+function setMedio(m){
+  S.medio = m;
+  ['p-md','mv-md'].forEach(id=>{
+    const c=$(id); if(!c) return;
+    c.querySelectorAll('[data-medio]').forEach(b=>b.classList.toggle('on', b.dataset.medio===m));
+  });
+}
+function syncMedioVisible(){
+  const show = S.type==='g';
+  ['p-mediowrap','mv-mediowrap'].forEach(id=>{ const e=$(id); if(e) e.style.display = show?'':'none'; });
+}
+
 function setType(t){
   S.type=t; S.cat=null;
   // mobile
@@ -7601,7 +7883,7 @@ function setType(t){
   if(pi) pi.className='tog-btn'+(t==='i'?' ai':'');
   const pa=$('p-ad'); if(pa) pa.className='panel-num '+(t==='g'?'g':'i');
   const psb=$('p-sb'); if(psb) psb.textContent=`Registrar ${t==='g'?'gasto':'ingreso'}`;
-  renderCatGrid('mv'); renderCatGrid('p');
+  renderCatGrid('mv'); renderCatGrid('p'); syncMedioVisible();
 }
 
 function setCur(c){
@@ -7628,10 +7910,11 @@ async function submit(pfx){
   const monto=parseFloat(ainput.value);
   if(!monto||monto<=0){ _pulse(sbtn,'Ingresá un monto'); return; }
   if(!S.cat){ _pulse(sbtn,'Seleccioná categoría'); return; }
+  if(S.type==='g' && !S.medio){ _pulse(sbtn,'Elegí el medio de pago'); return; }
   const fecha=(fechaInput&&fechaInput.value)?fechaInput.value:_defaultFecha();
   sbtn.disabled=true; sbtn.textContent='Guardando…';
   try{
-    await window._writeDate(S.type==='g'?'gasto':'ingreso',monto,S.cur,S.cat,note.value.trim(),fecha);
+    await window._writeDate(S.type==='g'?'gasto':'ingreso',monto,S.cur,S.cat,note.value.trim(),fecha,S.type==='g'?S.medio:null);
     const c=CM[S.cat];
     if(isMV) _flash(`${c.e} ${c.n}`,`${fmt(monto)} ${S.cur} registrado`);
     else closePanel();
@@ -7644,7 +7927,7 @@ function _reset(){
   ['mv-ai','p-ai'].forEach(id=>{const e=$(id);if(e)e.value='';});
   ['mv-ad','p-ad'].forEach(id=>{const e=$(id);if(e)e.textContent='0';});
   ['mv-nt','p-nt'].forEach(id=>{const e=$(id);if(e)e.value='';});
-  S.cat=null; renderCatGrid('mv'); renderCatGrid('p');
+  S.cat=null; S.medio=null; setMedio(null); renderCatGrid('mv'); renderCatGrid('p');
   syncFechaInputs();
 }
 function _flash(lbl,sub){
