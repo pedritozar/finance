@@ -2719,6 +2719,10 @@ async function fetchTC() {
     const { venta } = await res.json();
     if (venta && venta > 0) {
       TC = venta;
+      // 18/10/2026: renderInvSnap() corre una sola vez en DOMContentLoaded, cuando TC todavía vale el
+      // respaldo (1420). Sin esto, el "≈ USD" de la KPI Cartera Alyc quedaba calculado con el TC viejo.
+      // Va ANTES del badge porque renderInvSnap recrea el elemento #tc-badge.
+      if (typeof renderInvSnap === 'function') { try { renderInvSnap(); } catch(e){ console.error('[ZAR] renderInvSnap tras fetchTC falló:', e); } }
       const badge = document.getElementById('tc-badge');
       if (badge) badge.textContent = `USD oficial $${TC.toLocaleString('es-AR')} · 🟢 live`;
       if (typeof renderObjetivo === 'function') renderObjetivo();
