@@ -909,6 +909,31 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         <div id="hist-veredicto" style="margin-top:14px;"></div>
         <div id="hist-note" style="font-size:10px;color:var(--text3);margin-top:10px;line-height:1.6;"></div>
       </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+          <div class="card-ttl" style="margin:0;">💰 Ingresos por tipo</div>
+          <div style="flex:1;"></div>
+          <button class="hdr-btn" onclick="impNotionPreview()">⬇ Importar de Notion</button>
+          <button class="hdr-btn" onclick="histIngCSV()">↓ Exportar CSV</button>
+        </div>
+        <div id="hist-imp" style="display:none;margin-bottom:16px;"></div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.55;">
+          <strong>Ingreso propio</strong> = salario + bono + aguinaldo + trading. <strong>Ayuda externa</strong> = lo que no generás vos. Se separan porque si la ayuda varía mes a mes, el total se mueve sin que cambie lo que ganás, y la comparación contra inflación deja de medir lo que importa.
+        </div>
+        <div class="kpi-row" id="hist-ing-kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px;"></div>
+        <div style="position:relative;height:230px;margin-bottom:16px;"><canvas id="hist-ing-ch"></canvas></div>
+        <table class="tbl">
+          <thead><tr id="hist-ing-th"></tr></thead>
+          <tbody id="hist-ing-tb"></tbody>
+        </table>
+      </div>
+
+      <div class="card" id="hist-reclas-card">
+        <div class="card-ttl">🏷️ Reclasificar ingresos</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Es una lista de <strong>todos</strong> tus ingresos, no una pregunta: solo tocás los que estén mal. La categoría actual aparece tildada (azul). "Aguinaldo" y "Ayuda familiar" son nuevas (18/10/2026), así que lo cargado antes está como Bono u Otro. Cada cambio se guarda en Firebase y el desglose de arriba se actualiza solo.</div>
+        <div id="hist-reclas"></div>
+      </div>
     </div>
 
     <div class="tab-pane" id="t-viv">
@@ -1291,6 +1316,21 @@ window._hist = async months => {
     r[`${y}-${m}`] = {gastos:gs.val()||{},ingresos:is.val()||{}};
   }));
   return r;
+};
+
+// Reclasificador de ingresos del Histórico (18/10/2026).
+window._setCatIngreso = async (y, m, id, cat) => {
+  await set(ref(db, `ingresos/${uid}/${y}/${m}/${id}/categoria`), cat);
+};
+
+// Importador de ingresos (18/10/2026): escribe un ingreso con fecha explicita y marca de origen
+// para poder identificarlo y borrarlo si hace falta.
+window._writeIngresoImport = async (it) => {
+  const [y,m] = it.fecha.split('-');
+  await push(ref(db, `ingresos/${uid}/${y}/${m}`), {
+    fecha: it.fecha, monto: +it.monto, moneda: 'ARS', categoria: it.categoria,
+    nota: it.nota||'', medio: null, origen: 'notion-import-20261018', timestamp: serverTimestamp()
+  });
 };
 
 // Clasificador de la pestaña Débito: escribe el medio en un gasto ya cargado (18/10/2026).
@@ -2316,9 +2356,15 @@ const CM = {
   delivery:{e:'🛵',n:'Delivery'},          suscripciones:{e:'📱',n:'Suscripciones'},
   salario:{e:'💼',n:'Salario'},            bono:{e:'⭐',n:'Bono / Extra'},
   trading:{e:'📊',n:'Trading / Alyc'},     otro:{e:'💵',n:'Otro Ingreso'},
+  aguinaldo:{e:'🎁',n:'Aguinaldo'},        ayuda:{e:'🤝',n:'Ayuda familiar'},
 };
 const CG = ['alimentacion','transporte','servicios','streaming','salud','ropa','judo','ocio','delivery','oficina','suscripciones','inversiones','finanzas','costofin','educacion','varios'];
-const CI = ['salario','bono','trading','otro'];
+const CI = ['salario','bono','aguinaldo','trading','ayuda','otro'];
+// 18/10/2026: ingreso PROPIO vs ayuda externa. La ayuda de la madre entraba como 'otro'
+// y inflaba el ingreso -- en octubre fueron $650.000 de $3.365.928 (19,3%). Para medir
+// si el ingreso propio le gana a la inflacion hay que separarlos.
+const CI_PROPIO = ['salario','bono','aguinaldo','trading'];
+const CI_EXTERNO = ['ayuda','otro'];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const S = { type:'g', cur:'ARS', cat:null, medio:null, year:'', month:'', data:{gastos:{},ingresos:{}}, hist:{} };
@@ -3147,6 +3193,7 @@ async function loadTendenciaGastos(){
   HIST12 = await window._hist(months);
   safe(renderTendenciaGastos, 'renderTendenciaGastos');
   safe(renderSalarioRealIPC, 'renderSalarioRealIPC');
+  safe(renderHistIngresos, 'renderHistIngresos');
 }
 function gastoTotalMesHist(y, m){
   const obj = HIST12[`${y}-${m}`];
@@ -3285,6 +3332,7 @@ function renderHistTab(){
     <td style="color:var(--text3);">${(st>=0?'+':'')+fmt(st)}</td>
     <td style="color:${sreal>=0?'var(--green)':'var(--red)'};">${(sreal>=0?'+':'')+fmt(sreal)}</td><td></td></tr>`;
   renderHistVeredicto(ti,tg,tt,st,sreal);
+  safe(renderHistIngresos,'renderHistIngresos');
   const note=$('hist-note');
   if(note) note.innerHTML = `<strong>Saldo aparente</strong> = ingresos − gastos líquidos, que es lo que mostraba esta tabla antes y deja afuera lo que pagaste con tarjeta. <strong>Saldo real</strong> = también resta el consumo con tarjeta del resumen, que es plata gastada aunque el pago venga después. La tasa de ahorro ahora se calcula sobre el saldo real.<br>Conversión USD aproximada al t/c actual ($${TC.toLocaleString('es-AR')}), no histórico mes a mes. Los meses sin resumen cargado muestran "—" en tarjeta: ahí el saldo real todavía está sobrestimado.`;
 }
@@ -7665,6 +7713,195 @@ function comerciosSuscribir(){
 }
 document.addEventListener('fb-ok', comerciosSuscribir);
 if (window._fbOK) comerciosSuscribir();
+// ── Ingresos por tipo (Histórico, 18/10/2026) ────────────────────────────────
+// Separa el ingreso que genera Pedro del que le llega de afuera (ayuda familiar).
+// Sin esa separación el total se mueve por cosas que no dependen de su trabajo y
+// la comparación contra inflación mide mal.
+let histIngCh = null;
+function histIngresosPorTipo(){
+  const out=[];
+  // Fuente: HIST12 (12 meses) si ya cargó; si no, S.hist (6 meses).
+  const H=(typeof HIST12!=='undefined' && HIST12 && Object.keys(HIST12).length) ? HIST12 : (S.hist||{});
+  Object.keys(H).sort().forEach(k=>{
+    const arr=flId(H[k].ingresos).filter(e=>e && e.moneda==='ARS');
+    const porCat={};
+    arr.forEach(e=>{ const c=e.categoria||'otro'; porCat[c]=(porCat[c]||0)+(+e.monto||0); });
+    const propio=CI_PROPIO.reduce((a,c)=>a+(porCat[c]||0),0);
+    const externo=CI_EXTERNO.reduce((a,c)=>a+(porCat[c]||0),0);
+    out.push({k:k, porCat:porCat, propio:propio, externo:externo, total:propio+externo, items:arr});
+  });
+  return out;
+}
+// ---- Importador de ingresos desde Notion (💰 Ingresos + Presupuesto), 18/10/2026 ----
+// Datos transcriptos de Notion. 'Fecha cobro' solo se conoce para oct; en el resto se usa el dia 1 del mes
+// (la fecha define el mes de imputacion, no se usa para nada mas) y la nota lo aclara.
+// El bono de octubre NO se importa: ya esta cargado en la app ($1.848.928, decision de Pedro 18/10).
+const IMP_NOTION = [
+  {fecha:'2026-05-01', categoria:'salario',   monto:801000,     nota:'Salario mayo (Notion; fecha de cobro a confirmar)'},
+  {fecha:'2026-06-01', categoria:'salario',   monto:689000,     nota:'Salario junio (Notion; fecha de cobro a confirmar)'},
+  {fecha:'2026-06-01', categoria:'bono',      monto:2290049.13, nota:'Bono desempeño junio (Notion; fecha de cobro a confirmar)'},
+  {fecha:'2026-06-01', categoria:'aguinaldo', monto:1754661.46, nota:'Aguinaldo junio (Notion: Extraordinario; fecha de cobro a confirmar)'},
+  {fecha:'2026-06-01', categoria:'ayuda',     monto:600000,     nota:'Ayuda mamá (Notion Presupuesto, 01/06)'},
+  {fecha:'2026-07-01', categoria:'salario',   monto:923000,     nota:'Salario julio (Notion; fecha de cobro a confirmar)'},
+  {fecha:'2026-07-01', categoria:'bono',      monto:1967677,    nota:'Bono desempeño julio (Notion; fecha de cobro a confirmar)'},
+  {fecha:'2026-08-01', categoria:'salario',   monto:800000,     nota:'Salario agosto (Notion; fecha de cobro a confirmar)'},
+  {fecha:'2026-08-01', categoria:'bono',      monto:2286167,    nota:'Bono desempeño agosto (Notion; fecha de cobro a confirmar)'},
+  {fecha:'2026-09-01', categoria:'salario',   monto:880000,     nota:'Salario septiembre (Notion; fecha de cobro a confirmar)'},
+  {fecha:'2026-09-01', categoria:'bono',      monto:1956987.10, nota:'Bono desempeño septiembre (Notion; fecha de cobro a confirmar)'},
+  {fecha:'2026-10-01', categoria:'salario',   monto:867000,     nota:'Salario octubre (Notion, cobrado 01/10)'},
+];
+let IMP_PREV = [];
+async function impNotionPreview(){
+  const box=$('hist-imp'); if(!box) return;
+  if(!window._hist){ box.style.display='block'; box.innerHTML='<div style="font-size:12px;color:var(--red);">Firebase todavía no está listo. Reintentá en unos segundos.</div>'; return; }
+  box.style.display='block'; box.innerHTML='<div style="font-size:12px;color:var(--text3);">Leyendo Firebase para detectar duplicados…</div>';
+  const meses=[...new Set(IMP_NOTION.map(x=>x.fecha.slice(0,7)))].map(k=>({y:k.slice(0,4),m:k.slice(5,7)}));
+  let H; try{ H=await window._hist(meses); }catch(e){ box.innerHTML='<div style="font-size:12px;color:var(--red);">No se pudo leer Firebase: '+e.message+'</div>'; return; }
+  IMP_PREV = IMP_NOTION.map((it,i)=>{
+    const ex=flId((H[it.fecha.slice(0,7)]||{}).ingresos).filter(e=>e.moneda==='ARS');
+    const igual=ex.find(e=>Math.abs((+e.monto||0)-it.monto) <= it.monto*0.005);
+    const misma=ex.find(e=>e.categoria===it.categoria);
+    let estado='nuevo', det='';
+    if(igual){ estado='existe'; det='Ya está: '+fmt(+igual.monto)+' ('+(CM[igual.categoria]?CM[igual.categoria].n:igual.categoria)+')'; }
+    else if(misma){ estado='conflicto'; det='La app tiene '+fmt(+misma.monto)+' en esa categoría'; }
+    return {...it, i, estado, det};
+  });
+  const n=IMP_PREV.filter(x=>x.estado==='nuevo').length;
+  const col={nuevo:'var(--green)',existe:'var(--text3)',conflicto:'var(--amber,#d97706)'};
+  const rows=IMP_PREV.map(x=>
+    '<tr><td><input type="checkbox" id="imp-'+x.i+'" '+(x.estado==='nuevo'?'checked':'')+(x.estado==='existe'?' disabled':'')+'></td>'+
+    '<td>'+x.fecha.slice(0,7)+'</td><td>'+(CM[x.categoria]?CM[x.categoria].e+' '+CM[x.categoria].n:x.categoria)+'</td>'+
+    '<td style="text-align:right;">'+fmt(x.monto)+'</td>'+
+    '<td style="color:'+col[x.estado]+';font-weight:700;">'+x.estado.toUpperCase()+'</td>'+
+    '<td style="font-size:11px;color:var(--text3);">'+x.det+'</td></tr>').join('');
+  box.innerHTML='<div style="padding:12px;border:1px solid var(--border);border-radius:10px;">'+
+    '<div style="font-weight:700;margin-bottom:6px;">Vista previa — nada se escribió todavía</div>'+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">Los marcados como NUEVO vienen tildados. EXISTE ya está en la app (no se puede tildar). CONFLICTO: hay otro monto en la misma categoría y mes; destildado por defecto, revisalo antes. El bono de octubre no se importa: queda el de la app. La fecha de cobro de mayo a septiembre se carga como día 1 del mes (solo define el mes) y la nota lo aclara; los ingresos importados llevan <code>origen: notion-import-20261018</code>.</div>'+
+    '<table class="tbl"><thead><tr><th></th><th>Mes</th><th>Tipo</th><th style="text-align:right;">Monto ARS</th><th>Estado</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<div style="display:flex;gap:8px;margin-top:10px;"><button class="hdr-btn" id="imp-go" onclick="impNotionEscribir()">Escribir en Firebase ('+n+' nuevos)</button>'+
+    '<button class="hdr-btn" onclick="document.getElementById(\'hist-imp\').style.display=\'none\'">Cancelar</button></div></div>';
+}
+async function impNotionEscribir(){
+  const sel=IMP_PREV.filter(x=>x.estado!=='existe' && document.getElementById('imp-'+x.i) && document.getElementById('imp-'+x.i).checked);
+  if(!sel.length){ alert('No hay nada tildado.'); return; }
+  if(!confirm('Se van a escribir '+sel.length+' ingresos en Firebase. ¿Confirmás?')) return;
+  const btn=$('imp-go'); if(btn){ btn.disabled=true; btn.textContent='Escribiendo…'; }
+  let ok=0, fail=[];
+  for(const x of sel){
+    try{ await window._writeIngresoImport(x); ok++; }catch(e){ fail.push(x.fecha.slice(0,7)+' '+x.categoria+': '+e.message); }
+  }
+  const box=$('hist-imp');
+  if(box) box.innerHTML='<div style="font-size:12px;line-height:1.6;">Escritos: <strong>'+ok+'</strong> de '+sel.length+'.'+(fail.length?'<br><span style="color:var(--red);">Fallaron: '+fail.join(' · ')+'</span>':'')+'</div>';
+  safe(loadHist,'loadHist'); safe(loadTendenciaGastos,'loadTendenciaGastos');
+}
+function _mesCorto(k){ const p=k.split('-'); return new Date(p[0],+p[1]-1).toLocaleDateString('es-AR',{month:'short'}); }
+
+function renderHistIngresos(){
+  const serie=histIngresosPorTipo().filter(s=>s.total>0);
+  const th=$('hist-ing-th'), tb=$('hist-ing-tb'), kp=$('hist-ing-kpis');
+  if(!tb) return;
+  if(!serie.length){
+    const vacio = (!S.hist || !Object.keys(S.hist).length) && (typeof HIST12==='undefined' || !Object.keys(HIST12).length);
+    tb.innerHTML='<tr><td style="font-size:12px;color:var(--text3);">'+
+      (vacio ? 'Cargando el histórico… si queda así, cambiá de pestaña y volvé.' : 'No hay ingresos en ARS cargados en los meses del histórico.')+'</td></tr>';
+    if(kp) kp.innerHTML=''; return;
+  }
+
+  const usados=CI.filter(c=>serie.some(s=>(s.porCat[c]||0)>0));
+  if(th) th.innerHTML='<th>Mes</th>'+usados.map(c=>'<th style="text-align:right;">'+(CM[c]?CM[c].e+' '+CM[c].n:c)+'</th>').join('')+
+    '<th style="text-align:right;">Propio</th><th style="text-align:right;">Ayuda</th><th style="text-align:right;">Total</th>';
+
+  const tot={}; let tP=0,tE=0;
+  tb.innerHTML=serie.map(s=>{
+    usados.forEach(c=>{ tot[c]=(tot[c]||0)+(s.porCat[c]||0); });
+    tP+=s.propio; tE+=s.externo;
+    const p=s.k.split('-');
+    return '<tr><td>'+MESES[+p[1]-1]+' '+p[0]+'</td>'+
+      usados.map(c=>'<td style="text-align:right;">'+((s.porCat[c]||0)>0?fmt(s.porCat[c]):'—')+'</td>').join('')+
+      '<td style="text-align:right;font-weight:600;color:var(--green);">'+fmt(s.propio)+'</td>'+
+      '<td style="text-align:right;color:var(--text3);">'+(s.externo>0?fmt(s.externo):'—')+'</td>'+
+      '<td style="text-align:right;font-weight:700;">'+fmt(s.total)+'</td></tr>';
+  }).join('')
+    + '<tr style="font-weight:700;border-top:2px solid var(--border);"><td>Total</td>'
+    + usados.map(c=>'<td style="text-align:right;">'+fmt(tot[c]||0)+'</td>').join('')
+    + '<td style="text-align:right;color:var(--green);">'+fmt(tP)+'</td>'
+    + '<td style="text-align:right;color:var(--text3);">'+fmt(tE)+'</td>'
+    + '<td style="text-align:right;">'+fmt(tP+tE)+'</td></tr>';
+
+  // KPIs
+  const n=serie.length, pctAyuda=(tP+tE)>0?tE/(tP+tE)*100:0;
+  const conSal=serie.filter(s=>(s.porCat.salario||0)>0);
+  let varSal='—', subSal='sin dos meses de salario cargados';
+  if(conSal.length>=2){
+    const a=conSal[0], b=conSal[conSal.length-1];
+    const v=(b.porCat.salario/a.porCat.salario-1)*100;
+    varSal=(v>=0?'+':'')+v.toFixed(1)+'%';
+    subSal=_mesCorto(a.k)+' '+fmt(a.porCat.salario)+' → '+_mesCorto(b.k)+' '+fmt(b.porCat.salario);
+  }
+  const ultimo=serie[serie.length-1];
+  if(kp) kp.innerHTML=
+    '<div class="kpi"><div class="kpi-lbl">Ingreso propio / mes</div><div class="kpi-val g">'+fmt(tP/n)+'</div><div class="kpi-sub">promedio de '+n+' meses</div></div>'+
+    '<div class="kpi"><div class="kpi-lbl">Variación del salario</div><div class="kpi-val b">'+varSal+'</div><div class="kpi-sub">'+subSal+'</div></div>'+
+    '<div class="kpi"><div class="kpi-lbl">Peso de la ayuda</div><div class="kpi-val'+(pctAyuda>=15?'':' b')+'" style="'+(pctAyuda>=15?'color:var(--amber,#f59e0b);':'')+'">'+pctAyuda.toFixed(1)+'%</div><div class="kpi-sub">'+fmt(tE)+' de '+fmt(tP+tE)+' en el período</div></div>'+
+    '<div class="kpi"><div class="kpi-lbl">Último mes</div><div class="kpi-val">'+fmt(ultimo.total)+'</div><div class="kpi-sub">'+fmt(ultimo.propio)+' propio'+(ultimo.externo>0?' + '+fmt(ultimo.externo)+' ayuda':'')+'</div></div>';
+
+  // Gráfico apilado
+  const cv=$('hist-ing-ch');
+  if(cv && window.Chart){
+    if(histIngCh) histIngCh.destroy();
+    histIngCh=new Chart(cv,{ type:'bar',
+      data:{ labels:serie.map(s=>_mesCorto(s.k)),
+             datasets:usados.map((c,i)=>({ label:(CM[c]&&CM[c].n)||c, data:serie.map(s=>s.porCat[c]||0),
+               backgroundColor:CI_EXTERNO.includes(c)?'#cbd5e1':DEB_COLORS[i%DEB_COLORS.length] })) },
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ x:{stacked:true,grid:{display:false}}, y:{stacked:true,ticks:{callback:v=>'$'+(v/1000000).toFixed(1)+'M'}} },
+        plugins:{ legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},
+                  tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+fmt(c.parsed.y)}} } } });
+  }
+  renderHistReclas(serie);
+}
+
+function renderHistReclas(serie){
+  const el=$('hist-reclas'), card=$('hist-reclas-card'); if(!el) return;
+  const filas=[];
+  serie.forEach(s=>{ const p=s.k.split('-'); s.items.forEach(e=>filas.push({y:p[0],m:p[1],e:e})); });
+  if(!filas.length){ if(card) card.style.display='none'; return; }
+  if(card) card.style.display='';
+  el.innerHTML=filas.sort((a,b)=>String(b.e.fecha).localeCompare(String(a.e.fecha))).map(f=>{
+    const cat=f.e.categoria||'otro', c=CM[cat]||{e:'',n:cat};
+    const btns=CI.map(x=>x===cat
+      ? '<button class="cur-btn" disabled style="padding:3px 9px;font-size:11px;background:var(--blue);color:#fff;border-color:var(--blue);opacity:1;cursor:default;">✓ '+(CM[x]?CM[x].n:x)+'</button>'
+      : '<button class="cur-btn" style="padding:3px 9px;font-size:11px;" onclick="histReclasificar(\''+f.y+'\',\''+f.m+'\',\''+f.e.id+'\',\''+x+'\')">'+(CM[x]?CM[x].n:x)+'</button>').join('');
+    return '<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border2);flex-wrap:wrap;">'+
+      '<span style="font-size:11px;color:var(--text3);width:84px;flex:none;">'+(f.e.fecha||'')+'</span>'+
+      '<span style="flex:1;min-width:140px;font-size:12px;">'+c.e+' <strong>'+c.n+'</strong>'+(f.e.nota?' · '+f.e.nota:'')+'</span>'+
+      '<span style="font-weight:600;font-size:12px;">'+fmt(f.e.monto)+'</span>'+
+      '<span style="display:flex;gap:4px;flex-wrap:wrap;">'+btns+'</span></div>';
+  }).join('');
+}
+function histReclasificar(y,m,id,cat){
+  if(!window._setCatIngreso) return;
+  window._setCatIngreso(y,m,id,cat).then(()=>{
+    const k=y+'-'+m;
+    if(S.hist && S.hist[k] && S.hist[k].ingresos && S.hist[k].ingresos[id]) S.hist[k].ingresos[id].categoria=cat;
+    if(typeof HIST12!=='undefined' && HIST12 && HIST12[k] && HIST12[k].ingresos && HIST12[k].ingresos[id]) HIST12[k].ingresos[id].categoria=cat;
+    safe(renderHistIngresos,'renderHistIngresos');
+  }).catch(e=>alert('No se pudo guardar: '+e.message));
+}
+function histIngCSV(){
+  const serie=histIngresosPorTipo().filter(s=>s.total>0);
+  if(!serie.length) return;
+  const usados=CI.filter(c=>serie.some(s=>(s.porCat[c]||0)>0));
+  const cab=['Mes'].concat(usados.map(c=>(CM[c]&&CM[c].n)||c)).concat(['Ingreso propio','Ayuda externa','Total']);
+  const filas=serie.map(s=>{ const p=s.k.split('-');
+    return [MESES[+p[1]-1]+' '+p[0]].concat(usados.map(c=>s.porCat[c]||0)).concat([s.propio,s.externo,s.total]); });
+  const csv='﻿'+[cab].concat(filas).map(f=>f.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='ingresos_por_tipo.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
 // ── Pestaña Débito (18/10/2026) ──────────────────────────────────────────────
 // Banco de datos de consumo líquido: en qué se fue el efectivo/débito/transferencia,
 // separado de lo que se pagó con la VISA (eso vive en Crédito·DTI y no se suma acá).
@@ -7865,6 +8102,7 @@ function showTab(name){
   if(p) p.classList.add('on');
   if(t) t.classList.add('on');
   if(name==='deb') safe(renderDeb,'renderDeb');
+  if(name==='hist') safe(renderHistIngresos,'renderHistIngresos');
   // Chart.js no puede dimensionar un canvas creado mientras su pestaña estaba
   // en display:none (queda 0x0 y no se redibuja solo al mostrarse). Al abrir
   // la pestaña forzamos un resize de todos los gráficos que contiene.
