@@ -903,10 +903,11 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <button class="hdr-btn" onclick="exportCSV()">↓ Exportar CSV</button>
         </div>
         <table class="tbl">
-          <thead><tr><th>Mes</th><th>Ingresos ARS</th><th>≈ USD</th><th>Gastos ARS</th><th>≈ USD</th><th>Saldo</th><th>Tasa ahorro</th></tr></thead>
+          <thead><tr><th>Mes</th><th>Ingresos ARS</th><th>≈ USD</th><th>Gastos líquidos</th><th>Con tarjeta</th><th>Saldo aparente</th><th>Saldo real</th><th>Tasa ahorro real</th></tr></thead>
           <tbody id="hist-tb"></tbody>
         </table>
-        <div id="hist-note" style="font-size:10px;color:var(--text3);margin-top:8px;"></div>
+        <div id="hist-veredicto" style="margin-top:14px;"></div>
+        <div id="hist-note" style="font-size:10px;color:var(--text3);margin-top:10px;line-height:1.6;"></div>
       </div>
     </div>
 
@@ -3255,23 +3256,66 @@ function populateCatFilter(){
 // ── Histórico tab ─────────────────────────────────────────────────────────────
 function renderHistTab(){
   const tb=$('hist-tb'); if(!tb) return;
-  const ks=Object.keys(S.hist).sort(); let ti=0,tg=0;
+  // 18/10/2026: esta tabla contaba SOLO los gastos cargados a mano. El consumo con
+  // tarjeta quedaba afuera, asi que mostraba tasas de ahorro de 25-49% y un saldo
+  // acumulado positivo mientras la deuda de la VISA crecia. Ahora se suma el consumo
+  // del resumen (mismo criterio que la pestana Debito: fecha real de compra) y se
+  // separa "saldo aparente" de "saldo real".
+  const ks=Object.keys(S.hist).sort(); let ti=0,tg=0,tt=0;
   const usd=v=>'≈ '+Math.round(v/TC).toLocaleString('es-AR');
   const rows=ks.map(k=>{
-    const[y,m]=k.split('-'),I=sARS(fl(S.hist[k].ingresos)),G=sARS(fl(S.hist[k].gastos)),sal=I-G,ta=I>0?sal/I*100:0;
-    ti+=I;tg+=G;
+    const[y,m]=k.split('-');
+    const I=sARS(fl(S.hist[k].ingresos)), G=sARS(fl(S.hist[k].gastos));
+    let T=0; try{ T=debCreditoResumen(y,m).reduce((a,b)=>a+(+b.monto||0),0); }catch(e){}
+    const sal=I-G, real=I-G-T, ta=I>0?real/I*100:0;
+    ti+=I; tg+=G; tt+=T;
     return `<tr><td>${MESES[+m-1]} ${y}</td>
       <td style="color:var(--green);font-weight:600;">${I>0?fmt(I):'—'}</td>
       <td style="color:var(--text3);font-size:11px;">${I>0?usd(I):'—'}</td>
       <td style="color:var(--red);font-weight:600;">${G>0?fmt(G):'—'}</td>
-      <td style="color:var(--text3);font-size:11px;">${G>0?usd(G):'—'}</td>
-      <td style="color:${sal>=0?'var(--green)':'var(--red)'};font-weight:700;">${I>0?(sal>=0?'+':'')+fmt(sal):'—'}</td>
-      <td>${I>0?ta.toFixed(1)+'%':'—'}</td></tr>`;
+      <td style="color:var(--red);">${T>0?fmt(T):'—'}</td>
+      <td style="color:var(--text3);">${I>0?(sal>=0?'+':'')+fmt(sal):'—'}</td>
+      <td style="color:${real>=0?'var(--green)':'var(--red)'};font-weight:700;">${I>0?(real>=0?'+':'')+fmt(real):'—'}</td>
+      <td style="color:${ta>=0?'inherit':'var(--red)'};">${I>0?ta.toFixed(1)+'%':'—'}</td></tr>`;
   });
-  const st=ti-tg;
-  tb.innerHTML=rows.join('')+`<tr style="font-weight:700;"><td>Total</td><td style="color:var(--green);">${fmt(ti)}</td><td style="color:var(--text3);font-size:11px;">${usd(ti)}</td><td style="color:var(--red);">${fmt(tg)}</td><td style="color:var(--text3);font-size:11px;">${usd(tg)}</td><td style="color:${st>=0?'var(--green)':'var(--red)'};">${(st>=0?'+':'')+fmt(st)}</td><td></td></tr>`;
+  const st=ti-tg, sreal=ti-tg-tt;
+  tb.innerHTML=rows.join('')+`<tr style="font-weight:700;border-top:2px solid var(--border);"><td>Total</td>
+    <td style="color:var(--green);">${fmt(ti)}</td><td style="color:var(--text3);font-size:11px;">${usd(ti)}</td>
+    <td style="color:var(--red);">${fmt(tg)}</td><td style="color:var(--red);">${fmt(tt)}</td>
+    <td style="color:var(--text3);">${(st>=0?'+':'')+fmt(st)}</td>
+    <td style="color:${sreal>=0?'var(--green)':'var(--red)'};">${(sreal>=0?'+':'')+fmt(sreal)}</td><td></td></tr>`;
+  renderHistVeredicto(ti,tg,tt,st,sreal);
   const note=$('hist-note');
-  if(note) note.textContent = `Conversión USD aproximada al t/c actual ($${TC.toLocaleString('es-AR')}), no histórico mes a mes.`;
+  if(note) note.innerHTML = `<strong>Saldo aparente</strong> = ingresos − gastos líquidos, que es lo que mostraba esta tabla antes y deja afuera lo que pagaste con tarjeta. <strong>Saldo real</strong> = también resta el consumo con tarjeta del resumen, que es plata gastada aunque el pago venga después. La tasa de ahorro ahora se calcula sobre el saldo real.<br>Conversión USD aproximada al t/c actual ($${TC.toLocaleString('es-AR')}), no histórico mes a mes. Los meses sin resumen cargado muestran "—" en tarjeta: ahí el saldo real todavía está sobrestimado.`;
+}
+
+// Veredicto del acumulado: dice en una linea a donde se fue lo que "ahorraste".
+function renderHistVeredicto(ti,tg,tt,st,sreal){
+  const el=$('hist-veredicto'); if(!el) return;
+  if(!ti){ el.innerHTML=''; return; }
+  const pctT = st>0 ? Math.min(tt/st*100,999) : 0;
+  let color='var(--green)', titulo='', cuerpo='';
+  if(sreal < 0){
+    color='var(--red)';
+    titulo=`🔴 No ahorraste: estás en déficit de ${fmt(Math.abs(sreal))}`;
+    cuerpo=`La tabla decía que acumulaste ${fmt(st)}, pero eso ignora los ${fmt(tt)} que consumiste con tarjeta. `+
+      `Restándolos, en el período gastaste ${fmt(Math.abs(sreal))} más de lo que entró. Ese agujero es la deuda de la VISA — el detalle está en Crédito · DTI.`;
+  } else if(tt > 0 && pctT >= 50){
+    color='var(--amber,#f59e0b)';
+    titulo=`🟡 Acumulaste ${fmt(sreal)}, no ${fmt(st)}`;
+    cuerpo=`De los ${fmt(st)} que parecía que ahorrabas, ${fmt(tt)} (${pctT.toFixed(0)}%) se fueron en consumo con tarjeta. `+
+      `Eso no es ahorro: es gasto que todavía estás pagando con interés. Lo que quedó de verdad son ${fmt(sreal)}.`;
+  } else if(tt > 0){
+    titulo=`🟢 Acumulaste ${fmt(sreal)} reales`;
+    cuerpo=`Sobre ${fmt(st)} de saldo aparente, ${fmt(tt)} se fueron en tarjeta. El resto quedó.`;
+  } else {
+    color='var(--text3)';
+    titulo=`Saldo acumulado: ${fmt(st)}`;
+    cuerpo=`Sin resúmenes de tarjeta cargados en el período, así que este número ignora todo el consumo con VISA y está sobrestimado.`;
+  }
+  el.innerHTML=`<div style="border-left:3px solid ${color};padding:11px 14px;background:var(--bg2,#f8fafc);border-radius:var(--r2);">`+
+    `<div style="font-weight:700;font-size:13px;margin-bottom:4px;color:${color};">${titulo}</div>`+
+    `<div style="font-size:12px;color:var(--text2);line-height:1.5;">${cuerpo}</div></div>`;
 }
 
 // ── Debt & DTI ────────────────────────────────────────────────────────────────
