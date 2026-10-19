@@ -870,6 +870,8 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             </div>
           </div>
         </div>
+        <div class="card">
+          <div class="card-ttl">Inflación vs Salario Real</div>
           <div class="sim-field"><span class="sim-lbl">Salario base ARS</span><input class="sim-input" type="number" id="si-base" value="1000000" oninput="calcInf()"></div>
           <div class="sim-field"><span class="sim-lbl">Salario actual ARS</span><input class="sim-input" type="number" id="si-act" value="1650000" oninput="calcInf()"></div>
           <div class="sim-field"><span class="sim-lbl">Inflación período %</span><input class="sim-input" type="number" id="si-ipc" value="35" step="0.1" oninput="calcInf()"></div>
@@ -2486,7 +2488,7 @@ function renderArkad() {
   // Inactivo mientras DTI > 50%
   if (dti > 0.5 || tI === 0) {
     elS.style.background = 'var(--bg)'; elS.style.color = 'var(--text3)';
-    elS.innerHTML = `⏸ Inactivo — DTI actual ${tI>0?(dti*100).toFixed(0):'—'}% · Se activa cuando DTI < 50% (julio/agosto)`;
+    elS.innerHTML = `⏸ Inactivo — DTI actual ${tI>0?(dti*100).toFixed(0):'—'}% · Se activa cuando DTI < 50%`;
     if(elP) elP.textContent = '—';
     return;
   }
@@ -5857,31 +5859,37 @@ async function loadMarket(){
 // ── Simuladores ───────────────────────────────────────────────────────────────
 function simRow(l,v,col){return`<div class="sim-row"><span class="lbl">${l}</span><span class="val"${col?` style="color:${col};"`:''}>${v}</span></div>`;}
 
+// 19/10/2026: antes `+valor||default` trataba un 0 como "vacío" y lo reemplazaba por el default (IPC 0% -> 35%,
+// TNA 0% -> 60%/85%, capital 0 -> $500.000). Ahora solo se usa el default si el campo está vacío o no es número.
+function numIn(id,def){ const v=parseFloat($(id)?.value); return Number.isFinite(v)?v:def; }
+// Cuota francesa; con tasa 0 la fórmula da 0/0, así que es capital/plazo.
+function cuotaFrancesa(cap,tm,pzo){ return tm===0 ? cap/pzo : cap*(tm*(1+tm)**pzo)/((1+tm)**pzo-1); }
+const SIM_NOTA_IVA='<div style="font-size:10px;color:var(--text3);margin-top:6px;">Cálculo teórico: no incluye el IVA del 21% sobre intereses ni gastos/seguros del banco, así que el costo real es mayor.</div>';
 function calcInf(){
-  const base=+$('si-base')?.value||1e6,act=+$('si-act')?.value||1.65e6,ipc=+$('si-ipc')?.value/100||.35;
+  const base=numIn('si-base',1e6),act=numIn('si-act',1.65e6),ipc=numIn('si-ipc',35)/100;
   const eq=base*(1+ipc),diff=act-eq,g=diff>=0;
   const r=$('si-res');if(!r)return;
   r.innerHTML=simRow('Salario equivalente ajustado',fmt(eq))+simRow('Diferencia real',(g?'+':'')+fmt(diff),g?'var(--green)':'var(--red)')+simRow('Resultado',g?'✅ Ganaste':'🔴 Perdiste');
 }
 function calcAho(){
-  const cap=+$('sa-cap')?.value||5e5,apr=+$('sa-apr')?.value||1e5,tna=+$('sa-tna')?.value/100||.6,anos=+$('sa-an')?.value||5;
-  const tm=(1+tna)**(1/12)-1,ms=anos*12; let acc=cap;
+  const cap=numIn('sa-cap',5e5),apr=numIn('sa-apr',1e5),tna=numIn('sa-tna',60)/100,anos=Math.max(1,numIn('sa-an',5));
+  const tm=(1+tna)**(1/12)-1,ms=Math.round(anos*12); let acc=cap;
   for(let i=0;i<ms;i++) acc=(acc+apr)*(1+tm);
   const ta=cap+apr*ms,ints=acc-ta;
   const r=$('sa-res');if(!r)return;
-  r.innerHTML=simRow('Capital nominal acumulado',fmt(acc))+simRow('Total aportado',fmt(ta))+simRow('Intereses',fmt(ints),'var(--green)')+simRow('Ratio interés/aportado',(ints/ta).toFixed(2)+'x');
+  r.innerHTML=simRow('Capital nominal acumulado',fmt(acc))+simRow('Total aportado',fmt(ta))+simRow('Intereses',fmt(ints),'var(--green)')+simRow('Ratio interés/aportado',ta>0?(ints/ta).toFixed(2)+'x':'—');
 }
 function calcCr(){
-  const cap=+$('scr-cap')?.value||5e5,tna=+$('scr-tna')?.value/100||.85,pzo=+$('scr-pzo')?.value||12,seg=+$('scr-seg')?.value||0;
-  const tm=tna/12,cu=cap*(tm*(1+tm)**pzo)/((1+tm)**pzo-1),tot=(cu+seg)*pzo;
+  const cap=numIn('scr-cap',5e5),tna=numIn('scr-tna',85)/100,pzo=Math.max(1,Math.round(numIn('scr-pzo',12))),seg=numIn('scr-seg',0);
+  const tm=tna/12,cu=cuotaFrancesa(cap,tm,pzo),tot=(cu+seg)*pzo;
   const r=$('scr-res');if(!r)return;
-  r.innerHTML=simRow('Cuota mensual',fmt(cu+seg),'var(--red)')+simRow('TEA',((1+tm)**12*100-100).toFixed(2)+'%')+simRow('Total pagado',fmt(tot))+simRow('Intereses totales',fmt(tot-cap),'var(--red)');
+  r.innerHTML=simRow('Cuota mensual',fmt(cu+seg),'var(--red)')+simRow('TEA',((1+tm)**12*100-100).toFixed(2)+'%')+simRow('Total pagado',fmt(tot))+simRow('Intereses totales',fmt(tot-cap),'var(--red)')+SIM_NOTA_IVA;
 }
 function calcSC(){
-  const cap=+$('sc-cap')?.value||5e5,tna=+$('sc-tna')?.value/100||.85,pzo=+$('sc-pzo')?.value||12;
-  const tm=tna/12,cu=cap*(tm*(1+tm)**pzo)/((1+tm)**pzo-1),tot=cu*pzo;
+  const cap=numIn('sc-cap',5e5),tna=numIn('sc-tna',85)/100,pzo=Math.max(1,Math.round(numIn('sc-pzo',12)));
+  const tm=tna/12,cu=cuotaFrancesa(cap,tm,pzo),tot=cu*pzo;
   const r=$('sc-res');if(!r)return;
-  r.innerHTML=simRow('Cuota mensual',fmt(cu),'var(--red)')+simRow('Total pagado',fmt(tot))+simRow('Intereses',fmt(tot-cap))+simRow('Nuevo DTI estimado',ingresoFijoRef()>0?((CUO_TOT+cu)/ingresoFijoRef()*100).toFixed(1)+'%':'— (esperando ingresos)','var(--red)');
+  r.innerHTML=simRow('Cuota mensual',fmt(cu),'var(--red)')+simRow('Total pagado',fmt(tot))+simRow('Intereses',fmt(tot-cap))+simRow('Nuevo DTI estimado',ingresoFijoRef()>0?((CUO_TOT+cu)/ingresoFijoRef()*100).toFixed(1)+'%':'— (esperando ingresos)','var(--red)')+SIM_NOTA_IVA;
 }
 function calcRecargo(){
   // FEATURE 06/09/2026: card "Calculadora rápida de recargo" -- chequeo suelto de
