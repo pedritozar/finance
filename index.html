@@ -288,6 +288,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     <div class="tab-btn"    data-tab="viv"   onclick="showTab('viv')">🏠 Vivienda vs IPC</div>
     <div class="tab-btn"    data-tab="obj"   onclick="showTab('obj')">🎯 Objetivos</div>
     <div class="tab-btn"    data-tab="hogar" onclick="showTab('hogar')">🧺 Hogar</div>
+    <div class="tab-btn"    data-tab="casa"  onclick="showTab('casa')">🧴 Casa</div>
   </nav>
 
   <div class="dv-body">
@@ -1196,6 +1197,70 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
 
     </div>
 
+
+    <!-- 🧴 Casa (21/10/2026): compras recurrentes del hogar (limpieza, alimentos) y precio por unidad vs inflación. Registro aparte: NO suma al Dashboard ni a Débito. -->
+    <div class="tab-pane" id="t-casa">
+
+      <div class="card">
+        <div class="card-ttl">🧴 Casa — compras recurrentes vs inflación</div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.6;">
+          Cargá lo que comprás seguido (limpieza, alimentos) con cantidad y precio total. De ahí salen dos cosas: <b>cuánto gastás por mes</b> y, más importante, <b>cuánto cambió el precio por litro / kg / unidad</b> del mismo producto frente al IPC (INDEC y CABA, los que ya cargás en "Vivienda vs IPC").
+          Es un registro aparte: <b>no suma al Dashboard ni a Débito</b>. Si un mes no tiene IPC cargado, el tramo se marca "falta IPC" y no se estima.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-ttl">➕ Cargar compra</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Fecha</span><input class="sim-input" type="date" id="casa-f-fecha"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Rubro</span><select class="sim-input" id="casa-f-rubro"><option value="limpieza">🧼 Limpieza</option><option value="alimentos">🛒 Alimentos</option><option value="otros">🏠 Otros del hogar</option></select></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Producto (mismo nombre cada vez)</span><input class="sim-input" type="text" id="casa-f-prod" list="casa-dl-prod" placeholder="Ej: Lavandina" autocomplete="off"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Cantidad</span><input class="sim-input" type="number" step="any" min="0" inputmode="decimal" id="casa-f-cant" placeholder="Ej: 2"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Unidad</span><select class="sim-input" id="casa-f-unidad"><option value="L">litros (L)</option><option value="ml">mililitros (ml)</option><option value="kg">kilos (kg)</option><option value="g">gramos (g)</option><option value="u">unidades</option></select></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Precio total pagado (ARS)</span><input class="sim-input" type="number" step="any" min="0" inputmode="decimal" id="casa-f-precio" placeholder="Total, no por unidad"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Comercio (opcional)</span><input class="sim-input" type="text" id="casa-f-com" list="casa-dl-com" autocomplete="off"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">¿Ya está en Débito?</span><select class="sim-input" id="casa-f-otro"><option value="">—</option><option value="si">Sí</option><option value="no">No</option></select></div>
+          <div class="sim-field" style="margin:0;grid-column:1/-1;"><span class="sim-lbl">Nota (opcional)</span><input class="sim-input" type="text" id="casa-f-nota" placeholder="Ej: oferta 2x1, cambió el envase…"></div>
+        </div>
+        <datalist id="casa-dl-prod"></datalist><datalist id="casa-dl-com"></datalist>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+          <button class="hdr-btn pri" id="casa-f-btn" onclick="casaGuardar()">Guardar compra</button>
+          <button class="hdr-btn" id="casa-f-cancel" style="display:none;" onclick="casaCancelarEdicion()">Cancelar edición</button>
+          <span id="casa-f-status" style="font-size:12px;"></span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:10px;">Tip: usá siempre el mismo nombre y la misma unidad base para el mismo producto (el autocompletado te ayuda). Si cambia la marca o el tamaño, el precio por unidad sigue siendo comparable; si cambia el producto en sí, cargalo con otro nombre.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-ttl">📅 Gasto por mes</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;"><span class="sim-lbl" style="margin:0;">Mes</span><select class="sim-input" id="casa-mes" style="max-width:160px;" onchange="renderCasa()"></select></div>
+        <div id="casa-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;"></div>
+        <div style="position:relative;height:230px;margin-top:16px;"><canvas id="casa-ch-gasto"></canvas></div>
+        <div style="overflow-x:auto;margin-top:14px;"><table class="tbl"><thead><tr><th>Mes</th><th>Limpieza</th><th>Alimentos</th><th>Otros</th><th>Total</th><th>Var. vs mes ant.</th><th>IPC INDEC del mes</th></tr></thead><tbody id="casa-tb-meses"></tbody></table></div>
+        <div style="font-size:10px;color:var(--text3);margin-top:8px;">Ojo: el gasto total se mueve también por cuánto comprás (stock, ofertas). Para saber si un precio subió más que la inflación mirá la sección de abajo, que usa precio por unidad.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-ttl">📈 Precio por unidad vs IPC</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;"><span class="sim-lbl" style="margin:0;">Producto</span><select class="sim-input" id="casa-prod" style="max-width:320px;" onchange="casaRenderPrecio()"></select></div>
+        <div id="casa-prod-msg" style="font-size:11px;color:var(--text3);margin-bottom:8px;"></div>
+        <div style="position:relative;height:240px;"><canvas id="casa-ch-precio"></canvas></div>
+        <div style="overflow-x:auto;margin-top:14px;"><table class="tbl"><thead><tr><th>Mes</th><th>Compras</th><th>Precio/unidad</th><th>Var. mensual</th><th>Acum. producto</th><th>Acum. IPC INDEC</th><th>Acum. IPC CABA</th><th>Veredicto</th></tr></thead><tbody id="casa-tb-prod"></tbody></table></div>
+        <div style="font-size:10px;color:var(--text3);margin-top:8px;">Veredicto contra IPC INDEC con margen de ±2 puntos. Una diferencia chica entre un mes y otro puede ser redondeo de precios o ofertas; la señal es una brecha que se sostiene mes a mes. Esto detecta el hecho (subió más que el IPC), no la causa: puede ser el comercio, la marca o el rubro.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-ttl">🔍 Resumen por producto (primer mes vs último)</div>
+        <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Producto</th><th>Rubro</th><th>Tramo</th><th>Precio inicial</th><th>Precio actual</th><th>Variación</th><th>IPC INDEC mismo tramo</th><th>Diferencia</th><th>Veredicto</th></tr></thead><tbody id="casa-tb-resumen"></tbody></table></div>
+      </div>
+
+      <div class="card">
+        <div class="card-ttl">🧾 Últimas compras</div>
+        <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Fecha</th><th>Rubro</th><th>Producto</th><th>Cantidad</th><th>Total</th><th>Por unidad</th><th>Comercio</th><th>En Débito</th><th></th></tr></thead><tbody id="casa-tb-rec"></tbody></table></div>
+      </div>
+
+    </div>
+
   </div><!-- /dv-body -->
 
   <!-- Sliding Panel -->
@@ -1441,6 +1506,17 @@ window._deleteViviendaMes = async key => {
 // Banco de expensas (06/10/2026): detalle de la liquidación dentro del mismo registro del mes.
 window._setViviendaDetalle = async (key, det) => {
   await update(ref(db, `vivienda/${uid}/${key}`), { detalle: det });
+};
+
+// ── 🧴 Casa (21/10/2026): compras recurrentes del hogar. Nodo propio casa/{uid}/{id}; informativo, no suma al Dashboard.
+window._listenCasa = cb => {
+  onValue(ref(db, `casa/${uid}`), s => cb(s.val() || {}));
+};
+window._setCasaItem = async (id, data) => {
+  await set(ref(db, `casa/${uid}/${id}`), data);
+};
+window._deleteCasaItem = async id => {
+  await remove(ref(db, `casa/${uid}/${id}`));
 };
 
 // ── Nota mensual de ingresos (16/09/2026) -- por qué no se hizo un ingreso/aporte
@@ -1919,6 +1995,236 @@ function viviendaKeyToLabel(key){
   const [y,m] = key.split('-');
   return `${MESES_ABR_VIV[(+m)-1]||m} ${y}`;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🧴 CASA — compras recurrentes del hogar (limpieza, alimentos) vs inflación  (21/10/2026)
+// Pedido de Pedro: registrar lo que gasta en limpieza/alimentos y saber si los precios suben más que el IPC.
+// Decisiones (21/10): pestaña propia; carga producto + cantidad + unidad + precio; registro APARTE en Firebase
+// (casa/{uid}) que NO suma al Dashboard ni a Débito (evita doble conteo; "ya cargado" es solo informativo);
+// se compara contra el IPC INDEC y CABA que ya se cargan en "Vivienda vs IPC" (VIVIENDA_LIVE, % mensual).
+// Por qué precio por unidad: el gasto total sube si comprás más; el precio por litro/kg/unidad del MISMO
+// producto es lo único comparable con el IPC. Si falta el IPC de algún mes del tramo NO se estima: queda "IPC faltante".
+// ═══════════════════════════════════════════════════════════════════════════════
+let CASA_LIVE = {}, casaChGasto = null, casaChPrecio = null, casaEditId = null;
+const CASA_RUBROS = { limpieza:'🧼 Limpieza', alimentos:'🛒 Alimentos', otros:'🏠 Otros del hogar' };
+const CASA_UNID = { L:{base:'L',f:1}, ml:{base:'L',f:0.001}, kg:{base:'kg',f:1}, g:{base:'kg',f:0.001}, u:{base:'u',f:1} };
+const CASA_UMBRAL_PP = 2; // diferencia (puntos porcentuales) vs IPC desde la cual se marca "más/menos que la inflación"
+const casaEsc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const casaNorm = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+const casaPct = n => (n>=0?'+':'')+n.toFixed(1)+'%';
+const casaHoy = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const casaMesSig = k => { let [y,m]=k.split('-').map(Number); m++; if(m>12){ m=1; y++; } return y+'-'+String(m).padStart(2,'0'); };
+
+function manejarCasaLive(d){ CASA_LIVE = d || {}; safe(renderCasa,'renderCasa'); }
+
+function casaItems(){
+  return Object.entries(CASA_LIVE||{}).map(([id,r])=>{
+    if(!r) return null;
+    const u=CASA_UNID[r.unidad], cant=+r.cantidad, precio=+r.precio;
+    if(!u || !(cant>0) || !(precio>0) || !/^\d{4}-\d{2}-\d{2}$/.test(r.fecha||'') || !String(r.producto||'').trim()) return null;
+    const cantBase=cant*u.f;
+    return { id, fecha:r.fecha, mes:r.fecha.slice(0,7), rubro:CASA_RUBROS[r.rubro]?r.rubro:'otros', producto:String(r.producto).trim(),
+             clave:casaNorm(r.producto)+'|'+u.base, ub:u.base, cant, unidad:r.unidad, cantBase, precio, pxu:precio/cantBase,
+             comercio:r.comercio||'', enOtro:r.enOtro||'', nota:r.nota||'' };
+  }).filter(Boolean).sort((a,b)=>a.fecha.localeCompare(b.fecha)||a.id.localeCompare(b.id));
+}
+// Inflación acumulada (%) de los meses POSTERIORES a m0 hasta m1 inclusive (m0 es el nivel base = 100).
+// null si falta el IPC de cualquier mes del tramo: no se inventa.
+function casaIpcAcum(m0, m1, campo){
+  if(m1 < m0) return null;
+  if(m1 === m0) return 0;
+  let f=1, k=m0;
+  while(k < m1){
+    k = casaMesSig(k);
+    const v = (typeof VIVIENDA_LIVE!=='undefined') ? VIVIENDA_LIVE[k] : null, x = v && v[campo];
+    if(x==null || x==='' || !isFinite(+x)) return null;
+    f *= 1 + (+x)/100;
+  }
+  return (f-1)*100;
+}
+function casaSerie(clave){
+  const por={};
+  casaItems().filter(i=>i.clave===clave).forEach(i=>{
+    const o = por[i.mes] || (por[i.mes]={mes:i.mes,gasto:0,cant:0,n:0});
+    o.gasto+=i.precio; o.cant+=i.cantBase; o.n++;
+  });
+  return Object.values(por).sort((a,b)=>a.mes.localeCompare(b.mes)).map(o=>({...o,pxu:o.gasto/o.cant}));
+}
+function casaVeredicto(varPct, ipc){
+  if(ipc==null) return { txt:'IPC faltante', col:'var(--text3)' };
+  const d = varPct - ipc;
+  if(d >  CASA_UMBRAL_PP) return { txt:'🔴 subió más que la inflación',  col:'var(--red)' };
+  if(d < -CASA_UMBRAL_PP) return { txt:'🟢 subió menos que la inflación', col:'var(--green)' };
+  return { txt:'🟡 en línea con la inflación', col:'var(--amber)' };
+}
+function casaProductos(){
+  const m = {};
+  casaItems().forEach(i=>{
+    const p = m[i.clave] || (m[i.clave]={clave:i.clave,nombre:i.producto,rubro:i.rubro,ub:i.ub,meses:new Set(),compras:0});
+    p.nombre=i.producto; p.rubro=i.rubro; p.meses.add(i.mes); p.compras++;
+  });
+  return Object.values(m).sort((a,b)=>b.meses.size-a.meses.size||a.nombre.localeCompare(b.nombre));
+}
+const casaUb = ub => ub==='u' ? 'unidad' : ub;
+
+function renderCasa(){
+  if(!$('t-casa')) return;
+  const items = casaItems();
+  // autocompletado de productos y comercios (mantiene el mismo nombre para el mismo producto)
+  const dlP=$('casa-dl-prod'), dlC=$('casa-dl-com');
+  if(dlP) dlP.innerHTML = casaProductos().map(p=>`<option value="${casaEsc(p.nombre)}">`).join('');
+  if(dlC) dlC.innerHTML = [...new Set(items.map(i=>i.comercio).filter(Boolean))].map(c=>`<option value="${casaEsc(c)}">`).join('');
+  if($('casa-f-fecha') && !$('casa-f-fecha').value) $('casa-f-fecha').value = casaHoy();
+  casaRenderGasto(items);
+  casaRenderPrecio();
+  casaRenderResumen();
+  casaRenderRecientes(items);
+}
+
+function casaRenderGasto(items){
+  const sel=$('casa-mes'), kp=$('casa-kpis'), tb=$('casa-tb-meses'); if(!sel||!kp||!tb) return;
+  const meses=[...new Set(items.map(i=>i.mes))].sort();
+  if(!meses.length){
+    sel.innerHTML='<option value="">—</option>';
+    kp.innerHTML='<div style="font-size:12px;color:var(--text3);grid-column:1/-1;">Todavía no cargaste compras. Cargá la primera arriba.</div>';
+    tb.innerHTML='<tr><td colspan="7" style="color:var(--text3);font-size:12px;">Sin datos.</td></tr>';
+    if(casaChGasto){ casaChGasto.destroy(); casaChGasto=null; }
+    return;
+  }
+  const prev=sel.value;
+  sel.innerHTML=meses.slice().reverse().map(m=>`<option value="${m}">${viviendaKeyToLabel(m)}</option>`).join('');
+  sel.value = meses.includes(prev) ? prev : meses[meses.length-1];
+  const tot={}; // mes -> {limpieza, alimentos, otros, total}
+  meses.forEach(m=>tot[m]={limpieza:0,alimentos:0,otros:0,total:0});
+  items.forEach(i=>{ tot[i.mes][i.rubro]+=i.precio; tot[i.mes].total+=i.precio; });
+  const m=sel.value, t=tot[m], idx=meses.indexOf(m), ant=idx>0?tot[meses[idx-1]]:null;
+  const dv=(a,b)=> (b>0)? casaPct((a/b-1)*100)+' vs mes anterior' : '';
+  const box=(lbl,val,sub)=>`<div class="kpi"><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${fmt(val)}</div><div class="kpi-sub">${sub||'&nbsp;'}</div></div>`;
+  kp.innerHTML = box('Total del mes',t.total, ant?dv(t.total,ant.total):'') + box(CASA_RUBROS.limpieza,t.limpieza, ant?dv(t.limpieza,ant.limpieza):'')
+               + box(CASA_RUBROS.alimentos,t.alimentos, ant?dv(t.alimentos,ant.alimentos):'') + box(CASA_RUBROS.otros,t.otros, ant?dv(t.otros,ant.otros):'');
+  tb.innerHTML = meses.slice().reverse().map(k=>{
+    const i=meses.indexOf(k), a=i>0?tot[meses[i-1]]:null, x=tot[k];
+    const v=VIVIENDA_LIVE[k], ipc=(v&&v.ipcIndec!=null&&isFinite(+v.ipcIndec))?(+v.ipcIndec).toFixed(1)+'%':'<span style="color:var(--text3);">falta</span>';
+    return `<tr><td>${viviendaKeyToLabel(k)}</td><td>${fmt(x.limpieza)}</td><td>${fmt(x.alimentos)}</td><td>${fmt(x.otros)}</td><td><b>${fmt(x.total)}</b></td><td>${a&&a.total>0?casaPct((x.total/a.total-1)*100):'—'}</td><td>${ipc}</td></tr>`;
+  }).join('');
+  const ult=meses.slice(-12), cv=$('casa-ch-gasto');
+  if(cv && window.Chart){
+    if(casaChGasto) casaChGasto.destroy();
+    const ds=(k,col)=>({label:CASA_RUBROS[k],data:ult.map(x=>tot[x][k]),backgroundColor:col,stack:'s'});
+    casaChGasto=new Chart(cv.getContext('2d'),{ type:'bar',
+      data:{ labels:ult.map(viviendaKeyToLabel), datasets:[ds('limpieza','#0066FF'),ds('alimentos','#10B981'),ds('otros','#9CA3AF')] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:10}}, tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt(c.parsed.y)}`}} },
+        scales:{ x:{stacked:true,grid:{display:false},ticks:{font:{size:10}}}, y:{stacked:true,grid:{color:'#F1F5F9'},ticks:{font:{size:10},callback:v=>'$'+fmtK(v)}} } } });
+  }
+}
+
+function casaRenderPrecio(){
+  const sel=$('casa-prod'), tb=$('casa-tb-prod'), msg=$('casa-prod-msg'); if(!sel||!tb) return;
+  const prods=casaProductos();
+  const prev=sel.value;
+  sel.innerHTML = prods.length ? prods.map(p=>`<option value="${casaEsc(p.clave)}">${casaEsc(p.nombre)} (${p.meses.size} ${p.meses.size===1?'mes':'meses'})</option>`).join('') : '<option value="">—</option>';
+  if(prods.some(p=>p.clave===prev)) sel.value=prev;
+  const cv=$('casa-ch-precio');
+  const limpiar=t=>{ tb.innerHTML=''; if(msg) msg.innerHTML=t; if(casaChPrecio){ casaChPrecio.destroy(); casaChPrecio=null; } };
+  if(!prods.length){ limpiar('Sin productos cargados.'); return; }
+  const serie=casaSerie(sel.value), p=prods.find(x=>x.clave===sel.value);
+  if(serie.length<2){ limpiar(`"${casaEsc(p?p.nombre:'')}" tiene compras en un solo mes. Para comparar con la inflación hace falta comprar el mismo producto en otro mes.`); return; }
+  if(msg) msg.innerHTML=`Precio por ${casaUb(p.ub)} de <b>${casaEsc(p.nombre)}</b>, promedio ponderado del mes (total gastado / cantidad). Base 100 = ${viviendaKeyToLabel(serie[0].mes)}.`;
+  const b=serie[0], filas=serie.map((s,i)=>{
+    const acum=(s.pxu/b.pxu-1)*100, ipcI=casaIpcAcum(b.mes,s.mes,'ipcIndec'), ipcC=casaIpcAcum(b.mes,s.mes,'ipcCaba'), ver=casaVeredicto(acum,ipcI);
+    return { s, i, acum, ipcI, ipcC, ver, dMes: i>0?(s.pxu/serie[i-1].pxu-1)*100:null };
+  });
+  tb.innerHTML = filas.map(f=>`<tr><td>${viviendaKeyToLabel(f.s.mes)}</td><td>${f.s.n}</td><td>${fmt(f.s.pxu)}</td><td>${f.dMes==null?'—':casaPct(f.dMes)}</td>
+    <td>${f.i===0?'base':casaPct(f.acum)}</td><td>${f.ipcI==null?'<span style="color:var(--text3);">falta IPC</span>':(f.i===0?'base':casaPct(f.ipcI))}</td>
+    <td>${f.ipcC==null?'<span style="color:var(--text3);">falta IPC</span>':(f.i===0?'base':casaPct(f.ipcC))}</td>
+    <td style="color:${f.ver.col};font-weight:600;">${f.i===0?'—':f.ver.txt}</td></tr>`).join('');
+  if(cv && window.Chart){
+    if(casaChPrecio) casaChPrecio.destroy();
+    const lin=(lbl,arr,col,dash)=>({label:lbl,data:arr,borderColor:col,borderWidth:2,borderDash:dash||[],pointRadius:3,tension:0.2,fill:false,spanGaps:false});
+    casaChPrecio=new Chart(cv.getContext('2d'),{ type:'line',
+      data:{ labels:serie.map(s=>viviendaKeyToLabel(s.mes)), datasets:[
+        lin('Precio del producto', filas.map(f=>100*(1+f.acum/100)), '#0066FF'),
+        lin('IPC INDEC acumulado', filas.map(f=>f.ipcI==null?null:100*(1+f.ipcI/100)), '#F59E0B', [5,4]),
+        lin('IPC CABA acumulado',  filas.map(f=>f.ipcC==null?null:100*(1+f.ipcC/100)), '#8B5CF6', [2,3]) ] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:10}}, tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y!=null?c.parsed.y.toFixed(1):'sin dato'}`}} },
+        scales:{ x:{grid:{display:false},ticks:{font:{size:10}}}, y:{grid:{color:'#F1F5F9'},ticks:{font:{size:10}}} } } });
+  }
+}
+
+function casaRenderResumen(){
+  const tb=$('casa-tb-resumen'); if(!tb) return;
+  const filas=[];
+  casaProductos().forEach(p=>{
+    const s=casaSerie(p.clave); if(s.length<2) return;
+    // último mes con IPC disponible: si el mes más reciente todavía no tiene IPC se compara hasta el anterior (no se estima nada)
+    const a=s[0]; let z=s[s.length-1], ipc=casaIpcAcum(a.mes,z.mes,'ipcIndec'), pend='';
+    if(ipc==null){ for(let k=s.length-2;k>=1;k--){ const t=casaIpcAcum(a.mes,s[k].mes,'ipcIndec'); if(t!=null){ pend=viviendaKeyToLabel(z.mes); z=s[k]; ipc=t; break; } } }
+    const v=(z.pxu/a.pxu-1)*100;
+    filas.push({p,a,z,v,ipc,pend,dif:ipc==null?null:v-ipc,ver:casaVeredicto(v,ipc)});
+  });
+  filas.sort((x,y)=>(y.dif==null?-1e9:y.dif)-(x.dif==null?-1e9:x.dif));
+  tb.innerHTML = filas.length ? filas.map(f=>`<tr><td>${casaEsc(f.p.nombre)}</td><td>${CASA_RUBROS[f.p.rubro]||''}</td><td>${viviendaKeyToLabel(f.a.mes)} → ${viviendaKeyToLabel(f.z.mes)}${f.pend?`<div style="font-size:10px;color:var(--text3);">${f.pend} sin IPC todavía</div>`:''}</td>
+    <td>${fmt(f.a.pxu)}</td><td>${fmt(f.z.pxu)}</td><td><b>${casaPct(f.v)}</b></td><td>${f.ipc==null?'<span style="color:var(--text3);">falta IPC</span>':casaPct(f.ipc)}</td>
+    <td>${f.dif==null?'—':(f.dif>=0?'+':'')+f.dif.toFixed(1)+' pp'}</td><td style="color:${f.ver.col};font-weight:600;">${f.ver.txt}</td></tr>`).join('')
+    : '<tr><td colspan="9" style="color:var(--text3);font-size:12px;">Hace falta comprar el mismo producto en al menos 2 meses distintos.</td></tr>';
+}
+
+function casaRenderRecientes(items){
+  const tb=$('casa-tb-rec'); if(!tb) return;
+  const ult=items.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)||b.id.localeCompare(a.id)).slice(0,25);
+  tb.innerHTML = ult.length ? ult.map(i=>`<tr><td>${i.fecha}</td><td>${CASA_RUBROS[i.rubro]}</td><td>${casaEsc(i.producto)}</td><td>${i.cant} ${i.unidad}</td><td>${fmt(i.precio)}</td>
+    <td>${fmt(i.pxu)}/${casaUb(i.ub)}</td><td>${casaEsc(i.comercio)||'—'}</td><td>${i.enOtro==='si'?'sí':i.enOtro==='no'?'no':'—'}</td>
+    <td style="white-space:nowrap;"><button class="hdr-btn" style="padding:2px 8px;" title="Editar" onclick="casaEditar('${i.id}')">✏️</button> <button class="hdr-btn" style="padding:2px 8px;" title="Borrar" onclick="casaBorrar('${i.id}')">✕</button></td></tr>`).join('')
+    : '<tr><td colspan="9" style="color:var(--text3);font-size:12px;">Sin compras cargadas.</td></tr>';
+}
+
+function casaEstado(txt, ok){ const e=$('casa-f-status'); if(e){ e.textContent=txt; e.style.color= ok?'var(--green)':'var(--red)'; } }
+async function casaGuardar(){
+  const v=id=>($(id)?.value||'').trim();
+  const fecha=v('casa-f-fecha'), producto=v('casa-f-prod'), cant=parseFloat(v('casa-f-cant')), precio=parseFloat(v('casa-f-precio'));
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return casaEstado('Falta la fecha.', false);
+  if(!producto) return casaEstado('Falta el producto.', false);
+  if(!(cant>0)) return casaEstado('La cantidad tiene que ser mayor que 0.', false);
+  if(!(precio>0)) return casaEstado('El precio total tiene que ser mayor que 0.', false);
+  if(!window._setCasaItem) return casaEstado('Firebase todavía no está listo; probá en unos segundos.', false);
+  const id = casaEditId || (Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+  const prev = casaEditId ? (CASA_LIVE[casaEditId]||{}) : {};
+  const data = { fecha, rubro:v('casa-f-rubro')||'limpieza', producto, cantidad:cant, unidad:v('casa-f-unidad')||'u', precio,
+                 comercio:v('casa-f-com'), enOtro:v('casa-f-otro')||'', nota:v('casa-f-nota'), creado:prev.creado||Date.now(), editado:Date.now() };
+  try{
+    await window._setCasaItem(id, data);
+    const edit=!!casaEditId; casaCancelarEdicion(true);
+    ['casa-f-prod','casa-f-cant','casa-f-precio','casa-f-nota'].forEach(k=>{ if($(k)) $(k).value=''; });
+    casaEstado(edit?'Compra actualizada.':'Compra guardada.', true);
+  }catch(e){ console.error('[ZAR] casaGuardar falló:', e); casaEstado('No se pudo guardar: '+(e&&e.message||e)+' (¿están publicadas las reglas del nodo "casa"?)', false); }
+}
+function casaEditar(id){
+  const r=CASA_LIVE[id]; if(!r) return;
+  casaEditId=id;
+  const set=(k,val)=>{ if($(k)) $(k).value = val==null?'':val; };
+  set('casa-f-fecha',r.fecha); set('casa-f-rubro',r.rubro); set('casa-f-prod',r.producto); set('casa-f-cant',r.cantidad); set('casa-f-unidad',r.unidad);
+  set('casa-f-precio',r.precio); set('casa-f-com',r.comercio); set('casa-f-otro',r.enOtro); set('casa-f-nota',r.nota);
+  if($('casa-f-btn')) $('casa-f-btn').textContent='Guardar cambios';
+  if($('casa-f-cancel')) $('casa-f-cancel').style.display='';
+  casaEstado('Editando una compra: cambiá lo que haga falta y guardá.', true);
+  $('casa-f-prod')?.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function casaCancelarEdicion(silencioso){
+  casaEditId=null;
+  if($('casa-f-btn')) $('casa-f-btn').textContent='Guardar compra';
+  if($('casa-f-cancel')) $('casa-f-cancel').style.display='none';
+  if(!silencioso) casaEstado('', true);
+}
+async function casaBorrar(id){
+  const r=CASA_LIVE[id]; if(!r) return;
+  if(!confirm(`¿Borrar esta compra?\n${r.fecha} · ${r.producto} · ${fmt(+r.precio||0)}`)) return;
+  try{ if(casaEditId===id) casaCancelarEdicion(true); await window._deleteCasaItem(id); }
+  catch(e){ console.error('[ZAR] casaBorrar falló:', e); alert('No se pudo borrar: '+(e&&e.message||e)); }
+}
+
+
 let viviendaSeedIntentada = false;
 function manejarViviendaLive(d){
   VIVIENDA_LIVE = d || {};
@@ -2830,6 +3136,13 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     document.addEventListener('fb-ok', () => {
       if (window._listenVivienda) window._listenVivienda(manejarViviendaLive);
+    });
+  }
+  if (window._listenCasa) {
+    window._listenCasa(manejarCasaLive);
+  } else {
+    document.addEventListener('fb-ok', () => {
+      if (window._listenCasa) window._listenCasa(manejarCasaLive);
     });
   }
   if (window._listenDeudasFijas) {
@@ -8115,6 +8428,7 @@ function showTab(name){
   if(t) t.classList.add('on');
   if(name==='deb') safe(renderDeb,'renderDeb');
   if(name==='hist') safe(renderHistIngresos,'renderHistIngresos');
+  if(name==='casa') safe(renderCasa,'renderCasa');
   // Chart.js no puede dimensionar un canvas creado mientras su pestaña estaba
   // en display:none (queda 0x0 y no se redibuja solo al mostrarse). Al abrir
   // la pestaña forzamos un resize de todos los gráficos que contiene.
