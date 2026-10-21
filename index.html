@@ -568,6 +568,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div class="sim-field" style="margin:0 0 10px;"><span class="sim-lbl">Categoría</span>
               <select class="sim-input" id="cc-cat">
                 <option value="alimentacion">🛒 Alimentación</option>
+                <option value="limpieza">🧼 Limpieza / Hogar</option>
                 <option value="transporte">🚗 Transporte</option>
                 <option value="servicios">🏠 Servicios Básicos</option>
                 <option value="streaming">📺 Streaming</option>
@@ -607,6 +608,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div class="sim-field" style="margin:0 0 10px;"><span class="sim-lbl">Categoría</span>
               <select class="sim-input" id="gp-cat">
                 <option value="alimentacion">🛒 Alimentación</option>
+                <option value="limpieza">🧼 Limpieza / Hogar</option>
                 <option value="transporte">🚗 Transporte</option>
                 <option value="servicios">🏠 Servicios Básicos</option>
                 <option value="streaming">📺 Streaming</option>
@@ -1205,7 +1207,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         <div class="card-ttl">🧴 Casa — compras recurrentes vs inflación</div>
         <div style="font-size:11px;color:var(--text3);line-height:1.6;">
           Cargá lo que comprás seguido (limpieza, alimentos) con cantidad y precio total. De ahí salen dos cosas: <b>cuánto gastás por mes</b> y, más importante, <b>cuánto cambió el precio por litro / kg / unidad</b> del mismo producto frente al IPC (INDEC y CABA, los que ya cargás en "Vivienda vs IPC").
-          Es un registro aparte: <b>no suma al Dashboard ni a Débito</b>. Si un mes no tiene IPC cargado, el tramo se marca "falta IPC" y no se estima.
+          Cada compra puede <b>sumarse al presupuesto</b> según el medio de pago (débito, efectivo o transferencia: gasto real; crédito: queda pendiente del resumen VISA) o quedar solo como registro. Si un mes no tiene IPC cargado, el tramo se marca "falta IPC" y no se estima.
         </div>
       </div>
 
@@ -1219,7 +1221,8 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <div class="sim-field" style="margin:0;"><span class="sim-lbl">Unidad</span><select class="sim-input" id="casa-f-unidad"><option value="L">litros (L)</option><option value="ml">mililitros (ml)</option><option value="kg">kilos (kg)</option><option value="g">gramos (g)</option><option value="u">unidades</option></select></div>
           <div class="sim-field" style="margin:0;"><span class="sim-lbl">Precio total pagado (ARS)</span><input class="sim-input" type="number" step="any" min="0" inputmode="decimal" id="casa-f-precio" placeholder="Total, no por unidad"></div>
           <div class="sim-field" style="margin:0;"><span class="sim-lbl">Comercio (opcional)</span><input class="sim-input" type="text" id="casa-f-com" list="casa-dl-com" autocomplete="off"></div>
-          <div class="sim-field" style="margin:0;"><span class="sim-lbl">¿Ya está en Débito?</span><select class="sim-input" id="casa-f-otro"><option value="">—</option><option value="si">Sí</option><option value="no">No</option></select></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Medio de pago</span><select class="sim-input" id="casa-f-medio"><option value="">—</option><option value="debito">Débito</option><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="credito">Crédito (VISA)</option></select></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Presupuesto</span><select class="sim-input" id="casa-f-presup"><option value="sumar">Sumar</option><option value="ya">Ya cargado antes</option><option value="no">No sumar</option></select></div>
           <div class="sim-field" style="margin:0;grid-column:1/-1;"><span class="sim-lbl">Nota (opcional)</span><input class="sim-input" type="text" id="casa-f-nota" placeholder="Ej: oferta 2x1, cambió el envase…"></div>
         </div>
         <datalist id="casa-dl-prod"></datalist><datalist id="casa-dl-com"></datalist>
@@ -1228,13 +1231,14 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <button class="hdr-btn" id="casa-f-cancel" style="display:none;" onclick="casaCancelarEdicion()">Cancelar edición</button>
           <span id="casa-f-status" style="font-size:12px;"></span>
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:10px;">Tip: usá siempre el mismo nombre y la misma unidad base para el mismo producto (el autocompletado te ayuda). Si cambia la marca o el tamaño, el precio por unidad sigue siendo comparable; si cambia el producto en sí, cargalo con otro nombre.</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:10px;">Si ya cargaste esa compra a mano en el Dashboard, elegí "Ya lo cargué antes" para no contarla dos veces. Tip: usá siempre el mismo nombre y la misma unidad base para el mismo producto (el autocompletado te ayuda). Si cambia la marca o el tamaño, el precio por unidad sigue siendo comparable; si cambia el producto en sí, cargalo con otro nombre.</div>
       </div>
 
       <div class="card">
         <div class="card-ttl">📅 Gasto por mes</div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;"><span class="sim-lbl" style="margin:0;">Mes</span><select class="sim-input" id="casa-mes" style="max-width:160px;" onchange="renderCasa()"></select></div>
         <div id="casa-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;"></div>
+        <div id="casa-medios" style="font-size:11px;color:var(--text2);margin-top:10px;"></div>
         <div style="position:relative;height:230px;margin-top:16px;"><canvas id="casa-ch-gasto"></canvas></div>
         <div style="overflow-x:auto;margin-top:14px;"><table class="tbl"><thead><tr><th>Mes</th><th>Limpieza</th><th>Alimentos</th><th>Otros</th><th>Total</th><th>Var. vs mes ant.</th><th>IPC INDEC del mes</th></tr></thead><tbody id="casa-tb-meses"></tbody></table></div>
         <div style="font-size:10px;color:var(--text3);margin-top:8px;">Ojo: el gasto total se mueve también por cuánto comprás (stock, ofertas). Para saber si un precio subió más que la inflación mirá la sección de abajo, que usa precio por unidad.</div>
@@ -1256,7 +1260,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
 
       <div class="card">
         <div class="card-ttl">🧾 Últimas compras</div>
-        <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Fecha</th><th>Rubro</th><th>Producto</th><th>Cantidad</th><th>Total</th><th>Por unidad</th><th>Comercio</th><th>En Débito</th><th></th></tr></thead><tbody id="casa-tb-rec"></tbody></table></div>
+        <div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Fecha</th><th>Rubro</th><th>Producto</th><th>Cantidad</th><th>Total</th><th>Por unidad</th><th>Comercio</th><th>Medio</th><th>Presupuesto</th><th></th></tr></thead><tbody id="casa-tb-rec"></tbody></table></div>
       </div>
 
     </div>
@@ -1517,6 +1521,26 @@ window._setCasaItem = async (id, data) => {
 };
 window._deleteCasaItem = async id => {
   await remove(ref(db, `casa/${uid}/${id}`));
+};
+// Casa -> presupuesto (21/10/2026). Débito/efectivo/transferencia: gasto real en gastos/{uid}/{y}/{m}.
+// Crédito: 'gasto con tarjeta pago único' en comprasPendientes (mismo mecanismo que "Ciclo de tarjeta"),
+// que se cruza solo con el PDF del resumen por monto exacto. Cada función devuelve el vínculo para poder deshacerlo.
+window._casaWriteGasto = async (cat, monto, nota, fecha, medio) => {
+  const [y, m] = fecha.split('-');
+  const r = push(ref(db, `gastos/${uid}/${y}/${m}`));
+  await set(r, { fecha, monto: +monto, moneda: 'ARS', categoria: cat, nota: nota || '', medio: medio || null, origen: 'casa', timestamp: serverTimestamp() });
+  return { tipo: 'gasto', y, m, id: r.key };
+};
+window._casaRemoveGasto = async v => {
+  await remove(ref(db, `gastos/${uid}/${v.y}/${v.m}/${v.id}`));
+};
+window._casaAddPendiente = async (nombre, categoria, monto, fechaCompra) => {
+  const id = push(ref(db, `comprasPendientes/${uid}`)).key;
+  await set(ref(db, `comprasPendientes/${uid}/${id}`), { tipo: 'gasto', nombre, categoria, monto: +monto, fechaCompra, timestamp: serverTimestamp() });
+  return { tipo: 'pendiente', id };
+};
+window._casaRemovePendiente = async id => {
+  await remove(ref(db, `comprasPendientes/${uid}/${id}`));
 };
 
 // ── Nota mensual de ingresos (16/09/2026) -- por qué no se hizo un ingreso/aporte
@@ -2025,7 +2049,7 @@ function casaItems(){
     const cantBase=cant*u.f;
     return { id, fecha:r.fecha, mes:r.fecha.slice(0,7), rubro:CASA_RUBROS[r.rubro]?r.rubro:'otros', producto:String(r.producto).trim(),
              clave:casaNorm(r.producto)+'|'+u.base, ub:u.base, cant, unidad:r.unidad, cantBase, precio, pxu:precio/cantBase,
-             comercio:r.comercio||'', enOtro:r.enOtro||'', nota:r.nota||'' };
+             comercio:r.comercio||'', medio:r.medio||'', presup:r.presup||(r.enOtro==='si'?'ya':'no'), vinculo:r.vinculo||null, nota:r.nota||'' };
   }).filter(Boolean).sort((a,b)=>a.fecha.localeCompare(b.fecha)||a.id.localeCompare(b.id));
 }
 // Inflación acumulada (%) de los meses POSTERIORES a m0 hasta m1 inclusive (m0 es el nivel base = 100).
@@ -2102,6 +2126,8 @@ function casaRenderGasto(items){
   const box=(lbl,val,sub)=>`<div class="kpi"><div class="kpi-lbl">${lbl}</div><div class="kpi-val">${fmt(val)}</div><div class="kpi-sub">${sub||'&nbsp;'}</div></div>`;
   kp.innerHTML = box('Total del mes',t.total, ant?dv(t.total,ant.total):'') + box(CASA_RUBROS.limpieza,t.limpieza, ant?dv(t.limpieza,ant.limpieza):'')
                + box(CASA_RUBROS.alimentos,t.alimentos, ant?dv(t.alimentos,ant.alimentos):'') + box(CASA_RUBROS.otros,t.otros, ant?dv(t.otros,ant.otros):'');
+  const pm={}; items.filter(i=>i.mes===m).forEach(i=>{ const k=i.medio||'sin medio'; pm[k]=(pm[k]||0)+i.precio; });
+  const md=$('casa-medios'); if(md) md.innerHTML = 'Por medio de pago: ' + (Object.keys(pm).length ? Object.entries(pm).map(([k,x])=>`<b>${CASA_MEDIOS[k]||'Sin medio'}</b> ${fmt(x)}`).join(' · ') : '—');
   tb.innerHTML = meses.slice().reverse().map(k=>{
     const i=meses.indexOf(k), a=i>0?tot[meses[i-1]]:null, x=tot[k];
     const v=VIVIENDA_LIVE[k], ipc=(v&&v.ipcIndec!=null&&isFinite(+v.ipcIndec))?(+v.ipcIndec).toFixed(1)+'%':'<span style="color:var(--text3);">falta</span>';
@@ -2175,29 +2201,70 @@ function casaRenderRecientes(items){
   const tb=$('casa-tb-rec'); if(!tb) return;
   const ult=items.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)||b.id.localeCompare(a.id)).slice(0,25);
   tb.innerHTML = ult.length ? ult.map(i=>`<tr><td>${i.fecha}</td><td>${CASA_RUBROS[i.rubro]}</td><td>${casaEsc(i.producto)}</td><td>${i.cant} ${i.unidad}</td><td>${fmt(i.precio)}</td>
-    <td>${fmt(i.pxu)}/${casaUb(i.ub)}</td><td>${casaEsc(i.comercio)||'—'}</td><td>${i.enOtro==='si'?'sí':i.enOtro==='no'?'no':'—'}</td>
+    <td>${fmt(i.pxu)}/${casaUb(i.ub)}</td><td>${casaEsc(i.comercio)||'—'}</td><td>${CASA_MEDIOS[i.medio]||'—'}</td><td>${casaEstadoPres(i)}</td>
     <td style="white-space:nowrap;"><button class="hdr-btn" style="padding:2px 8px;" title="Editar" onclick="casaEditar('${i.id}')">✏️</button> <button class="hdr-btn" style="padding:2px 8px;" title="Borrar" onclick="casaBorrar('${i.id}')">✕</button></td></tr>`).join('')
-    : '<tr><td colspan="9" style="color:var(--text3);font-size:12px;">Sin compras cargadas.</td></tr>';
+    : '<tr><td colspan="10" style="color:var(--text3);font-size:12px;">Sin compras cargadas.</td></tr>';
 }
 
+// Rubro de Casa -> categoría del presupuesto (CM/CG). 'limpieza' se agregó el 21/10/2026 para esto.
+const CASA_CAT = { limpieza:'limpieza', alimentos:'alimentacion', otros:'varios' };
+const CASA_MEDIOS = { efectivo:'Efectivo', debito:'Débito', transferencia:'Transfer.', credito:'Crédito' };
+function casaEstadoPres(i){
+  if(i.presup==='ya') return 'ya cargado antes';
+  if(i.presup!=='sumar') return 'no suma';
+  if(i.vinculo && i.vinculo.tipo==='gasto') return '✔ sumado';
+  if(i.vinculo && i.vinculo.tipo==='pendiente') return '⏳ pend. de resumen';
+  return 'sin sumar';
+}
 function casaEstado(txt, ok){ const e=$('casa-f-status'); if(e){ e.textContent=txt; e.style.color= ok?'var(--green)':'var(--red)'; } }
+// Quita del presupuesto lo que Casa había creado. 'gasto' se borra; 'pendiente' se quita de Pendientes de resumen
+// (si ya se cruzó con el PDF, ese gasto ya vive en el Dashboard y se corrige desde ahí).
+async function casaQuitarVinculo(v){
+  if(!v) return;
+  if(v.tipo==='gasto') await window._casaRemoveGasto(v);
+  else if(v.tipo==='pendiente') await window._casaRemovePendiente(v.id);
+}
 async function casaGuardar(){
   const v=id=>($(id)?.value||'').trim();
   const fecha=v('casa-f-fecha'), producto=v('casa-f-prod'), cant=parseFloat(v('casa-f-cant')), precio=parseFloat(v('casa-f-precio'));
+  const rubro=v('casa-f-rubro')||'limpieza', medio=v('casa-f-medio'), presup=v('casa-f-presup')||'sumar';
   if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return casaEstado('Falta la fecha.', false);
   if(!producto) return casaEstado('Falta el producto.', false);
   if(!(cant>0)) return casaEstado('La cantidad tiene que ser mayor que 0.', false);
   if(!(precio>0)) return casaEstado('El precio total tiene que ser mayor que 0.', false);
+  if(presup==='sumar' && !medio) return casaEstado('Elegí el medio de pago para sumarlo al presupuesto (o poné "No sumar").', false);
   if(!window._setCasaItem) return casaEstado('Firebase todavía no está listo; probá en unos segundos.', false);
   const id = casaEditId || (Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   const prev = casaEditId ? (CASA_LIVE[casaEditId]||{}) : {};
-  const data = { fecha, rubro:v('casa-f-rubro')||'limpieza', producto, cantidad:cant, unidad:v('casa-f-unidad')||'u', precio,
-                 comercio:v('casa-f-com'), enOtro:v('casa-f-otro')||'', nota:v('casa-f-nota'), creado:prev.creado||Date.now(), editado:Date.now() };
+  const cat = CASA_CAT[rubro]||'varios', nombre=`Casa · ${producto} ${cant} ${CASA_UNID[v('casa-f-unidad')]?v('casa-f-unidad'):''}`.trim();
+  let vinculo = prev.vinculo||null, aviso='', presupFinal=presup, creado=null;
   try{
-    await window._setCasaItem(id, data);
+    // 1) efecto en el presupuesto
+    const sigueCredito = presup==='sumar' && medio==='credito' && vinculo && vinculo.tipo==='pendiente';
+    if(sigueCredito){
+      aviso='El gasto de tarjeta ya estaba en Pendientes de resumen: no se modifica desde Casa (si cambió el monto, corregilo ahí).';
+    } else {
+      if(vinculo){ await casaQuitarVinculo(vinculo); vinculo=null; }
+      if(presup==='sumar'){
+        if(medio==='credito'){
+          const ultimo = (typeof getUltimoResumen==='function') ? getUltimoResumen() : null;
+          if(ultimo && fecha<=ultimo.cierre){
+            presupFinal='ya'; aviso='La compra es anterior al último cierre cargado: ya entra con ese resumen, no se suma de nuevo.';
+          } else if(!confirm(`Crédito: ¿este producto es TODO el ticket?\n\nAceptar = queda pendiente de resumen por ${fmt(precio)} y se cruza solo con la línea del PDF (el cruce es por monto exacto).\nCancelar = no se suma ahora (si el ticket tiene más productos, cargá el total del ticket en "Ciclo de tarjeta").`)){
+            presupFinal='no'; aviso='No se sumó al presupuesto (crédito con ticket de varios productos): cargá el total del ticket en Ciclo de tarjeta.';
+          } else { vinculo = creado = await window._casaAddPendiente(nombre, cat, precio, fecha); }
+        } else { vinculo = creado = await window._casaWriteGasto(cat, precio, nombre, fecha, medio); }
+      }
+    }
+    // 2) registro de Casa (si falla, se deshace lo que se acaba de crear en el presupuesto)
+    const data = { fecha, rubro, producto, cantidad:cant, unidad:v('casa-f-unidad')||'u', precio, comercio:v('casa-f-com'),
+                   medio:medio||null, presup:presupFinal, vinculo:vinculo||null, nota:v('casa-f-nota'), creado:prev.creado||Date.now(), editado:Date.now() };
+    try{ await window._setCasaItem(id, data); }
+    catch(e){ if(creado) { try{ await casaQuitarVinculo(creado); }catch(_){} } throw e; }
     const edit=!!casaEditId; casaCancelarEdicion(true);
     ['casa-f-prod','casa-f-cant','casa-f-precio','casa-f-nota'].forEach(k=>{ if($(k)) $(k).value=''; });
-    casaEstado(edit?'Compra actualizada.':'Compra guardada.', true);
+    const dest = presupFinal==='sumar' ? (vinculo&&vinculo.tipo==='gasto' ? ' Sumada al presupuesto como gasto.' : vinculo&&vinculo.tipo==='pendiente' ? ' Quedó pendiente de resumen.' : '') : '';
+    casaEstado((edit?'Compra actualizada.':'Compra guardada.')+dest+(aviso?' '+aviso:''), true);
   }catch(e){ console.error('[ZAR] casaGuardar falló:', e); casaEstado('No se pudo guardar: '+(e&&e.message||e)+' (¿están publicadas las reglas del nodo "casa"?)', false); }
 }
 function casaEditar(id){
@@ -2205,7 +2272,8 @@ function casaEditar(id){
   casaEditId=id;
   const set=(k,val)=>{ if($(k)) $(k).value = val==null?'':val; };
   set('casa-f-fecha',r.fecha); set('casa-f-rubro',r.rubro); set('casa-f-prod',r.producto); set('casa-f-cant',r.cantidad); set('casa-f-unidad',r.unidad);
-  set('casa-f-precio',r.precio); set('casa-f-com',r.comercio); set('casa-f-otro',r.enOtro); set('casa-f-nota',r.nota);
+  set('casa-f-precio',r.precio); set('casa-f-com',r.comercio); set('casa-f-nota',r.nota);
+  set('casa-f-medio', r.medio||''); set('casa-f-presup', r.presup || (r.enOtro==='si' ? 'ya' : 'no'));
   if($('casa-f-btn')) $('casa-f-btn').textContent='Guardar cambios';
   if($('casa-f-cancel')) $('casa-f-cancel').style.display='';
   casaEstado('Editando una compra: cambiá lo que haga falta y guardá.', true);
@@ -2219,11 +2287,12 @@ function casaCancelarEdicion(silencioso){
 }
 async function casaBorrar(id){
   const r=CASA_LIVE[id]; if(!r) return;
-  if(!confirm(`¿Borrar esta compra?\n${r.fecha} · ${r.producto} · ${fmt(+r.precio||0)}`)) return;
-  try{ if(casaEditId===id) casaCancelarEdicion(true); await window._deleteCasaItem(id); }
+  const v=r.vinculo;
+  const extra = v&&v.tipo==='gasto' ? '\n\nTambién se borra el gasto que había sumado al presupuesto.' : v&&v.tipo==='pendiente' ? '\n\nTambién se quita de Pendientes de resumen (si ya se cruzó con el PDF, ese gasto queda en el Dashboard y se borra desde ahí).' : '';
+  if(!confirm(`¿Borrar esta compra?\n${r.fecha} · ${r.producto} · ${fmt(+r.precio||0)}${extra}`)) return;
+  try{ if(casaEditId===id) casaCancelarEdicion(true); await casaQuitarVinculo(v); await window._deleteCasaItem(id); }
   catch(e){ console.error('[ZAR] casaBorrar falló:', e); alert('No se pudo borrar: '+(e&&e.message||e)); }
 }
-
 
 let viviendaSeedIntentada = false;
 function manejarViviendaLive(d){
@@ -2657,6 +2726,7 @@ const CM = {
   salud:{e:'🏥',n:'Salud / OSDE'},         ropa:{e:'👕',n:'Ropa / Personal'},
   judo:{e:'🥋',n:'Judo / Juegos / Deporte'},        ocio:{e:'🎮',n:'Ocio / Salidas'},
   inversiones:{e:'📈',n:'Inversiones'},    varios:{e:'📦',n:'Varios'},
+  limpieza:{e:'🧼',n:'Limpieza / Hogar'},
   finanzas:{e:'💹',n:'Finanzas / Trading'},
   costofin:{e:'🏦',n:'Costo financiero (intereses / impuestos)'},
   educacion:{e:'🎓',n:'Educación'},
@@ -2666,7 +2736,7 @@ const CM = {
   trading:{e:'📊',n:'Trading / Alyc'},     otro:{e:'💵',n:'Otro Ingreso'},
   aguinaldo:{e:'🎁',n:'Aguinaldo'},        ayuda:{e:'🤝',n:'Ayuda familiar'},
 };
-const CG = ['alimentacion','transporte','servicios','streaming','salud','ropa','judo','ocio','delivery','oficina','suscripciones','inversiones','finanzas','costofin','educacion','varios'];
+const CG = ['alimentacion','limpieza','transporte','servicios','streaming','salud','ropa','judo','ocio','delivery','oficina','suscripciones','inversiones','finanzas','costofin','educacion','varios'];
 const CI = ['salario','bono','aguinaldo','trading','ayuda','otro'];
 // 18/10/2026: ingreso PROPIO vs ayuda externa. La ayuda de la madre entraba como 'otro'
 // y inflaba el ingreso -- en octubre fueron $650.000 de $3.365.928 (19,3%). Para medir
@@ -2704,7 +2774,7 @@ const RESUMEN_GASTOS_LISTENING = new Set();
 // resumen. "alimentacion" queda aparte (neutral, se marca si es muy alto).
 // "educacion" siempre se lee como inversión, nunca como consumo/lujo.
 // "inversiones"/"finanzas" no son gasto de consumo, quedan fuera del consejo.
-const CAT_NECESARIO = new Set(['servicios', 'salud', 'transporte']);
+const CAT_NECESARIO = new Set(['servicios', 'salud', 'transporte', 'limpieza']);
 const CAT_DISCRECIONAL = new Set(['ropa', 'ocio', 'streaming', 'judo', 'varios', 'delivery', 'suscripciones', 'oficina']);
 // "Crédito bueno" (13/09/2026): mismo criterio que ya usa generarConsejoResumen para
 // tratar educación/inversiones/finanzas como "no es consumo" — acá se lo nombra explícito.
