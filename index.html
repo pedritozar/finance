@@ -259,10 +259,16 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
       <span id="auth-status" style="font-size:11px;color:var(--text3);"></span>
       <button class="hdr-btn" id="google-login-btn" style="display:none;" onclick="window._loginGoogle()">🔑 Iniciar sesión Google</button>
       <button class="hdr-btn" onclick="exportCSV()">↓ CSV</button>
+      <button class="hdr-btn" id="respaldo-btn" onclick="exportarRespaldo()">🛡️ Respaldo</button>
       <button class="hdr-btn" onclick="openImport()">↑ Import</button>
       <button class="hdr-btn pri" onclick="openPanel()">+ Registrar</button>
     </div>
   </header>
+  <!-- 🛡️ Blindaje (30/10/2026): se muestra solo cuando NO hay sesión de escritura (p. ej. tras borrar el historial/datos del sitio en Safari) -->
+  <div id="auth-banner" style="display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 28px;background:var(--red-l);border-bottom:1px solid var(--red);color:var(--red);font-size:12px;font-weight:600;line-height:1.5;">
+    <span style="flex:1 1 300px;">⚠️ Sin sesión de escritura: no vas a poder guardar ni editar nada. Si borraste el historial o los datos del sitio en Safari, se pierde el inicio de sesión (tus datos en Firebase siguen intactos).</span>
+    <button class="hdr-btn pri" onclick="window._loginGoogle()">🔑 Iniciar sesión con Google</button>
+  </div>
 
   <!-- Import Modal -->
   <div id="import-ov" style="display:none;position:fixed;inset:0;background:rgba(12,17,23,.4);z-index:300;align-items:center;justify-content:center;">
@@ -1543,6 +1549,26 @@ window._casaRemovePendiente = async id => {
   await remove(ref(db, `comprasPendientes/${uid}/${id}`));
 };
 
+// ── 🛡️ Blindaje (30/10/2026): config/{uid} guarda copia de zar_plan_pagos y zarfx_pct (+ fecha del último respaldo).
+// Regla propuesta (lectura SOLO con la cuenta dueña, no pública): ver changelog (35).
+window._listenConfig = (cb, errCb) => {
+  onValue(ref(db, `config/${uid}`), s => cb(s.val() || {}), e => { if (errCb) errCb(e); });
+};
+window._setConfig = async data => {
+  await update(ref(db, `config/${uid}`), data);
+};
+// Respaldo completo: lee cada nodo operativo del uid y lo devuelve junto con los errores por nodo (no corta si uno falla).
+// No incluye clientes/pedro/vanguard (esquema de otro proyecto) ni ninguna key de API.
+const RESPALDO_NODOS = ['gastos','ingresos','tarjeta','comprasPendientes','pagosTarjeta','deudas','deudasFijasEstado','gastosRecurrentes','destinosIngreso','notasIngresoMensual','objetivos','vivienda','hogar','comercios','carteraHist','boveda','iaBriefing','casa','config'];
+window._respaldoCompleto = async () => {
+  const datos = {}, errores = {};
+  for (const n of RESPALDO_NODOS) {
+    try { datos[n] = (await get(ref(db, `${n}/${uid}`))).val(); }
+    catch (e) { errores[n] = (e && e.message) || String(e); }
+  }
+  return { uid, datos, errores };
+};
+
 // ── Nota mensual de ingresos (16/09/2026) -- por qué no se hizo un ingreso/aporte
 // extra ese mes. Vive en Objetivos Financieros, clave YYYY-MM (mismo patrón que
 // vivienda/{uid}) -- guardar de nuevo sobre el mismo mes pisa la nota anterior.
@@ -1915,6 +1941,10 @@ onAuthStateChanged(auth, user => {
     if (el) el.textContent = '';
     if (btn) btn.style.display = 'inline-block';
   }
+  // Blindaje (30/10/2026): estado de escritura + cartel fijo + aviso al resto de la app
+  window._escrituraOK = !!(user && user.uid === uid);
+  if (typeof window.authBanner === 'function') window.authBanner(window._escrituraOK);
+  if (window._escrituraOK) document.dispatchEvent(new Event('fb-write-ok'));
   // Solo recurrimos a la sesión anónima si, tras la primera confirmación de
   // Firebase, NO había ninguna sesión persistida (ni Google ni anónima previa).
   // Si llamáramos signInAnonymously() sin esperar esto, pisaríamos la sesión
@@ -1937,7 +1967,7 @@ window._loginGoogle = async () => {
     await signInWithPopup(auth, provider);
   } catch (err) {
     console.error('Error de login Google:', err);
-    alert('No se pudo iniciar sesión con Google: ' + err.message);
+    alert('No se pudo iniciar sesión con Google: ' + err.message + (err.code === 'auth/popup-blocked' ? '\n\nSafari bloqueó la ventana emergente: permitila para este sitio (Safari → Ajustes → Sitios web → Ventanas emergentes) y probá de nuevo.' : ''));
   }
 };
 
@@ -2293,6 +2323,90 @@ async function casaBorrar(id){
   try{ if(casaEditId===id) casaCancelarEdicion(true); await casaQuitarVinculo(v); await window._deleteCasaItem(id); }
   catch(e){ console.error('[ZAR] casaBorrar falló:', e); alert('No se pudo borrar: '+(e&&e.message||e)); }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🛡️ BLINDAJE ante borrado de historial / datos del sitio (30/10/2026)
+// Borrar el historial de Safari puede llevarse el almacenamiento del sitio: (1) se pierde el login de Google
+// (la app cae a sesión anónima = solo lectura) y (2) se pierden las claves de localStorage. Los datos de Firebase NO se tocan.
+// Acá: (1) cartel fijo si no hay sesión de escritura, (2) copia de zar_plan_pagos y zarfx_pct en config/{uid} con
+// restauración automática si el navegador está vacío, (3) botón de respaldo completo en JSON.
+// La key de API (zartl_api_key) NO se sube a Firebase a propósito: las reglas del proyecto son de lectura pública por uid.
+// ═══════════════════════════════════════════════════════════════════════════════
+let CFG_LIVE = null, cfgPushTimer = null, cfgListening = false;
+function authBanner(ok){
+  const b = $('auth-banner'); if(b) b.style.display = ok ? 'none' : 'flex';
+}
+// Copia de la configuración local en Firebase (solo con sesión de escritura; si no, queda local y se sube al volver a entrar).
+function cfgPush(){
+  clearTimeout(cfgPushTimer);
+  cfgPushTimer = setTimeout(async ()=>{
+    if(!window._escrituraOK || !window._setConfig) return;
+    try{ await window._setConfig({ planPagos: PP, fxPct: fxPctGuardado(), actualizado: Date.now() }); }
+    catch(e){ console.warn('[ZAR] no se pudo respaldar la configuración (¿está publicada la regla "config"?):', e && e.message); }
+  }, 900);
+}
+function cfgSuscribir(){
+  if(cfgListening || !window._listenConfig) return;
+  cfgListening = true;
+  window._listenConfig(manejarConfigLive, e=>{ cfgListening = false; console.warn('[ZAR] config sin lectura (¿regla "config" publicada?):', e && e.message); });
+}
+function manejarConfigLive(c){
+  CFG_LIVE = c || {};
+  let restaurado = [];
+  let tienePP = false, tieneFx = false;
+  try{ tienePP = localStorage.getItem('zar_plan_pagos') !== null; tieneFx = localStorage.getItem('zarfx_pct') !== null; }catch(e){ tienePP = tieneFx = true; /* sin storage: no pisar nada */ }
+  // Solo se restaura si el navegador está vacío; si hay algo local, manda lo local.
+  if(!tienePP && c && c.planPagos && typeof c.planPagos === 'object'){
+    Object.keys(PP_DEF).forEach(k=>{ if(c.planPagos[k] != null && isFinite(+c.planPagos[k])) PP[k] = +c.planPagos[k]; });
+    try{ localStorage.setItem('zar_plan_pagos', JSON.stringify(PP)); }catch(e){}
+    restaurado.push('Plan de pagos');
+  }
+  if(!tieneFx && c && c.fxPct != null && isFinite(+c.fxPct)){
+    try{ localStorage.setItem('zarfx_pct', String(c.fxPct)); }catch(e){}
+    if($('fx-pct')) $('fx-pct').value = c.fxPct;
+    restaurado.push('ajuste del dólar tarjeta');
+  }
+  if(restaurado.length){
+    safe(renderPlanPagos,'renderPlanPagos'); safe(renderFxExtranjera,'renderFxExtranjera');
+    const el = $('auth-status'); if(el) el.textContent = '♻️ Se restauró desde Firebase: ' + restaurado.join(' y ');
+  }
+  // Sin copia remota todavía: sembrar con lo que haya en este navegador.
+  if((!c || c.planPagos == null) && tienePP) cfgPush();
+  respaldoActualizarBtn();
+}
+function respaldoActualizarBtn(){
+  const b = $('respaldo-btn'); if(!b) return;
+  const t = CFG_LIVE && CFG_LIVE.ultimoRespaldo;
+  if(!t){ b.title = 'Descarga todos tus datos en un archivo JSON.' + (CFG_LIVE ? ' Todavía no hiciste ningún respaldo.' : ''); b.style.color = CFG_LIVE ? 'var(--amber)' : ''; return; }
+  const dias = Math.floor((Date.now() - t) / 86400000);
+  b.title = 'Último respaldo: ' + new Date(t).toLocaleDateString('es-AR') + ' (hace ' + dias + ' días)';
+  b.style.color = dias > 30 ? 'var(--amber)' : '';
+}
+async function exportarRespaldo(){
+  const b = $('respaldo-btn'); if(!b) return;
+  if(!window._respaldoCompleto){ alert('Firebase todavía no está listo; probá en unos segundos.'); return; }
+  const txt = b.textContent; b.disabled = true; b.textContent = 'Exportando…';
+  try{
+    const r = await window._respaldoCompleto();
+    const payload = { app:'ZAR Finance', tipo:'respaldo', version:1, exportadoEn:new Date().toISOString(), uid:r.uid,
+      aviso:'Contiene todos tus datos financieros: guardalo en un lugar seguro. No incluye la key de API.',
+      local:{ zar_plan_pagos: PP, zarfx_pct: fxPctGuardado() }, datos:r.datos, errores:r.errores };
+    const json = JSON.stringify(payload, null, 1);
+    const hoy = new Date(); const f = hoy.getFullYear()+'-'+String(hoy.getMonth()+1).padStart(2,'0')+'-'+String(hoy.getDate()).padStart(2,'0');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json], {type:'application/json'}));
+    a.download = 'ZAR-Finance-respaldo-' + f + '.json'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+    const con = Object.values(r.datos).filter(v => v != null).length, errs = Object.keys(r.errores);
+    if(window._escrituraOK && window._setConfig){ try{ await window._setConfig({ ultimoRespaldo: Date.now() }); }catch(e){} }
+    alert('Respaldo descargado: ' + con + ' nodos con datos, ' + Math.round(json.length/1024) + ' KB.' +
+      (errs.length ? '\n\n⚠️ No se pudieron leer: ' + errs.join(', ') + '.\n(' + (window._escrituraOK ? 'revisá las reglas de esos nodos' : 'iniciá sesión con Google y repetí') + ')' : ''));
+  }catch(e){ console.error('[ZAR] respaldo falló:', e); alert('No se pudo exportar el respaldo: ' + (e && e.message || e)); }
+  finally{ b.disabled = false; b.textContent = txt; }
+}
+document.addEventListener('fb-write-ok', cfgSuscribir);
+if(window._escrituraOK) cfgSuscribir();
+
 
 let viviendaSeedIntentada = false;
 function manejarViviendaLive(d){
@@ -7439,6 +7553,7 @@ function fxGuardarPct(){
     const v = $('fx-pct').value;
     if (v === '') localStorage.removeItem('zarfx_pct'); else localStorage.setItem('zarfx_pct', v);
   } catch (e){}
+  cfgPush();
   renderFxExtranjera();
 }
 async function fetchTCExtra(){
@@ -7881,7 +7996,7 @@ try {
   const s = JSON.parse(localStorage.getItem('zar_plan_pagos') || 'null');
   if (s && typeof s === 'object') Object.keys(PP_DEF).forEach(k => { if (s[k] != null && isFinite(+s[k])) PP[k] = +s[k]; });
 } catch (e){}
-function ppGuardar(){ try { localStorage.setItem('zar_plan_pagos', JSON.stringify(PP)); } catch (e){} }
+function ppGuardar(){ try { localStorage.setItem('zar_plan_pagos', JSON.stringify(PP)); } catch (e){} cfgPush(); }
 function ppInput(k, el){
   const v = parseFloat(el.value);
   PP[k] = isFinite(v) && v >= 0 ? v : PP_DEF[k];
