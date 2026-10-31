@@ -301,6 +301,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
 
     <!-- Dashboard -->
     <div class="tab-pane on" id="t-dash">
+      <div id="viv-pagos-aviso" style="display:none;"></div>
       <div class="kpi-row">
         <div class="kpi"><div class="kpi-lbl">Ingresos ARS</div><div class="kpi-val g" id="k-ing">$0</div><div class="kpi-sub" id="k-ing2">—</div></div>
         <div class="kpi"><div class="kpi-lbl">Gastos ARS</div><div class="kpi-val r" id="k-gas">$0</div><div class="kpi-sub" id="k-gas2">—</div></div>
@@ -955,7 +956,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         </div>
         <div style="position:relative;height:190px;margin-bottom:14px;"><canvas id="viv-ch"></canvas></div>
         <table class="tbl">
-          <thead><tr><th>Mes</th><th>Alquiler</th><th>Δ Alquiler</th><th>Expensas</th><th>Δ Expensas</th><th>IPC INDEC (mes)</th><th>IPC CABA (mes)</th><th></th></tr></thead>
+          <thead><tr><th>Mes</th><th>Alquiler</th><th>Δ Alquiler</th><th>Expensas</th><th>Δ Expensas</th><th>IPC INDEC (mes)</th><th>IPC CABA (mes)</th><th>Pago alquiler</th><th>Pago expensas</th><th></th></tr></thead>
           <tbody id="viv-tb"></tbody>
         </table>
       </div>
@@ -973,6 +974,11 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <div class="sim-field" style="margin:0;"><span class="sim-lbl">IPC INDEC del mes (%)</span><input class="sim-input" type="number" id="viv-ipc-indec" step="0.1" placeholder="vacío = falta dato"></div>
           <div class="sim-field" style="margin:0;"><span class="sim-lbl">IPC CABA del mes (%)</span><input class="sim-input" type="number" id="viv-ipc-caba" step="0.1" placeholder="vacío = falta dato"></div>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;">
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Vencimiento alquiler</span><input class="sim-input" type="date" id="viv-vto-alq"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Vencimiento expensas</span><input class="sim-input" type="date" id="viv-vto-exp"></div>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:10px;">Los vencimientos se cargan acá, mes por mes. El "pagado" se marca con la casilla de la tabla (se guarda al instante). Semáforo: 🟡 faltan 7 días o menos · 🟠 faltan 3 o menos (o vence hoy) · 🔴 vencido. Sin vencimiento cargado no hay color.</div>
         <button class="hdr-btn pri" style="width:100%;" onclick="guardarMesVivienda()">Guardar mes</button>
         <div id="viv-form-status" style="font-size:11px;margin-top:8px;color:var(--text3);"></div>
       </div>
@@ -2438,6 +2444,7 @@ function manejarViviendaLive(d){
     }
   }
   renderVivienda();
+  try { renderAvisoPagosVivienda(); } catch (e){ console.error(e); }
   if (typeof renderSalarioRealIPC === 'function') renderSalarioRealIPC();
 }
 let deudasFijasSeedIntentada = false;
@@ -2605,7 +2612,7 @@ function editarMesVivienda(key){
   if (![...ye.options].some(o => o.value === y)) ye.add(new Option(y, y));
   ye.value = y; $('viv-mes-m').value = m;
   const set = (id, v) => { const e = $(id); if (e) e.value = (v == null ? '' : v); };
-  set('viv-alquiler', r.alquiler); set('viv-expensas', r.expensas); set('viv-ipc-indec', r.ipcIndec); set('viv-ipc-caba', r.ipcCaba);
+  set('viv-alquiler', r.alquiler); set('viv-expensas', r.expensas); set('viv-ipc-indec', r.ipcIndec); set('viv-ipc-caba', r.ipcCaba); set('viv-vto-alq', r.vtoAlquiler); set('viv-vto-exp', r.vtoExpensas);
   vivEditKey = key;
   const st = $('viv-form-status');
   if (st) st.textContent = `Editando ${viviendaKeyToLabel(key)}: cambiá lo que haga falta y guardá. Un campo que vacíes se borra.`;
@@ -2616,18 +2623,19 @@ async function guardarMesVivienda(){
   const key = vivMesKey();
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(key)){ if (st) st.textContent = 'Elegí mes y año primero.'; return; }
   const num = id => { const v = $(id)?.value; return (v === '' || v == null) ? null : +v; };
-  const todo = { alquiler: num('viv-alquiler'), expensas: num('viv-expensas'), ipcIndec: num('viv-ipc-indec'), ipcCaba: num('viv-ipc-caba') };
+  const fch = id => { const v = $(id)?.value; return v ? v : null; };
+  const todo = { alquiler: num('viv-alquiler'), expensas: num('viv-expensas'), ipcIndec: num('viv-ipc-indec'), ipcCaba: num('viv-ipc-caba'), vtoAlquiler: fch('viv-vto-alq'), vtoExpensas: fch('viv-vto-exp') };
   const editando = vivEditKey === key;
   // Modo normal: solo se escriben los campos completados (no se pisa nada más, ni el detalle de la liquidación).
   // Modo edición (lápiz): los campos vacíos se borran (null en update = quitar el dato).
   const data = {};
   Object.entries(todo).forEach(([k, v]) => { if (v != null || editando) data[k] = v; });
   if (!Object.keys(data).length){ if (st) st.textContent = 'No completaste ningún campo.'; return; }
-  if (Object.entries(data).some(([, v]) => v != null && !isFinite(v))){ if (st) st.textContent = 'Hay un valor que no es un número.'; return; }
+  if (Object.entries(data).some(([k, v]) => v != null && ((k === 'vtoAlquiler' || k === 'vtoExpensas') ? !/^\d{4}-\d{2}-\d{2}$/.test(v) : !isFinite(v)))){ if (st) st.textContent = 'Hay un valor que no es un número o una fecha válida.'; return; }
   try {
     await window._updateViviendaMes(key, data);
     if (st) st.textContent = `Guardado: ${viviendaKeyToLabel(key)}${editando ? ' (editado)' : ''}.`;
-    ['viv-alquiler','viv-expensas','viv-ipc-indec','viv-ipc-caba'].forEach(id => { const e = $(id); if (e) e.value = ''; });
+    ['viv-alquiler','viv-expensas','viv-ipc-indec','viv-ipc-caba','viv-vto-alq','viv-vto-exp'].forEach(id => { const e = $(id); if (e) e.value = ''; });
     vivEditKey = null;
   } catch (err){
     console.error(err);
@@ -2637,7 +2645,7 @@ async function guardarMesVivienda(){
 async function borrarMesVivienda(key){
   if (!window._deleteViviendaMes) return;
   const tieneDet = !!(VIVIENDA_LIVE[key] && VIVIENDA_LIVE[key].detalle);
-  if (!window.confirm(`¿Borrar alquiler, expensas e IPC de ${viviendaKeyToLabel(key)}?` + (tieneDet ? ' (El detalle de la liquidación de expensas se conserva.)' : ''))) return;
+  if (!window.confirm(`¿Borrar alquiler, expensas, IPC y estado de pago de ${viviendaKeyToLabel(key)}?` + (tieneDet ? ' (El detalle de la liquidación de expensas se conserva.)' : ''))) return;
   try {
     const _pv = VIVIENDA_LIVE[key];
     // si el mes tiene detalle de liquidación, borrar solo los datos de la tabla y conservar el banco
@@ -2703,6 +2711,120 @@ const SERVICIOS_HIST = [
 const OSDE_HIST = [
   {periodo:'07/2026', plan:207154.00, aporte:269786.41, debitoReal:0, fecha:'21/08/2026', nota:'Aporte cubre de sobra el plan — saldo a favor $62.632,41, sin débito real este período'},
 ];
+// ═══════════════════════════════════════════════════════════════════════════════
+// Estado de pago de Vivienda (31/10/2026): casilla "pagado" + fecha de vencimiento por mes y concepto
+// (alquiler / expensas) con semáforo. Campos nuevos DENTRO de vivienda/{uid}/{YYYY-MM} (mismo nodo, sin regla
+// nueva): alquilerPagado / expensasPagado (true o ausente), alquilerPagadoEl / expensasPagadoEl (AAAA-MM-DD),
+// vtoAlquiler / vtoExpensas (AAAA-MM-DD). Semáforo: amarillo = faltan 7 días o menos, naranja = 3 o menos
+// (incluye "vence hoy"), rojo = vencido. No toca Dashboard-gastos, Débito ni Crédito: es solo un recordatorio.
+// ═══════════════════════════════════════════════════════════════════════════════
+const VIV_PAGO_ESTILO = {
+  rojo:     { bg:'#FEE2E2', fg:'#B91C1C', bd:'#EF4444', ico:'🔴', orden:0 },
+  naranja:  { bg:'#FFEDD5', fg:'#C2410C', bd:'#EA580C', ico:'🟠', orden:1 },
+  amarillo: { bg:'#FEF9C3', fg:'#854D0E', bd:'#EAB308', ico:'🟡', orden:2 },
+  lejos:    { bg:'#F1F5F9', fg:'#475569', bd:'#CBD5E1', ico:'',   orden:4 },
+  sinvto:   { bg:'#F1F5F9', fg:'#475569', bd:'#CBD5E1', ico:'',   orden:3 },
+  nomarca:  { bg:'transparent', fg:'#94A3B8', bd:'transparent', ico:'', orden:5 },
+  ok:       { bg:'#ECFDF5', fg:'#047857', bd:'#10B981', ico:'✅', orden:6 }
+};
+const VIV_RE_FECHA = /^\d{4}-\d{2}-\d{2}$/;
+function vivFechaCorta(iso){
+  if (!VIV_RE_FECHA.test(String(iso))) return '';
+  const [, m, d] = iso.split('-');
+  return `${d}/${m}`;
+}
+function vivHoyKey(hoy){
+  const h = hoy ? new Date(hoy) : new Date();
+  return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`;
+}
+// Estado de un concepto: pagado → ok; sin fecha válida → sinvto; con fecha → rojo/naranja/amarillo/lejos según los días que faltan.
+function vivPagoEstado(vto, pagado, hoy){
+  if (pagado) return { nivel: 'ok', dias: null };
+  if (!VIV_RE_FECHA.test(String(vto || ''))) return { nivel: 'sinvto', dias: null };
+  const [y, m, d] = vto.split('-').map(Number);
+  const h = hoy ? new Date(hoy) : new Date(); h.setHours(0, 0, 0, 0);
+  const dias = Math.round((new Date(y, m - 1, d) - h) / 86400000);
+  const nivel = dias < 0 ? 'rojo' : dias <= 3 ? 'naranja' : dias <= 7 ? 'amarillo' : 'lejos';
+  return { nivel, dias };
+}
+function vivPagoTexto(est, vto, pagadoEl){
+  const f = vivFechaCorta(vto);
+  switch (est.nivel){
+    case 'ok':       return 'pagado' + (VIV_RE_FECHA.test(String(pagadoEl || '')) ? ' el ' + vivFechaCorta(pagadoEl) : '');
+    case 'rojo':     return est.dias === -1 ? `vencido ayer (${f})` : `vencido hace ${-est.dias} d (${f})`;
+    case 'naranja':  return est.dias === 0 ? `vence HOY (${f})` : est.dias === 1 ? `vence mañana (${f})` : `vence en ${est.dias} d (${f})`;
+    case 'amarillo': return `vence en ${est.dias} d (${f})`;
+    case 'lejos':    return `vence el ${f}`;
+    case 'sinvto':   return 'sin vencimiento';
+    default:         return 'sin marcar';
+  }
+}
+function vivPagoChip(nivel, texto){
+  const s = VIV_PAGO_ESTILO[nivel] || VIV_PAGO_ESTILO.lejos;
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid ${s.bd};background:${s.bg};color:${s.fg};font-size:11px;font-weight:600;white-space:nowrap;">${s.ico ? s.ico + ' ' : ''}${texto}</span>`;
+}
+// Datos de un concepto de un mes: { monto, pagado, vto, pagadoEl } (o null si el mes no tiene ese monto cargado).
+function vivPagoDatos(r, concepto){
+  if (!r || r[concepto] == null) return null;
+  const esAlq = concepto === 'alquiler';
+  return { monto: r[concepto], pagado: r[concepto + 'Pagado'] === true, vto: esAlq ? r.vtoAlquiler : r.vtoExpensas, pagadoEl: r[concepto + 'PagadoEl'] };
+}
+function vivPagoCelda(key, concepto, r, hoy){
+  const dt = vivPagoDatos(r, concepto);
+  if (!dt) return '<span style="color:var(--text3);">—</span>';
+  let est = vivPagoEstado(dt.vto, dt.pagado, hoy);
+  // meses anteriores al actual, sin pago marcado ni vencimiento: no son "pendientes", solo no se marcaron (datos anteriores a esta función)
+  if (est.nivel === 'sinvto' && key < vivHoyKey(hoy)) est = { nivel: 'nomarca', dias: null };
+  const chip = vivPagoChip(est.nivel, vivPagoTexto(est, dt.vto, dt.pagadoEl));
+  return `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" ${dt.pagado ? 'checked' : ''} onchange="vivTogglePago('${key}','${concepto}',this.checked)" style="width:16px;height:16px;accent-color:#10B981;cursor:pointer;" title="Marcar como pagado / no pagado"> ${chip}</label>`;
+}
+// Pendientes para el aviso del Dashboard: rojo/naranja/amarillo de cualquier mes cargado, más los del mes en curso sin vencimiento cargado.
+function vivPagosPendientes(live, hoy){
+  const out = [], hoyKey = vivHoyKey(hoy);
+  Object.entries(live || {}).forEach(([key, r]) => {
+    if (!/^\d{4}-\d{2}$/.test(key)) return;
+    ['alquiler', 'expensas'].forEach(concepto => {
+      const dt = vivPagoDatos(r, concepto); if (!dt || dt.pagado) return;
+      const est = vivPagoEstado(dt.vto, dt.pagado, hoy);
+      if (est.nivel === 'rojo' || est.nivel === 'naranja' || est.nivel === 'amarillo' || (est.nivel === 'sinvto' && key === hoyKey)){
+        out.push({ key, concepto, monto: dt.monto, vto: dt.vto, est });
+      }
+    });
+  });
+  out.sort((a, b) => (VIV_PAGO_ESTILO[a.est.nivel].orden - VIV_PAGO_ESTILO[b.est.nivel].orden) || ((a.est.dias ?? 1e9) - (b.est.dias ?? 1e9)));
+  return out;
+}
+let vivAvisoTimer = null;
+function renderAvisoPagosVivienda(){
+  const el = $('viv-pagos-aviso'); if (!el) return;
+  if (!vivAvisoTimer) vivAvisoTimer = setInterval(() => { try { renderAvisoPagosVivienda(); } catch (e){ console.error(e); } }, 3600000);
+  const pend = vivPagosPendientes(VIVIENDA_LIVE);
+  if (!pend.length){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  const peor = VIV_PAGO_ESTILO[pend[0].est.nivel];
+  const filas = pend.map(p => {
+    const nom = p.concepto === 'alquiler' ? 'Alquiler' : 'Expensas';
+    const chip = vivPagoChip(p.est.nivel, vivPagoTexto(p.est, p.vto, null));
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--border2);">
+      <div style="font-size:13px;"><strong>${nom} ${viviendaKeyToLabel(p.key)}</strong> · ${fmt(p.monto)} &nbsp;${chip}</div>
+      <button class="hdr-btn" style="padding:3px 10px;font-size:11px;width:auto;margin:0;" onclick="vivTogglePago('${p.key}','${p.concepto}',true)">✓ Marcar pagado</button>
+    </div>`;
+  }).join('');
+  el.style.cssText = `display:block;margin:0 0 14px;padding:12px 16px;border-radius:12px;background:var(--white);border:1px solid var(--border);border-left:4px solid ${peor.bd};box-shadow:var(--sh);`;
+  el.innerHTML = `<div class="card-ttl" style="margin-bottom:6px;">🏠 Vivienda: pagos pendientes</div>${filas}`;
+}
+async function vivTogglePago(key, concepto, val){
+  if (!/^\d{4}-\d{2}$/.test(key) || (concepto !== 'alquiler' && concepto !== 'expensas')) return;
+  const st = $('viv-form-status');
+  try {
+    const h = new Date(), iso = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`;
+    // null en update = quitar el campo (al desmarcar no queda "false" suelto)
+    await window._updateViviendaMes(key, { [concepto + 'Pagado']: val ? true : null, [concepto + 'PagadoEl']: val ? iso : null });
+  } catch (err){
+    console.error(err);
+    try { renderVivienda(); renderAvisoPagosVivienda(); } catch (e){}
+    if (st) st.textContent = 'No se pudo guardar el pago (¿falta iniciar sesión con Google?). La casilla volvió a su estado anterior.';
+  }
+}
 function renderVivienda(){
   const tb = $('viv-tb'); if(!tb) return;
   try { vivMesInit(); } catch (e){ console.error(e); }
@@ -2726,10 +2848,12 @@ function renderVivienda(){
       <td style="color:${dExp.startsWith('+')?'var(--red)':'var(--text3)'};">${dExp}</td>
       <td>${r.ipcIndec!=null?r.ipcIndec.toFixed(1)+'%':'<span style="color:var(--text3);">—</span>'}</td>
       <td>${r.ipcCaba!=null?r.ipcCaba.toFixed(1)+'%':'<span style="color:var(--text3);">—</span>'}</td>
+      <td>${vivPagoCelda(key,'alquiler',r)}</td>
+      <td>${vivPagoCelda(key,'expensas',r)}</td>
       <td style="white-space:nowrap;">${/^\d{4}-\d{2}$/.test(key) ? `<button class="hdr-btn" title="Editar este mes" style="padding:2px 8px;font-size:11px;" onclick="editarMesVivienda('${key}')">✏️</button> ` : ''}<button class="hdr-btn" title="Borrar este mes" style="padding:2px 8px;font-size:11px;" onclick="borrarMesVivienda('${key}')">✕</button></td>
     </tr>`;
   });
-  tb.innerHTML = rows.join('') || `<tr><td colspan="8" style="color:var(--text3);font-size:12px;">Sin meses cargados todavía.</td></tr>`;
+  tb.innerHTML = rows.join('') || `<tr><td colspan="10" style="color:var(--text3);font-size:12px;">Sin meses cargados todavía.</td></tr>`;
 
   // Gráfico de seguimiento Alquiler/Expensas (agregado 13/09/2026, tarde) -- mismo
   // patrón visual que el chart de OSDE (línea, spanGaps para saltar meses sin dato).
