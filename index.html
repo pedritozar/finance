@@ -1529,7 +1529,7 @@ window._deleteCasaItem = async id => {
   await remove(ref(db, `casa/${uid}/${id}`));
 };
 // Casa -> presupuesto (21/10/2026). Débito/efectivo/transferencia: gasto real en gastos/{uid}/{y}/{m}.
-// Crédito: 'gasto con tarjeta pago único' en comprasPendientes (mismo mecanismo que "Ciclo de tarjeta"),
+// Crédito: 'gasto con tarjeta pago único' en pendientesGasto (mismo mecanismo que "Ciclo de tarjeta"),
 // que se cruza solo con el PDF del resumen por monto exacto. Cada función devuelve el vínculo para poder deshacerlo.
 window._casaWriteGasto = async (cat, monto, nota, fecha, medio) => {
   const [y, m] = fecha.split('-');
@@ -1541,12 +1541,11 @@ window._casaRemoveGasto = async v => {
   await remove(ref(db, `gastos/${uid}/${v.y}/${v.m}/${v.id}`));
 };
 window._casaAddPendiente = async (nombre, categoria, monto, fechaCompra) => {
-  const id = push(ref(db, `comprasPendientes/${uid}`)).key;
-  await set(ref(db, `comprasPendientes/${uid}/${id}`), { tipo: 'gasto', nombre, categoria, monto: +monto, fechaCompra, timestamp: serverTimestamp() });
+  const id = await window._pgSet({ tipo: 'gasto', nombre, categoria, monto: +monto, fechaCompra, timestamp: serverTimestamp() });
   return { tipo: 'pendiente', id };
 };
 window._casaRemovePendiente = async id => {
-  await remove(ref(db, `comprasPendientes/${uid}/${id}`));
+  await window._deletePendiente(id);
 };
 
 // ── 🛡️ Blindaje (30/10/2026): config/{uid} guarda copia de zar_plan_pagos y zarfx_pct (+ fecha del último respaldo).
@@ -1559,7 +1558,7 @@ window._setConfig = async data => {
 };
 // Respaldo completo: lee cada nodo operativo del uid y lo devuelve junto con los errores por nodo (no corta si uno falla).
 // No incluye clientes/pedro/vanguard (esquema de otro proyecto) ni ninguna key de API.
-const RESPALDO_NODOS = ['gastos','ingresos','tarjeta','comprasPendientes','pagosTarjeta','deudas','deudasFijasEstado','gastosRecurrentes','destinosIngreso','notasIngresoMensual','objetivos','vivienda','hogar','comercios','carteraHist','boveda','iaBriefing','casa','config'];
+const RESPALDO_NODOS = ['gastos','ingresos','tarjeta','comprasPendientes','pendientesGasto','pagosTarjeta','deudas','deudasFijasEstado','gastosRecurrentes','destinosIngreso','notasIngresoMensual','objetivos','vivienda','hogar','comercios','carteraHist','boveda','iaBriefing','casa','config'];
 window._respaldoCompleto = async () => {
   const datos = {}, errores = {};
   for (const n of RESPALDO_NODOS) {
@@ -1693,8 +1692,30 @@ window._writeDualComprado = async (nombre, categoria, precio, tna, plazo, resume
   });
   return cuotaRed;
 };
+// 31/10/2026: los pendientes de ZAR Finance tipo 'gasto' / 'gasto-usd' viven en su nodo propio
+// pendientesGasto/{uid}. comprasPendientes/{uid} queda para las compras en cuotas (que también
+// lee ZAR Tactical Ledger, y que no sabe qué hacer con registros de solo monto). El listener junta
+// los dos nodos en un solo objeto (los ids de push() no se pisan) para no tocar el resto de la app;
+// _pgIds recuerda qué ids están en pendientesGasto para que borrar/editar vaya al nodo correcto.
+// Los registros viejos tipo gasto que siguieran en comprasPendientes se siguen leyendo y borrando de ahí.
+let _pgIds = new Set();
+const _pendRef = id => ref(db, `${_pgIds.has(id) ? 'pendientesGasto' : 'comprasPendientes'}/${uid}/${id}`);
+window._pgSet = async data => {
+  const id = push(ref(db, `pendientesGasto/${uid}`)).key;
+  try { await set(ref(db, `pendientesGasto/${uid}/${id}`), data); }
+  catch (e) {
+    if (/permission/i.test((e && (e.code || e.message)) || '')) throw new Error('Falta publicar la regla de Firebase para el nodo pendientesGasto (ver instrucciones). No se guardó.');
+    throw e;
+  }
+  _pgIds.add(id);
+  return id;
+};
 window._listenPendientes = cb => {
-  onValue(ref(db, `comprasPendientes/${uid}`), s => cb(s.val() || {}));
+  let a = {}, b = {};
+  const emit = () => cb(Object.assign({}, a, b));
+  onValue(ref(db, `comprasPendientes/${uid}`), s => { a = s.val() || {}; emit(); });
+  onValue(ref(db, `pendientesGasto/${uid}`), s => { b = s.val() || {}; _pgIds = new Set(Object.keys(b)); emit(); },
+    () => { b = {}; emit(); });
 };
 window._addPendiente = async (nombre, categoria, precio, tna, plazo, fechaCompra) => {
   const id = push(ref(db, `comprasPendientes/${uid}`)).key;
@@ -1704,12 +1725,12 @@ window._addPendiente = async (nombre, categoria, precio, tna, plazo, fechaCompra
   });
 };
 window._deletePendiente = async id => {
-  await remove(ref(db, `comprasPendientes/${uid}/${id}`));
+  await remove(_pendRef(id));
 };
 // Editar un pendiente ya cargado (18/09/2026): corrige montos/fechas mal tipeados
 // sin borrar y recargar. update() sólo toca los campos pasados; el resto queda igual.
 window._updatePendiente = async (id, campos) => {
-  await update(ref(db, `comprasPendientes/${uid}/${id}`), campos);
+  await update(_pendRef(id), campos);
 };
 
 // ── Gasto con tarjeta, pago único sin cuotas (agregado 05/09/2026) ──────────
@@ -1720,12 +1741,11 @@ window._updatePendiente = async (id, campos) => {
 // arriba), esto NO es deuda financiada: es sólo un gasto normal cuya fecha de
 // imputación real todavía no se sabe. Por eso NO crea nada en deudas/{uid} ni
 // afecta el DTI — sólo termina como un gasto más en gastos/{uid}/{y}/{m}.
-// Comparte el mismo nodo comprasPendientes/{uid} que las de cuotas (mismo
-// mecanismo de "elegibles contra el último cierre"), diferenciadas por
-// tipo:'gasto' vs las de cuotas (sin tipo, o tipo:'cuotas').
+// Mismo mecanismo de "elegibles contra el último cierre" que las de cuotas, pero desde el 31/10/2026
+// se guardan en el nodo propio pendientesGasto/{uid} (antes compartían comprasPendientes/{uid} con
+// las de cuotas y con Tactical, que las habría leído como compras financiadas rotas).
 window._addPendienteGasto = async (nombre, categoria, monto, fechaCompra) => {
-  const id = push(ref(db, `comprasPendientes/${uid}`)).key;
-  await set(ref(db, `comprasPendientes/${uid}/${id}`), {
+  await window._pgSet({
     tipo: 'gasto', nombre, categoria, monto: +monto, fechaCompra,
     timestamp: serverTimestamp()
   });
@@ -1736,8 +1756,7 @@ window._addPendienteGasto = async (nombre, categoria, monto, fechaCompra) => {
 // (columna que el resumen VISA siempre trae, esté o no ya convertida a pesos), nunca por un ARS
 // estimado que se movería con el T/C entre que se anota y factura el banco.
 window._addPendienteGastoUSD = async (nombre, categoria, montoUSD, fechaCompra) => {
-  const id = push(ref(db, `comprasPendientes/${uid}`)).key;
-  await set(ref(db, `comprasPendientes/${uid}/${id}`), {
+  await window._pgSet({
     tipo: 'gasto-usd', nombre, categoria, montoUSD: +montoUSD, fechaCompra,
     timestamp: serverTimestamp()
   });
