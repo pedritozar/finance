@@ -2997,20 +2997,25 @@ function renderOsde(){
   }
 }
 
-const INV_SNAP_FECHA_ISO = '2026-09-07'; // clave del snapshot en carteraHist/{uid} — cambiar cada vez que se cargue un snapshot nuevo
+const INV_SNAP_FECHA_ISO = '2026-11-08'; // clave del snapshot en carteraHist/{uid} — cambiar cada vez que se cargue un snapshot nuevo
+// Snapshot anterior (07/09/2026, queda en carteraHist): total $972.104,30 = LOMA 29.295 · GOOGL 389.340 · META 285.040 · NVDA 258.740 · disponible 9.689,30.
+// Snapshot 08/11/2026 (captura de Alfy del 08/11 01:11, valuación al último cierre del vie 06/11): total de la cuenta $1.159.575,64;
+// posiciones $1.154.103,17 (T31Y7 154.025 × 130,91 por 100 VN · AMZN 27 × 3.007,50 · GOOGL 47 × 8.240 · NVDA 17 × 13.040 · XLI 27 × 9.715)
+// + disponible $5.472,47 (ARS 3.987,90 + USD 0,10 + USD EXT 0,79). `p` = null: el rendimiento por instrumento no se cargó (Alfy solo mostró el total por rubro).
 const INV_DETALLE = [ // desglose por instrumento (para el gráfico de barras); color = índice sobre COLORS[]
-  {c:'LOMA (Acciones)',      m:29295.00,  p:-12.05, color:2},
-  {c:'GOOGL (Cedear)',       m:389340.00, p:-3.34,  color:0},
-  {c:'META (Cedear)',        m:285040.00, p:3.47,   color:3},
-  {c:'NVDA (Cedear)',        m:258740.00, p:-0.27,  color:1},
-  {c:'Disponible (ARS+USD)', m:9689.30,   p:null,   color:9, cash:true},
+  {c:'T31Y7 (Bono Tesoro)',  m:201635.67, p:null,   color:5},
+  {c:'AMZN (Cedear)',        m:81202.50,  p:null,   color:3},
+  {c:'GOOGL (Cedear)',       m:387280.00, p:null,   color:0},
+  {c:'NVDA (Cedear)',        m:221680.00, p:null,   color:1},
+  {c:'XLI (Cedear)',         m:262305.00, p:null,   color:2},
+  {c:'Disponible (ARS+USD)', m:5472.47,   p:null,   color:9, cash:true},
 ];
 const INV_SNAP = [
-  {c:'Acciones (LOMA)',               m:29295.00,  p:3.01, b:'r'},
-  {c:'Cedears (GOOGL/META/NVDA)',     m:933120.00, p:95.99,b:'g'},
-  {c:'Disponible (ARS+USD)',          m:9689.30,   p:1.00, b:'y'},
+  {c:'Bono (T31Y7)',                  m:201635.67, p:17.39,b:'b'},
+  {c:'Cedears (GOOGL/NVDA/XLI/AMZN)', m:952467.50, p:82.14,b:'g'},
+  {c:'Disponible (ARS+USD)',          m:5472.47,   p:0.47, b:'y'},
 ];
-const TOTAL_INV = 972104.30; // Alfy — snapshot 07/09/2026
+const TOTAL_INV = 1159575.64; // Alfy — snapshot 08/11/2026
 const TICKERS = [
   {s:'SPY',              n:'S&P 500 ETF',  pre:'$'},
   {s:'AAPL',             n:'Apple',        pre:'$'},
@@ -6393,7 +6398,7 @@ function renderBucketsLiquidez(){
       <span style="font-weight:600;">${fmt(liquidez)} <span style="color:var(--text3);font-size:11px;">(${pctLiq.toFixed(0)}%)</span></span>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;font-size:13px;">
-      <span style="color:var(--text2);">Crecimiento (Alfy: LOMA + Cedears)</span>
+      <span style="color:var(--text2);">Crecimiento (Alfy: bono + Cedears)</span>
       <span style="font-weight:600;">${fmt(crecimiento)} <span style="color:var(--text3);font-size:11px;">(${pctCre.toFixed(0)}%)</span></span>
     </div>
     <div style="font-size:10px;color:var(--text3);margin-top:8px;">Fondo de Emergencia: ${fmt(FE_ACTUAL)} de ${fmt(FE_META)} (piso, sin iniciar). No incluye lo que falta para la meta -- solo lo efectivamente líquido hoy.</div>`;
