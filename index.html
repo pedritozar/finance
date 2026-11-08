@@ -5494,7 +5494,7 @@ function pendientesResumen(){
     // contaba dos veces la deuda en dólares (US$182,02 de agosto ya vinieron como $275.487 en septiembre).
     fxUsdPendientes().filter(b => b.id !== 'manual').slice(0, 1).forEach(b => {
       b.entries.forEach(e => {
-        const monto = fxConvertirUSD(+e.dolar || 0).sinImpuestos;
+        const monto = fxUsdDeudaEnPesos(+e.dolar || 0);
         if (!(monto > 0)) return;
         out.pagosUnicos += monto; out.usdBancoPendiente += monto; out.nUsdBanco++; out.nPagos++;
       });
@@ -5721,7 +5721,7 @@ function calcularComparativo(o){
     if (b.id === 'manual') return;
     b.entries.forEach(e => {
       const dolar = +e.dolar || 0;
-      const monto = fxConvertirUSD(dolar).sinImpuestos;
+      const monto = fxUsdDeudaEnPesos(dolar);
       if (!(monto > 0)) return;
       esperados.push({ tipo: 'usd-pendiente', nombre: (e.detalle || 'compra en USD') + ' (US$' + dolar.toFixed(2) + ')', monto, categoria: e.categoria || 'varios', real: null, _dolar: dolar });
     });
@@ -5743,7 +5743,7 @@ function calcularComparativo(o){
   esperados.filter(e => e.tipo === 'cuota').sort((a,b) => b.monto - a.monto).forEach(e => {
     const tol = Math.max(1, e.monto * 0.01);
     const iPV = planV.findIndex((l,i) => !usadosPV.has(i) && Math.abs(l.pesos - e.monto) <= tol);
-    const iTx = txs.findIndex((t,i) => !usadosTx.has(i) && t.pesos > 0 && /C\.\d{2}\/\d{2}/.test(t.detalle || '') && Math.abs(t.pesos - e.monto) <= tol);
+    const iTx = txs.findIndex((t,i) => !usadosTx.has(i) && t.pesos > 0 && /(?:\bC\.\s*|\bCuota\s*)\d{2}\s*\/\s*\d{2}/i.test(t.detalle || '') && Math.abs(t.pesos - e.monto) <= tol);
     const prefierePV = /plan\s*v/i.test(e.nombre);
     if (iPV >= 0 && (prefierePV || iTx < 0)){ usadosPV.add(iPV); e.real = planV[iPV].pesos; }
     else if (iTx >= 0){ usadosTx.add(iTx); e.real = txs[iTx].pesos; }
@@ -7783,6 +7783,11 @@ function fxUsdPendientes(){
     return (b.cierre || '').localeCompare(a.cierre || '');
   });
 }
+// US$ ya facturados en un resumen ANTERIOR: el banco los pasa a pesos en el resumen siguiente ("TRANSFERENCIA DEUDA US$ x TC y")
+// al TC del banco y SIN volver a cobrar la percepción del 30% (RG 5617), que ya se cobró en pesos en el resumen donde apareció la
+// compra en dólares. Por eso acá va el dólar oficial (TC), NO el dólar tarjeta (TC_TARJETA ya trae ese 30%): usar
+// fxConvertirUSD().sinImpuestos para esto contaba la percepción dos veces (+34,9% en el resumen del 29/10/2026). Fix 07/11/2026.
+function fxUsdDeudaEnPesos(usd){ return (+usd || 0) * TC; }
 function fxConvertirUSD(usd){
   const base = TC_TARJETA || TC * 1.6; // sin dato en vivo todavía: aproximación grosera (oficial x1.6), se corrige solo al llegar la API
   const pct = fxPctGuardado();
