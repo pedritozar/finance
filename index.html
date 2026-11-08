@@ -797,7 +797,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
         <div style="display:flex;flex-direction:column;gap:14px;">
           <div class="card">
-            <div class="card-ttl">Snapshot Alfy — 07/09/2026</div>
+            <div class="card-ttl" id="inv-snap-ttl">Snapshot Alfy</div>
             <div id="inv-snap"></div>
             <div style="margin-top:14px;height:170px;"><canvas id="inv-bar-ch"></canvas></div>
             <div id="inv-concentracion"></div>
@@ -6429,6 +6429,7 @@ function renderConcentracionAlfy(){
 }
 function renderInvSnap(){
   const el=$('inv-snap'); if(!el) return;
+  const tt=$('inv-snap-ttl'); if(tt){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(INV_SNAP_FECHA_ISO); tt.textContent='Snapshot Alfy'+(m?' — '+m[3]+'/'+m[2]+'/'+m[1]:''); }
   el.innerHTML=INV_SNAP.map(i=>
     `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2);font-size:13px;">
       <span style="color:var(--text2);">${i.c}</span>
