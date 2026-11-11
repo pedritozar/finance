@@ -2437,7 +2437,7 @@ function manejarConfigLive(c){
   if(c && c.mp && c.mp.ts){
     if(MP_CUOTAS === null || +c.mp.ts > +(_lsGet('zar_mp_ts') || 0)){
       const it = c.mp.items ? (Array.isArray(c.mp.items) ? c.mp.items : Object.values(c.mp.items)) : [];
-      MP_CUOTAS = it.filter(q => q && /^\d{4}-\d{2}-\d{2}$/.test(String(q.f)) && +q.m > 0);
+      MP_CUOTAS = it.filter(q => q && /^\d{4}-\d{2}-\d{2}$/.test(String(q.f)) && +q.m > 0).map(q => ({ f: String(q.f), m: +q.m, n: String(q.n == null ? '' : q.n).slice(0, 60) }));
       _lsSet('zar_mp_cuotas', MP_CUOTAS); _lsSet('zar_mp_ts', +c.mp.ts); restaurado.push('cuotas de Mercado Pago');
     }
   }
@@ -2489,6 +2489,7 @@ let TOPE_CFG  = Object.assign({ tope: 300000, desdeISO: '2026-10-30', usdMes: 50
 // Semilla: capturas de MP del 07/11 (changelog 45). Solo se usa si no hay nada local ni en Firebase.
 const MP_SEED = [ { f: '2026-11-16', m: 206493.29, n: 'Línea de crédito' }, { f: '2026-11-25', m: 140049.53, n: 'Dinero Plus' } ];
 function _mpLista(){ return MP_CUOTAS === null ? MP_SEED : MP_CUOTAS; }
+function _escH(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); } // declaración hoisted: segura aunque se llame antes que hgEsc
 function _fmtDM(iso){ return /^\d{4}-\d{2}-\d{2}$/.test(String(iso)) ? iso.slice(8,10) + '/' + iso.slice(5,7) : '—'; }
 function _hoyISO(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 
@@ -2521,7 +2522,7 @@ function renderMPCard(){
     : lista.map((q, i) => {
         const pasada = q.f < hoy;
         return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px dashed var(--border);' + (pasada ? 'opacity:.5;' : '') + '">'
-          + '<span>' + _fmtDM(q.f) + ' · ' + (q.n || 'cuota') + (pasada ? ' <span style="font-size:10px;">(pasada)</span>' : '') + '</span>'
+          + '<span>' + _fmtDM(q.f) + ' · ' + _escH(q.n || 'cuota') + (pasada ? ' <span style="font-size:10px;">(pasada)</span>' : '') + '</span>'
           + '<span style="white-space:nowrap;font-weight:600;">' + fmt(q.m) + ' <a href="#" style="color:var(--red);text-decoration:none;margin-left:6px;" onclick="mpBorrar(' + i + ');return false;">✕</a></span></div>';
       }).join('');
   const fut = lista.filter(q => q.f >= hoy);
@@ -2607,7 +2608,7 @@ function _cal45Eventos(){
       add(new Date(y2, m2 - 1, d2), 'VISA — próximo resumen (monto ≈ mínimo actual, SUPUESTO)', -min, true);
     }
   }
-  _mpLista().forEach(q => { const [y3, m3, d3] = String(q.f).split('-').map(Number); if (y3) add(new Date(y3, m3 - 1, d3), 'Mercado Pago — ' + (q.n || 'cuota'), -q.m, false); });
+  _mpLista().forEach(q => { const [y3, m3, d3] = String(q.f).split('-').map(Number); if (y3) add(new Date(y3, m3 - 1, d3), 'Mercado Pago — ' + _escH(q.n || 'cuota'), -q.m, false); });
   ev.sort((a, b) => a.d - b.d || a.m - b.m);
   return ev;
 }
