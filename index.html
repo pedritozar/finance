@@ -256,6 +256,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
       </div>
     </div>
     <div class="dv-hdr-r">
+      <span id="blindaje-estado" style="font-size:10px;color:var(--text3);cursor:help;"></span>
       <span id="auth-status" style="font-size:11px;color:var(--text3);"></span>
       <button class="hdr-btn" id="google-login-btn" style="display:none;" onclick="window._loginGoogle()">🔑 Iniciar sesión Google</button>
       <button class="hdr-btn" onclick="exportCSV()">↓ CSV</button>
@@ -370,6 +371,14 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Evolución al vencer deudas</div>
             <div id="dti-proj"></div>
           </div>
+          <div class="card" id="cal45-card">
+            <div class="card-ttl">📆 Calendario de caja — 45 días</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">Saldo real de la C.A. ...8545 (lo cargás vos) más cada entrada y débito con fecha. Avisa si la caja queda en rojo antes de un vencimiento — exactamente lo que pasó el 11/11 con el débito del mínimo y la caja en $0.</div>
+            <div id="cal45-saldo-ui" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;"></div>
+            <div id="cal45-alerta"></div>
+            <div id="cal45-tabla" style="overflow-x:auto;"></div>
+            <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5;">Dato vs. supuesto: saldo, cuotas MP, vencimiento y mínimo VISA = datos cargados; sueldo, bono, servicios y el monto del próximo resumen = <strong>supuestos del plan</strong> (el bono real se confirma cada mes; si viene &lt; $1,67M rige la regla del tope bajo). No incluye gasto diario (súper, transporte).</div>
+          </div>
           <div class="card">
             <div class="card-ttl">Cash-flow proyectado — 90 días</div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Deuda fija + vivienda vs. ingreso de referencia</div>
@@ -377,6 +386,11 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="card" id="tope-card">
+            <div class="card-ttl">🚦 Tope de compras del mes</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">Regla del 07/11: tope <strong>máximo</strong> de compras de subsistencia (no una meta). Rige desde el resumen que cierra el <strong>26/11</strong>. Las cuotas heredadas de antes del régimen <strong>no</strong> consumen tope (están en la deuda arrastrada). La 1.ª cuota de una compra nueva cuenta en el mes de la compra; las siguientes quedan comprometidas.</div>
+            <div id="tope-cuerpo"></div>
+          </div>
           <div class="card">
             <div class="card-ttl">Deudas activas</div>
             <div id="pago-pendiente-banner" style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:var(--amber-l);border-left:3px solid var(--amber);font-size:12px;line-height:1.5;color:var(--text2);">
@@ -457,6 +471,18 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
               <div id="pp-inputs" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
               <div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.5;">Cómo se calcula: lo que podés pagar por mes = sueldo + bono − alquiler − expensas − wifi/luz − otros fijos − crédito Mercado Pago − ABL (mientras mamá cubre las expensas, ese renglón es 0). El interés es TEM × 1,21 (IVA) sobre el saldo impago: es orden de magnitud y suele quedar ~14% por debajo del real. El bono de un mes se usa para el vencimiento del mes siguiente. El gasto operativo = US$ × TC × 1,30 (percepción 30%) + pesos de súper y necesidades. No incluye ahorro ni inversión. Cuando cargues el resumen del 29/10 el plan se recalcula desde ese saldo.</div>
             </div>
+          </div>
+          <div class="card" id="mp-card">
+            <div class="card-ttl">💳 Crédito Mercado Pago — cuotas con fecha</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">Cada débito que Mercado Pago te va a cobrar, con fecha y monto (capturas de la app MP). Alimenta el Calendario de caja del Dashboard. Se guarda en tu Firebase (config) y se restaura solo si se borra Safari.</div>
+            <div id="mp-lista" style="margin-bottom:8px;"></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+              <input class="sim-input" id="mp-f" type="date" style="width:140px;">
+              <input class="sim-input" id="mp-m" type="number" min="0" step="0.01" placeholder="Monto $" style="width:120px;">
+              <input class="sim-input" id="mp-n" type="text" placeholder="Nota (Línea, Dinero Plus…)" style="flex:1;min-width:140px;">
+              <button class="hdr-btn" style="width:auto;margin:0;" onclick="mpAgregarUI()">➕ Agregar</button>
+            </div>
+            <div id="mp-pie" style="font-size:11px;color:var(--text2);"></div>
           </div>
           <div class="card" id="cm-card">
             <div class="card-ttl">🧠 Banco de comercios</div>
@@ -2361,13 +2387,28 @@ async function casaBorrar(id){
 let CFG_LIVE = null, cfgPushTimer = null, cfgListening = false;
 function authBanner(ok){
   const b = $('auth-banner'); if(b) b.style.display = ok ? 'none' : 'flex';
+  blindajeEstado();
+}
+// Estado del blindaje (10/11/2026): una línea junto al botón de respaldo con las 3 cosas que protegen ante un borrado
+// de Safari: sesión de escritura, copia de la configuración en config/{uid} y antigüedad del último respaldo JSON.
+// Sin sesión de escritura la copia no se puede leer (la regla de config exige la cuenta dueña): se informa «sin verificar».
+function blindajeEstado(){
+  const el = $('blindaje-estado'); if(!el) return;
+  const w = !!window._escrituraOK, c = CFG_LIVE;
+  const copia = !w || !c ? null : (c.planPagos != null);
+  const t = c && c.ultimoRespaldo, dias = t ? Math.floor((Date.now() - t) / 86400000) : null;
+  const p1 = w ? '✅ escritura' : '🔴 sin escritura';
+  const p2 = copia === null ? '⚪ copia sin verificar' : copia ? '✅ copia en Firebase' : '🟡 sin copia en Firebase';
+  const p3 = !w || !c ? '⚪ respaldo sin verificar' : dias === null ? '🟡 sin respaldo JSON' : (dias > 30 ? '🟡' : '✅') + ' respaldo hace ' + dias + ' d';
+  el.textContent = '🛡️ ' + p1 + ' · ' + p2 + ' · ' + p3;
+  el.title = 'Blindaje ante borrado de historial/datos de Safari. Escritura: sesión de Google con la cuenta dueña. Copia: Plan de pagos, dólar tarjeta, Mercado Pago y caja guardados en Firebase (config). Respaldo: último archivo JSON descargado con el botón 🛡️ Respaldo.';
 }
 // Copia de la configuración local en Firebase (solo con sesión de escritura; si no, queda local y se sube al volver a entrar).
 function cfgPush(){
   clearTimeout(cfgPushTimer);
   cfgPushTimer = setTimeout(async ()=>{
     if(!window._escrituraOK || !window._setConfig) return;
-    try{ await window._setConfig({ planPagos: PP, fxPct: fxPctGuardado(), actualizado: Date.now() }); }
+    try{ await window._setConfig({ planPagos: PP, fxPct: fxPctGuardado(), mp: (MP_CUOTAS || []), caja: CAJA_CFG, tope: TOPE_CFG, actualizado: Date.now() }); }
     catch(e){ console.warn('[ZAR] no se pudo respaldar la configuración (¿está publicada la regla "config"?):', e && e.message); }
   }, 900);
 }
@@ -2392,21 +2433,186 @@ function manejarConfigLive(c){
     if($('fx-pct')) $('fx-pct').value = c.fxPct;
     restaurado.push('ajuste del dólar tarjeta');
   }
+  if(MP_CUOTAS === null && c){
+    if(Array.isArray(c.mp)){ MP_CUOTAS = c.mp; _lsSet('zar_mp_cuotas', MP_CUOTAS); restaurado.push('cuotas de Mercado Pago'); }
+    else { MP_CUOTAS = MP_SEED.slice(); _lsSet('zar_mp_cuotas', MP_CUOTAS); }
+  }
+  if((CAJA_CFG.saldo == null) && c && c.caja && c.caja.saldo != null){ CAJA_CFG = c.caja; _lsSet('zar_caja', CAJA_CFG); restaurado.push('saldo de caja'); }
+  if(!_lsGet('zar_tope') && c && c.tope && isFinite(+c.tope.tope)){ TOPE_CFG = Object.assign(TOPE_CFG, c.tope); _lsSet('zar_tope', TOPE_CFG); }
   if(restaurado.length){
     safe(renderPlanPagos,'renderPlanPagos'); safe(renderFxExtranjera,'renderFxExtranjera');
     const el = $('auth-status'); if(el) el.textContent = '♻️ Se restauró desde Firebase: ' + restaurado.join(' y ');
   }
   // Sin copia remota todavía: sembrar con lo que haya en este navegador.
   if((!c || c.planPagos == null) && tienePP) cfgPush();
+  if(c && c.mp == null && MP_CUOTAS !== null) cfgPush();
   respaldoActualizarBtn();
+  safe(renderMPCard,'renderMPCard'); safe(renderTopeCard,'renderTopeCard'); safe(renderCashCal45,'renderCashCal45');
 }
 function respaldoActualizarBtn(){
+  blindajeEstado();
   const b = $('respaldo-btn'); if(!b) return;
   const t = CFG_LIVE && CFG_LIVE.ultimoRespaldo;
   if(!t){ b.title = 'Descarga todos tus datos en un archivo JSON.' + (CFG_LIVE ? ' Todavía no hiciste ningún respaldo.' : ''); b.style.color = CFG_LIVE ? 'var(--amber)' : ''; return; }
   const dias = Math.floor((Date.now() - t) / 86400000);
   b.title = 'Último respaldo: ' + new Date(t).toLocaleDateString('es-AR') + ' (hace ' + dias + ' días)';
   b.style.color = dias > 30 ? 'var(--amber)' : '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 📆 Caja, Mercado Pago y Tope de compras (10/11/2026) — tres cards nuevas.
+// Persistencia: localStorage (espejo local) + config/{uid} vía cfgPush (regla ya
+// publicada, lectura/escritura solo con la cuenta dueña). Restauración automática
+// en manejarConfigLive, igual que el Plan de pagos. NADA de esto toca otros nodos.
+// ═══════════════════════════════════════════════════════════════════════════════
+function _lsGet(k){ try{ return JSON.parse(localStorage.getItem(k) || 'null'); }catch(e){ return null; } }
+function _lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+let MP_CUOTAS = _lsGet('zar_mp_cuotas');                  // null = este navegador todavía no tiene dato propio
+let CAJA_CFG  = _lsGet('zar_caja') || { saldo: null, fechaISO: null };
+let TOPE_CFG  = Object.assign({ tope: 300000, desdeISO: '2026-10-30', usdMes: 50 }, _lsGet('zar_tope') || {});
+// Semilla: capturas de MP del 07/11 (changelog 45). Solo se usa si no hay nada local ni en Firebase.
+const MP_SEED = [ { f: '2026-11-16', m: 206493.29, n: 'Línea de crédito' }, { f: '2026-11-25', m: 140049.53, n: 'Dinero Plus' } ];
+function _mpLista(){ return MP_CUOTAS === null ? MP_SEED : MP_CUOTAS; }
+function _fmtDM(iso){ return /^\d{4}-\d{2}-\d{2}$/.test(String(iso)) ? iso.slice(8,10) + '/' + iso.slice(5,7) : '—'; }
+function _hoyISO(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+
+// ── Mercado Pago ──
+function mpGuardar(){ _lsSet('zar_mp_cuotas', MP_CUOTAS || []); cfgPush(); renderMPCard(); safe(renderCashCal45,'renderCashCal45'); }
+function mpAgregarUI(){
+  const f = $('mp-f').value, m = parseFloat($('mp-m').value), n = ($('mp-n').value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f) || !(m > 0)){ alert('Falta la fecha o el monto (mayor a 0).'); return; }
+  if (MP_CUOTAS === null) MP_CUOTAS = MP_SEED.slice();
+  MP_CUOTAS.push({ f, m: Math.round(m * 100) / 100, n });
+  MP_CUOTAS.sort((a, b) => String(a.f).localeCompare(String(b.f)));
+  $('mp-m').value = ''; $('mp-n').value = '';
+  mpGuardar();
+}
+function mpBorrar(i){
+  if (MP_CUOTAS === null) MP_CUOTAS = MP_SEED.slice();
+  if (!confirm('¿Borrar esta cuota de Mercado Pago?')) return;
+  MP_CUOTAS.splice(i, 1); mpGuardar();
+}
+function renderMPCard(){
+  const el = $('mp-lista'), pie = $('mp-pie'); if (!el) return;
+  const lista = _mpLista(), hoy = _hoyISO(), mesHoy = hoy.slice(0,7);
+  el.innerHTML = !lista.length
+    ? '<div style="font-size:11px;color:var(--text3);">Sin cuotas cargadas.</div>'
+    : lista.map((q, i) => {
+        const pasada = q.f < hoy;
+        return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px dashed var(--border);' + (pasada ? 'opacity:.5;' : '') + '">'
+          + '<span>' + _fmtDM(q.f) + ' · ' + (q.n || 'cuota') + (pasada ? ' <span style="font-size:10px;">(pasada)</span>' : '') + '</span>'
+          + '<span style="white-space:nowrap;font-weight:600;">' + fmt(q.m) + ' <a href="#" style="color:var(--red);text-decoration:none;margin-left:6px;" onclick="mpBorrar(' + i + ');return false;">✕</a></span></div>';
+      }).join('');
+  const fut = lista.filter(q => q.f >= hoy);
+  const mes = lista.filter(q => String(q.f).slice(0,7) === mesHoy);
+  pie.innerHTML = '<strong>' + fmt(mes.reduce((s,q)=>s+q.m,0)) + '</strong> este mes · pendiente total ' + fmt(fut.reduce((s,q)=>s+q.m,0))
+    + (fut.length ? ' · próxima: ' + _fmtDM(fut[0].f) : '')
+    + (MP_CUOTAS === null ? '<br><span style="color:var(--amber);">Mostrando la semilla del 07/11 — tocá ➕ o borrá algo para guardarla como tuya (requiere sesión de Google).</span>' : '');
+}
+
+// ── Tope de compras del mes ──
+function topeGuardar(){
+  const t = parseFloat($('tope-t') && $('tope-t').value), u = parseFloat($('tope-u') && $('tope-u').value);
+  if (isFinite(t) && t >= 0) TOPE_CFG.tope = t;
+  if (isFinite(u) && u >= 0) TOPE_CFG.usdMes = u;
+  _lsSet('zar_tope', TOPE_CFG); cfgPush(); renderTopeCard();
+}
+function renderTopeCard(){
+  const el = $('tope-cuerpo'); if (!el) return;
+  const sb = (typeof simvBase === 'function') ? simvBase() : null;
+  const cierreUlt = sb && sb.r && sb.r.cierre ? sb.r.cierre : null;
+  const desde = cierreUlt && cierreUlt > TOPE_CFG.desdeISO ? cierreUlt : TOPE_CFG.desdeISO;
+  let contado = 0, cuotas1 = 0, compSig = 0, nC = 0, nF = 0;
+  Object.values(PENDIENTES_LIVE || {}).forEach(p => {
+    if (!p || !p.fechaCompra || p.fechaCompra < desde) return;
+    if (p.tipo === 'gasto'){ contado += +p.monto || 0; nC++; }
+    else if (p.tipo === 'gasto-usd'){ contado += montoEsperadoPendiente(p); nC++; }
+    else { const c1 = primeraCuotaPendiente(p); cuotas1 += c1; nF++; if (+p.plazoMeses >= 2) compSig += c1; }
+  });
+  const subs = Math.round((+TOPE_CFG.usdMes || 0) * TC * 1.30);
+  const usado = contado + cuotas1 + subs, disp = TOPE_CFG.tope - usado;
+  const pct = TOPE_CFG.tope > 0 ? usado / TOPE_CFG.tope : 1;
+  const sem = pct < 0.5 ? ['🟢','var(--green)'] : pct <= 0.85 ? ['🟡','var(--amber)'] : ['🔴','var(--red)'];
+  const fila = (a, b, extra) => '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;' + (extra||'') + '"><span style="color:var(--text2);">' + a + '</span><span style="font-weight:600;">' + b + '</span></div>';
+  el.innerHTML =
+    fila('Tope del mes (máximo, no meta)', fmt(TOPE_CFG.tope))
+    + fila('Contado + 1.as cuotas de compras nuevas (' + (nC + nF) + ')', '−' + fmt(contado + cuotas1))
+    + fila('Suscripciones en US$ (US$' + TOPE_CFG.usdMes + ' × TC ' + TC + ' × 1,30 — SUPUESTO)', '−' + fmt(subs))
+    + '<div style="display:flex;justify-content:space-between;font-size:14px;padding:8px 0 2px;border-top:1px solid var(--border2);margin-top:4px;"><span style="font-weight:600;">' + sem[0] + ' Disponible del mes</span><span style="font-weight:700;color:' + (disp >= 0 ? sem[1] : 'var(--red)') + ';">' + (disp < 0 ? '−' + fmt(-disp) + ' EXCEDIDO' : fmt(disp)) + '</span></div>'
+    + fila('Comprometido para el mes que viene (cuotas de compras nuevas)', fmt(compSig), 'margin-top:4px;')
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:11px;color:var(--text3);">'
+    + 'Tope $ <input class="sim-input" id="tope-t" type="number" step="1000" value="' + TOPE_CFG.tope + '" style="width:100px;" onchange="topeGuardar()">'
+    + ' · Suscripciones US$ <input class="sim-input" id="tope-u" type="number" step="1" value="' + TOPE_CFG.usdMes + '" style="width:60px;" onchange="topeGuardar()">'
+    + '</div>'
+    + '<div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5;">Cuenta las compras cargadas en Pendientes con fecha ≥ ' + _fmtDM(desde) + ' (ciclo actual del régimen). Si el bono del mes viene &lt; $1.670.000, el tope baja a solo suscripciones (regla del 07/11). Las cuotas comprometidas de ciclos anteriores del régimen: SEGUIMIENTO §8d.</div>';
+}
+
+// ── Calendario de caja 45 días ──
+function cajaGuardarUI(){
+  const v = parseFloat($('caja-s') && $('caja-s').value);
+  if (!isFinite(v)){ alert('Poné el saldo (puede ser 0).'); return; }
+  CAJA_CFG = { saldo: v, fechaISO: _hoyISO() };
+  _lsSet('zar_caja', CAJA_CFG); cfgPush(); renderCashCal45();
+}
+function _habilAtras(d){ const x = new Date(d); while (x.getDay() === 0 || x.getDay() === 6) x.setDate(x.getDate() - 1); return x; }
+function _cal45Eventos(){
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const fin = new Date(hoy); fin.setDate(fin.getDate() + 45);
+  const ev = [];
+  const add = (d, c, m, sup) => { if (d >= hoy && d <= fin) ev.push({ d, c, m, sup }); };
+  for (let k = 0; k < 3; k++){
+    const y = hoy.getFullYear(), mth = hoy.getMonth() + k;
+    add(new Date(y, mth, 1), 'Sueldo', +PP.sueldo || 0, true);
+    add(_habilAtras(new Date(y, mth, 15)), 'Bono (conservador del plan)', +PP.bono || 0, true);
+    add(new Date(y, mth, 15), 'Servicios + otros fijos (fecha estimada)', -((+PP.servicios || 0) + (+PP.otrosFijos || 0)), true);
+    const vkeys = Object.keys(VIVIENDA_LIVE || {}).filter(x => /^\d{4}-\d{2}$/.test(x)).sort();
+    const ultCon = campo => { for (let i = vkeys.length - 1; i >= 0; i--){ const r = VIVIENDA_LIVE[vkeys[i]]; if (r && +r[campo] > 0) return +r[campo]; } return 0; };
+    const dRef = new Date(y, mth, 1);
+    const mesKey = dRef.getFullYear() + '-' + String(dRef.getMonth() + 1).padStart(2, '0');
+    const rMes = (VIVIENDA_LIVE || {})[mesKey] || {};
+    const mAlq = +rMes.alquiler > 0 ? +rMes.alquiler : ultCon('alquiler');
+    const mExp = +rMes.expensas > 0 ? +rMes.expensas : ultCon('expensas');
+    if (mAlq > 0 && !rMes.alquilerPagado) add(new Date(y, mth, 5), 'Alquiler', -mAlq, !( +rMes.alquiler > 0));
+    if (mExp > 0 && !rMes.expensasPagado) add(new Date(y, mth, 10), 'Expensas (1.er vto)', -mExp, !( +rMes.expensas > 0));
+  }
+  const sb = (typeof simvBase === 'function') ? simvBase() : null;
+  if (sb && sb.r && sb.r.vencimiento && sb.info && sb.info.pagoMinimo != null){
+    const [yy, mm, dd] = String(sb.r.vencimiento).split('-').map(Number);
+    const dv = new Date(yy, mm - 1, dd), min = +sb.info.pagoMinimo || 0;
+    if (dv < hoy) ev.push({ d: hoy, c: 'VISA — mínimo VENCIDO el ' + _fmtDM(sb.r.vencimiento) + ' (pagar ya)', m: -min, sup: false });
+    else add(dv, 'VISA — mínimo del resumen (débito automático)', -min, false);
+    if (sb.info.proximoVto){
+      const [y2, m2, d2] = String(sb.info.proximoVto).split('-').map(Number);
+      add(new Date(y2, m2 - 1, d2), 'VISA — próximo resumen (monto ≈ mínimo actual, SUPUESTO)', -min, true);
+    }
+  }
+  _mpLista().forEach(q => { const [y3, m3, d3] = String(q.f).split('-').map(Number); if (y3) add(new Date(y3, m3 - 1, d3), 'Mercado Pago — ' + (q.n || 'cuota'), -q.m, false); });
+  ev.sort((a, b) => a.d - b.d || a.m - b.m);
+  return ev;
+}
+function renderCashCal45(){
+  const ui = $('cal45-saldo-ui'), tb = $('cal45-tabla'), al = $('cal45-alerta'); if (!tb) return;
+  const tiene = CAJA_CFG.saldo != null;
+  if (ui) ui.innerHTML = '<span style="font-size:11px;color:var(--text2);">Saldo C.A. ...8545 hoy $</span>'
+    + '<input class="sim-input" id="caja-s" type="number" step="0.01" value="' + (tiene ? CAJA_CFG.saldo : '') + '" style="width:130px;">'
+    + '<button class="hdr-btn" style="width:auto;margin:0;" onclick="cajaGuardarUI()">💾 Guardar</button>'
+    + (tiene ? '<span style="font-size:10px;color:var(--text3);">cargado el ' + _fmtDM(CAJA_CFG.fechaISO) + '</span>' : '<span style="font-size:10px;color:var(--amber);">sin saldo cargado: la proyección arranca de $0</span>');
+  let saldo = tiene ? +CAJA_CFG.saldo : 0, primeraRoja = null;
+  const filas = _cal45Eventos().map(e => {
+    saldo += e.m;
+    if (saldo < 0 && !primeraRoja) primeraRoja = { d: e.d, s: saldo, c: e.c };
+    const neg = saldo < 0;
+    return '<tr' + (neg ? ' style="background:var(--red-l);"' : '') + '><td style="white-space:nowrap;">' + String(e.d.getDate()).padStart(2,'0') + '/' + String(e.d.getMonth()+1).padStart(2,'0') + '</td>'
+      + '<td>' + e.c + (e.sup ? ' <span style="font-size:9px;color:var(--text3);">(supuesto)</span>' : '') + '</td>'
+      + '<td style="text-align:right;white-space:nowrap;color:' + (e.m >= 0 ? 'var(--green)' : 'var(--red)') + ';">' + (e.m >= 0 ? '+' : '−') + fmt(Math.abs(e.m)) + '</td>'
+      + '<td style="text-align:right;white-space:nowrap;font-weight:600;color:' + (neg ? 'var(--red)' : 'var(--text)') + ';">' + (saldo < 0 ? '−' : '') + fmt(Math.abs(saldo)) + '</td></tr>';
+  }).join('');
+  tb.innerHTML = filas
+    ? '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="font-size:10px;color:var(--text3);text-align:left;"><th>Fecha</th><th>Concepto</th><th style="text-align:right;">Monto</th><th style="text-align:right;">Saldo</th></tr></thead><tbody>' + filas + '</tbody></table>'
+    : '<div style="font-size:11px;color:var(--text3);">Sin eventos en los próximos 45 días.</div>';
+  if (al) al.innerHTML = primeraRoja
+    ? '<div style="margin:0 0 8px;padding:8px 10px;border-radius:8px;background:var(--red-l);border-left:3px solid var(--red);font-size:12px;font-weight:600;color:var(--red);">⚠️ El ' + String(primeraRoja.d.getDate()).padStart(2,'0') + '/' + String(primeraRoja.d.getMonth()+1).padStart(2,'0') + ' la caja queda en −' + fmt(Math.abs(primeraRoja.s)) + ' (' + primeraRoja.c + '). Mover plata antes o asumir mora.</div>'
+    : (tiene ? '<div style="margin:0 0 8px;padding:6px 10px;border-radius:8px;background:var(--green-l);border-left:3px solid var(--green);font-size:11px;color:var(--text2);">✅ Con estos supuestos la caja no queda en rojo en 45 días.</div>' : '');
 }
 async function exportarRespaldo(){
   const b = $('respaldo-btn'); if(!b) return;
@@ -3435,6 +3641,10 @@ document.addEventListener('DOMContentLoaded', () => {
   safe(renderPendientes, 'renderPendientes');
   safe(renderDTIProj, 'renderDTIProj');
   safe(renderCashflow90, 'renderCashflow90');
+  safe(blindajeEstado, 'blindajeEstado');
+  safe(renderMPCard, 'renderMPCard');
+  safe(renderTopeCard, 'renderTopeCard');
+  safe(renderCashCal45, 'renderCashCal45');
   safe(renderInvSnap, 'renderInvSnap');
   safe(renderInvBar, 'renderInvBar');
   safe(renderConcentracionAlfy, 'renderConcentracionAlfy');
@@ -3470,10 +3680,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   if (window._listenPendientes) {
-    window._listenPendientes(d => { PENDIENTES_LIVE = d || {}; renderPendientes(); });
+    window._listenPendientes(d => { PENDIENTES_LIVE = d || {}; renderPendientes(); safe(renderTopeCard, 'renderTopeCard'); });
   } else {
     document.addEventListener('fb-ok', () => {
-      if (window._listenPendientes) window._listenPendientes(d => { PENDIENTES_LIVE = d || {}; renderPendientes(); });
+      if (window._listenPendientes) window._listenPendientes(d => { PENDIENTES_LIVE = d || {}; renderPendientes(); safe(renderTopeCard, 'renderTopeCard'); });
     });
   }
   if (window._listenGastosRecurrentes) {
@@ -4190,6 +4400,8 @@ function recalcDTI(){
   // 05/10/2026: el 'Nuevo DTI estimado' del simulador rápido y el cash-flow se calculaban una sola vez al abrir (con ingresos todavía en 0 -> Infinity%).
   _seguro('calcSC');
   _seguro('renderCashflow90');
+  _seguro('renderCashCal45');
+  _seguro('renderTopeCard');
   _seguro('renderSimVisa');
 }
 // ── Ciclo de tarjeta: resúmenes + imputación de compras en cuotas ───────────
