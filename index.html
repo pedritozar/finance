@@ -2408,7 +2408,7 @@ function cfgPush(){
   clearTimeout(cfgPushTimer);
   cfgPushTimer = setTimeout(async ()=>{
     if(!window._escrituraOK || !window._setConfig) return;
-    try{ await window._setConfig({ planPagos: PP, fxPct: fxPctGuardado(), mp: (MP_CUOTAS || []), caja: CAJA_CFG, tope: TOPE_CFG, actualizado: Date.now() }); }
+    try{ await window._setConfig({ planPagos: PP, fxPct: fxPctGuardado(), actualizado: Date.now() }); }
     catch(e){ console.warn('[ZAR] no se pudo respaldar la configuración (¿está publicada la regla "config"?):', e && e.message); }
   }, 900);
 }
@@ -2433,11 +2433,20 @@ function manejarConfigLive(c){
     if($('fx-pct')) $('fx-pct').value = c.fxPct;
     restaurado.push('ajuste del dólar tarjeta');
   }
-  if(MP_CUOTAS === null && c){
-    if(Array.isArray(c.mp)){ MP_CUOTAS = c.mp; _lsSet('zar_mp_cuotas', MP_CUOTAS); restaurado.push('cuotas de Mercado Pago'); }
-    else { MP_CUOTAS = MP_SEED.slice(); _lsSet('zar_mp_cuotas', MP_CUOTAS); }
+  // MP y caja: gana la copia MÁS NUEVA (ts). Un navegador vacío adopta la de Firebase; uno desactualizado también (otro dispositivo cargó después).
+  if(c && c.mp && c.mp.ts){
+    if(MP_CUOTAS === null || +c.mp.ts > +(_lsGet('zar_mp_ts') || 0)){
+      const it = c.mp.items ? (Array.isArray(c.mp.items) ? c.mp.items : Object.values(c.mp.items)) : [];
+      MP_CUOTAS = it.filter(q => q && /^\d{4}-\d{2}-\d{2}$/.test(String(q.f)) && +q.m > 0);
+      _lsSet('zar_mp_cuotas', MP_CUOTAS); _lsSet('zar_mp_ts', +c.mp.ts); restaurado.push('cuotas de Mercado Pago');
+    }
   }
-  if((CAJA_CFG.saldo == null) && c && c.caja && c.caja.saldo != null){ CAJA_CFG = c.caja; _lsSet('zar_caja', CAJA_CFG); restaurado.push('saldo de caja'); }
+  if(c && c.caja && c.caja.saldo != null && isFinite(+c.caja.saldo)){
+    if(CAJA_CFG.saldo == null || (+c.caja.ts || 0) > (+CAJA_CFG.ts || 0)){
+      CAJA_CFG = { saldo: +c.caja.saldo, fechaISO: c.caja.fechaISO || null, ts: +c.caja.ts || 0 };
+      _lsSet('zar_caja', CAJA_CFG); restaurado.push('saldo de caja');
+    }
+  }
   if(!_lsGet('zar_tope') && c && c.tope && isFinite(+c.tope.tope)){ TOPE_CFG = Object.assign(TOPE_CFG, c.tope); _lsSet('zar_tope', TOPE_CFG); }
   if(restaurado.length){
     safe(renderPlanPagos,'renderPlanPagos'); safe(renderFxExtranjera,'renderFxExtranjera');
@@ -2445,7 +2454,8 @@ function manejarConfigLive(c){
   }
   // Sin copia remota todavía: sembrar con lo que haya en este navegador.
   if((!c || c.planPagos == null) && tienePP) cfgPush();
-  if(c && c.mp == null && MP_CUOTAS !== null) cfgPush();
+  if(MP_CUOTAS !== null && !(c && c.mp && c.mp.ts)) cfgPushCampo({ mp: { ts: +(_lsGet('zar_mp_ts') || Date.now()), items: MP_CUOTAS } });
+  if(CAJA_CFG.saldo != null && !(c && c.caja && c.caja.saldo != null)) cfgPushCampo({ caja: CAJA_CFG });
   respaldoActualizarBtn();
   safe(renderMPCard,'renderMPCard'); safe(renderTopeCard,'renderTopeCard'); safe(renderCashCal45,'renderCashCal45');
 }
@@ -2467,6 +2477,12 @@ function respaldoActualizarBtn(){
 // ═══════════════════════════════════════════════════════════════════════════════
 function _lsGet(k){ try{ return JSON.parse(localStorage.getItem(k) || 'null'); }catch(e){ return null; } }
 function _lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+// Sube UN campo a config/{uid} (update: no toca los demás). mp y caja se suben SOLO desde su propio guardado, nunca junto con el Plan de pagos,
+// para que un navegador vacío o desactualizado no pise la copia buena. Sin sesión de escritura no hace nada (queda local).
+function cfgPushCampo(obj){
+  if(!window._escrituraOK || !window._setConfig) return;
+  try{ window._setConfig(obj).catch(e => console.warn('[ZAR] no se pudo respaldar en config:', e && e.message)); }catch(e){}
+}
 let MP_CUOTAS = _lsGet('zar_mp_cuotas');                  // null = este navegador todavía no tiene dato propio
 let CAJA_CFG  = _lsGet('zar_caja') || { saldo: null, fechaISO: null };
 let TOPE_CFG  = Object.assign({ tope: 300000, desdeISO: '2026-10-30', usdMes: 50 }, _lsGet('zar_tope') || {});
@@ -2477,7 +2493,12 @@ function _fmtDM(iso){ return /^\d{4}-\d{2}-\d{2}$/.test(String(iso)) ? iso.slice
 function _hoyISO(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 
 // ── Mercado Pago ──
-function mpGuardar(){ _lsSet('zar_mp_cuotas', MP_CUOTAS || []); cfgPush(); renderMPCard(); safe(renderCashCal45,'renderCashCal45'); }
+function mpGuardar(){
+  const ts = Date.now();
+  _lsSet('zar_mp_cuotas', MP_CUOTAS || []); _lsSet('zar_mp_ts', ts);
+  cfgPushCampo({ mp: { ts, items: MP_CUOTAS || [] } });   // lista vacía: Firebase omite el array, por eso viaja con ts
+  renderMPCard(); safe(renderCashCal45,'renderCashCal45');
+}
 function mpAgregarUI(){
   const f = $('mp-f').value, m = parseFloat($('mp-m').value), n = ($('mp-n').value || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(f) || !(m > 0)){ alert('Falta la fecha o el monto (mayor a 0).'); return; }
@@ -2515,7 +2536,7 @@ function topeGuardar(){
   const t = parseFloat($('tope-t') && $('tope-t').value), u = parseFloat($('tope-u') && $('tope-u').value);
   if (isFinite(t) && t >= 0) TOPE_CFG.tope = t;
   if (isFinite(u) && u >= 0) TOPE_CFG.usdMes = u;
-  _lsSet('zar_tope', TOPE_CFG); cfgPush(); renderTopeCard();
+  _lsSet('zar_tope', TOPE_CFG); cfgPushCampo({ tope: TOPE_CFG }); renderTopeCard();
 }
 function renderTopeCard(){
   const el = $('tope-cuerpo'); if (!el) return;
@@ -2551,8 +2572,8 @@ function renderTopeCard(){
 function cajaGuardarUI(){
   const v = parseFloat($('caja-s') && $('caja-s').value);
   if (!isFinite(v)){ alert('Poné el saldo (puede ser 0).'); return; }
-  CAJA_CFG = { saldo: v, fechaISO: _hoyISO() };
-  _lsSet('zar_caja', CAJA_CFG); cfgPush(); renderCashCal45();
+  CAJA_CFG = { saldo: v, fechaISO: _hoyISO(), ts: Date.now() };
+  _lsSet('zar_caja', CAJA_CFG); cfgPushCampo({ caja: CAJA_CFG }); renderCashCal45();
 }
 function _habilAtras(d){ const x = new Date(d); while (x.getDay() === 0 || x.getDay() === 6) x.setDate(x.getDate() - 1); return x; }
 function _cal45Eventos(){
