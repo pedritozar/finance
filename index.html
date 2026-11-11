@@ -2623,13 +2623,15 @@ function renderCashCal45(){
     saldo += e.m;
     if (saldo < 0 && !primeraRoja) primeraRoja = { d: e.d, s: saldo, c: e.c };
     const neg = saldo < 0;
-    return '<tr' + (neg ? ' style="background:var(--red-l);"' : '') + '><td style="white-space:nowrap;">' + String(e.d.getDate()).padStart(2,'0') + '/' + String(e.d.getMonth()+1).padStart(2,'0') + '</td>'
-      + '<td>' + e.c + (e.sup ? ' <span style="font-size:9px;color:var(--text3);">(supuesto)</span>' : '') + '</td>'
-      + '<td style="text-align:right;white-space:nowrap;color:' + (e.m >= 0 ? 'var(--green)' : 'var(--red)') + ';">' + (e.m >= 0 ? '+' : '−') + fmt(Math.abs(e.m)) + '</td>'
-      + '<td style="text-align:right;white-space:nowrap;font-weight:600;color:' + (neg ? 'var(--red)' : 'var(--text)') + ';">' + (saldo < 0 ? '−' : '') + fmt(Math.abs(saldo)) + '</td></tr>';
+    const fecha = String(e.d.getDate()).padStart(2,'0') + '/' + String(e.d.getMonth()+1).padStart(2,'0');
+    return '<div style="display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:2px 8px;align-items:start;padding:6px;border-top:1px solid var(--border2);' + (neg ? 'background:var(--red-l);' : '') + '">'
+      + '<div style="font-size:11px;color:var(--text3);white-space:nowrap;">' + fecha + '</div>'
+      + '<div style="font-size:12px;line-height:1.35;overflow-wrap:anywhere;">' + e.c + (e.sup ? ' <span style="font-size:9px;color:var(--text3);">(supuesto)</span>' : '') + '</div>'
+      + '<div style="text-align:right;white-space:nowrap;"><div style="font-size:12px;color:' + (e.m >= 0 ? 'var(--green)' : 'var(--red)') + ';">' + (e.m >= 0 ? '+' : '−') + fmt(Math.abs(e.m)) + '</div>'
+      + '<div style="font-size:10px;font-weight:600;color:' + (neg ? 'var(--red)' : 'var(--text3)') + ';">saldo ' + (saldo < 0 ? '−' : '') + fmt(Math.abs(saldo)) + '</div></div></div>';
   }).join('');
   tb.innerHTML = filas
-    ? '<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="font-size:10px;color:var(--text3);text-align:left;"><th>Fecha</th><th>Concepto</th><th style="text-align:right;">Monto</th><th style="text-align:right;">Saldo</th></tr></thead><tbody>' + filas + '</tbody></table>'
+    ? '<div>' + filas + '</div>'
     : '<div style="font-size:11px;color:var(--text3);">Sin eventos en los próximos 45 días.</div>';
   if (al) al.innerHTML = primeraRoja
     ? '<div style="margin:0 0 8px;padding:8px 10px;border-radius:8px;background:var(--red-l);border-left:3px solid var(--red);font-size:12px;font-weight:600;color:var(--red);">⚠️ El ' + String(primeraRoja.d.getDate()).padStart(2,'0') + '/' + String(primeraRoja.d.getMonth()+1).padStart(2,'0') + ' la caja queda en −' + fmt(Math.abs(primeraRoja.s)) + ' (' + primeraRoja.c + '). Mover plata antes o asumir mora.</div>'
@@ -3910,7 +3912,7 @@ function renderSaneamiento(){
   const pico = pts.reduce((m, p) => p.saldo > m.saldo ? p : m, pts[0]), ult = pts[pts.length - 1];
   const cambio = pico.saldo > 0 ? (ult.saldo - pico.saldo) / pico.saldo * 100 : 0;
   let S = null, tc = null;
-  try { const x = ppCtx(); if (x && x.b.r.cierre === ult.cierre){ S = ppSimular(x.b, x.c, x.tc, PP.mamaMeses); tc = x.tc; } } catch (e){ S = null; }
+  try { const x = ppCtx(); if (x && x.b.r.cierre === ult.cierre){ S = ppSimular(x.b, x.c, x.tc, PP.mamaHasta); tc = x.tc; } } catch (e){ S = null; }
   const labels = pts.map(p => fD(p.cierre));
   const plan = pts.map(() => null);
   if (S){
@@ -3942,7 +3944,7 @@ function renderSaneamiento(){
   const nVivos = pts.filter(p => p.vivo).length;
   const note = $('saneamiento-note');
   if (note){
-    let t = `Desde el pico (${fD(pico.cierre)}, ${fmt(pico.saldo)}) el saldo del resumen ${cambio <= 0 ? 'bajó' : 'subió'} ${Math.abs(cambio).toFixed(1)}% hasta ${fmt(ult.saldo)} (${fD(ult.cierre)}).`;
+    let t = (ult === pico) ? `El último resumen (${fD(ult.cierre)}, ${fmt(ult.saldo)}) tiene el saldo más alto de la serie cargada.` : `Desde el pico (${fD(pico.cierre)}, ${fmt(pico.saldo)}) el saldo del resumen ${cambio <= 0 ? 'bajó' : 'subió'} ${Math.abs(cambio).toFixed(1)}% hasta ${fmt(ult.saldo)} (${fD(ult.cierre)}).`;
     if (ult.usd) t += ` Ese saldo es sólo en pesos: los US$ ${ult.usd.toLocaleString('es-AR')} se suman al convertirlos.`;
     if (S) t += ` Línea punteada = plan de pagos: parte del saldo con esos USD a TC ${fmt(tc)} (por eso arranca más arriba) y sube un poco en el primer tramo porque cada resumen nuevo suma cuotas del banco y tu gasto operativo antes de que lo pagues; llega a cero en ${ppMesTxt(S.cero)}${S.cero ? '' : ' (no alcanza en 14 meses)'}.`;
     t += ` ${nVivos} punto${nVivos === 1 ? '' : 's'} sale${nVivos === 1 ? '' : 'n'} de resúmenes cargados (verdes); los grises son históricos fijos de antes de cargar resúmenes y se reemplazan solos cuando cargues esos meses.`;
@@ -8113,7 +8115,7 @@ const SIMV = { esc: 'minresto', escElegido: false, otroMonto: '', otroFecha: '',
 let simvChart = null;
 const SIMV_ESC = [
   { k: 'min',      n: 'Pago mínimo',                  t: 'Pagás sólo el mínimo al vencimiento; el resto se financia a la TNA de la tarjeta.' },
-  { k: 'minresto', n: 'Mínimo al vto + resto al día siguiente', t: 'El mínimo entra el día del vencimiento (sin punitorio) y el resto al día siguiente, cuando cobrás los bonos: cuesta ~1 día de interés.' },
+  { k: 'minresto', n: 'Mínimo al vto + resto el día del bono', t: 'El mínimo entra el día del vencimiento (sin punitorio) y el resto el día que cobrás el bono (el 15, o el hábil anterior si cae en fin de semana): cuesta los días de interés entre el vencimiento y el bono.' },
   { k: 'total',    n: 'Pago total',                   t: 'Cancelás todo el día del vencimiento.' },
   { k: 'resto',    n: 'Total − mínimo',               t: 'Pagás todo MENOS el mínimo: queda financiado un monto igual al mínimo y paga TNA hasta el próximo cierre. Como lo que pagás supera el mínimo exigido, no hay punitorio.' },
   { k: 'otro',     n: 'Otro monto',                   t: 'Monto y fecha a elección.' }
@@ -8121,6 +8123,13 @@ const SIMV_ESC = [
 function simvHoyISO(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function simvDias(a, b){ return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000); }
 function simvSumarDias(iso, n){ const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+// Día en que entra el bono (regla de Pedro, 08/11/2026): el 15 del mes del vencimiento, o el hábil anterior si cae en fin de semana.
+// Si ese día no es posterior al vencimiento, se paga todo el día del vencimiento.
+function simvFechaBono(vto){
+  const p = String(vto).split('-').map(Number); const d = new Date(Date.UTC(p[0], p[1] - 1, 15));
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() - 1);
+  const iso = d.toISOString().slice(0, 10); return iso > vto ? iso : vto;
+}
 function simvMesLabel(k){ const M = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']; const p = String(k).split('-'); return (M[(+p[1]) - 1] || p[1]) + ' ' + p[0]; }
 function simvBase(){
   const arr = Object.entries(RESUMENES_LIVE || {}).filter(([, r]) => r && r.cierre).sort((a, b) => b[1].cierre.localeCompare(a[1].cierre));
@@ -8159,7 +8168,7 @@ function simvPagosDe(esc, b, tc, usdEnUsd){
   if (esc === 'min') return [{ monto: min, fecha: vto }];
   if (esc === 'total') return [{ monto: total, fecha: vto }];
   if (esc === 'resto') return [{ monto: Math.max(0, total - min), fecha: vto }];
-  if (esc === 'minresto') return [{ monto: min, fecha: vto }, { monto: Math.max(0, total - min), fecha: simvSumarDias(vto, 1) }];
+  if (esc === 'minresto') return [{ monto: min, fecha: vto }, { monto: Math.max(0, total - min), fecha: simvFechaBono(vto) }];
   const m = parseFloat(SIMV.otroMonto);
   return [{ monto: isFinite(m) && m > 0 ? m : 0, fecha: SIMV.otroFecha || vto }];
 }
@@ -8409,15 +8418,15 @@ if (window._fbOK) iaBriefingSuscribir();
 
 // ── Plan de pagos VISA (techo de resumen) ───────────────────────────────────
 // Acordado 05/10/2026: pagar todo lo que queda después de vivienda, sin Plan V y sin volver al mínimo.
-// Escenario oficial: mamá cubre las expensas en los primeros 3 pagos (oct-dic); aguinaldo en el resumen de enero.
+// Escenario oficial: mamá cubre las expensas hasta la fecha fija `mamaHasta` (AAAAMM; Pedro 11/11/2026: «hasta marzo–abril» 2027, se toma marzo); aguinaldo en el resumen de enero.
 // 15/10/2026: alquiler real $925.000 y expensa de setiembre $520.331. Mercado Pago es VARIABLE (cuotas sueltas): creditoMP = lo que vence ahora ($206.296 al 13/10),
 // creditoMPSig = estimación para los pagos siguientes (~$15.000 = lo que sigue vigente en las capturas, sin consumos nuevos). Ajustable en la card.
-const PP_DEF = { sueldo: 870000, bono: 1800000, alquiler: 925000, expensas: 520331, servicios: 97000, otrosFijos: 51000, creditoMP: 206296, creditoMPSig: 15000, abl: 0, usdMes: 130, pesosMes: 150000, aguinaldo: 1750000, mamaMeses: 3, techo: 1000000 };
+const PP_DEF = { sueldo: 870000, bono: 1800000, alquiler: 925000, expensas: 520331, servicios: 97000, otrosFijos: 51000, creditoMP: 206296, creditoMPSig: 15000, abl: 0, usdMes: 130, pesosMes: 150000, aguinaldo: 1750000, mamaHasta: 202703, techo: 1000000 };
 const PP_CAMPOS = [
   ['sueldo', 'Sueldo neto por mes'], ['bono', 'Bono de desempeño por mes (conservador)'], ['alquiler', 'Alquiler'], ['expensas', 'Expensas'],
   ['servicios', 'Wifi + luz'], ['otrosFijos', 'Otros fijos (Silvina)'], ['creditoMP', 'Crédito Mercado Pago, este mes (cuota)'], ['creditoMPSig', 'Crédito Mercado Pago, desde el 2.º pago (cuota)'], ['abl', 'ABL (pendiente de cargar)'],
   ['usdMes', 'Gasto en USD por resumen (US$, sin percepción)'], ['pesosMes', 'Súper y necesidades en pesos por resumen'], ['aguinaldo', 'Aguinaldo (se aplica al resumen de enero)'],
-  ['mamaMeses', 'Pagos en que mamá cubre expensas (desde el 1.º)'], ['techo', 'Techo de resumen (tu meta)']
+  ['mamaHasta', 'Mamá cubre las expensas hasta (AAAAMM; 202703 = marzo 2027; 0 = no cubre)'], ['techo', 'Techo de resumen (tu meta)']
 ];
 let PP = Object.assign({}, PP_DEF);
 try {
@@ -8438,13 +8447,16 @@ function ppSumMes(iso, n){
 }
 // Gasto operativo nuevo por resumen en pesos = US$ × TC × 1,30 (el TC convierte y la percepción RG 5617 suma 30%) + pesos.
 function ppOperativo(tc){ return PP.usdMes * tc * 1.30 + PP.pesosMes; }
-// Simula la cadena de resúmenes. mamaMeses se puede pisar para comparar "sin ayuda de mamá".
-function ppSimular(b, c, tc, mamaMeses){
+// Simula la cadena de resúmenes. mamaHasta (AAAAMM del vencimiento) se puede pisar con 0 para comparar "sin ayuda de mamá".
+function ppSimular(b, c, tc, mamaHasta){
   const i0 = b.info, saldo0 = (+b.r.saldo || 0) + (+i0.saldoUsd || 0) * tc;
   const tem = (i0.tem != null ? +i0.tem : (+i0.tna || 75) / 12) / 100;
   const f = 1 + tem * 1.21;
   const fijosBase = PP.alquiler + PP.servicios + PP.otrosFijos + PP.abl; // Mercado Pago aparte: la cuota es variable
-  const R = idx => PP.sueldo + PP.bono - fijosBase - (idx === 0 ? PP.creditoMP : PP.creditoMPSig) - (idx < mamaMeses ? 0 : PP.expensas);
+  const ym = iso => { const p = String(iso).split('-'); return (+p[0]) * 100 + (+p[1]); };
+  const vtoDe = idx => idx === 0 ? b.r.vencimiento : ppSumMes(c.pVto, idx - 1);
+  const mamaCubre = idx => +mamaHasta > 0 && ym(vtoDe(idx)) <= +mamaHasta; // la ayuda depende del mes del pago, no de cuántos PDF se cargaron
+  const R = idx => PP.sueldo + PP.bono - fijosBase - (idx === 0 ? PP.creditoMP : PP.creditoMPSig) - (mamaCubre(idx) ? 0 : PP.expensas);
   const filas = []; let U = saldo0, interesTot = 0, pagoTot = 0, cero = null;
   const pago0 = Math.max(0, Math.min(R(0), U)); U -= pago0; pagoTot += pago0;
   filas.push({ cierre: b.r.cierre, vto: b.r.vencimiento, stmt: saldo0, interes: 0, cuotas: 0, pago: pago0, queda: U, capacidad: R(0) });
@@ -8489,7 +8501,7 @@ function renderPlanPagosCore(){
     const { b, c, tc } = x;
     aviso.innerHTML = b.r.pagado ? '<div style="padding:8px 10px;border-radius:8px;background:var(--amber-l);border-left:3px solid var(--amber);font-size:12px;margin-bottom:8px;">El resumen más reciente figura como pagado: el plan parte de su saldo completo. Si pagaste menos que el total, el saldo inicial está sobreestimado hasta que cargues el próximo resumen.</div>' : '';
     cuerpo.style.display = '';
-    const S = ppSimular(b, c, tc, PP.mamaMeses), S0 = ppSimular(b, c, tc, 0);
+    const S = ppSimular(b, c, tc, PP.mamaHasta), S0 = ppSimular(b, c, tc, 0);
     const chip = (a, v, col) => `<div style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;font-size:11px;"><span style="color:var(--text3);">${a}</span> <strong${col ? ' style="color:' + col + ';"' : ''}>${v}</strong></div>`;
     $('pp-chips').innerHTML = chip('Saldo inicial', fmt(S.saldo0)) + chip('Capacidad 1.er pago', fmt(S.R0)) + chip('Deuda en cero', S.cero ? ppMesTxt(S.cero) : 'más de 14 meses', S.cero ? 'var(--green)' : 'var(--red)')
       + chip('Operativo por resumen', fmt(ppOperativo(tc))) + chip('Interés estimado', fmt(S.interesTot)) + chip('Resumen ≤ ' + fmt(PP.techo), S.bajoTecho ? 'desde ' + ppMesTxt(S.bajoTecho) : 'no en el período', S.bajoTecho ? 'var(--green)' : 'var(--red)');
@@ -8512,10 +8524,10 @@ function renderPlanPagosCore(){
 }
 function ppContextoIA(){
   const x = ppCtx(); if (!x) return '';
-  const S = ppSimular(x.b, x.c, x.tc, PP.mamaMeses), S0 = ppSimular(x.b, x.c, x.tc, 0);
+  const S = ppSimular(x.b, x.c, x.tc, PP.mamaHasta), S0 = ppSimular(x.b, x.c, x.tc, 0);
   const filas = S.filas.map(r => `${fD(r.vto)}: resumen ${fmt(r.stmt)} → pago ${fmt(r.pago)} → queda ${fmt(r.queda)}`).join(' | ');
   return [`PLAN DE PAGOS ACORDADO (Pedro y Claude, 05/10/2026; parámetros editables en la card "Plan de pagos"): sin Plan V, sin volver al pago mínimo, pagar cada mes lo que queda después de vivienda.`,
-    `- Supuestos: sueldo ${fmt(PP.sueldo)}, bono mensual ${fmt(PP.bono)} (los últimos 4 fueron entre $1,96M y $2,29M), vivienda+fijos del 1.er pago ${fmt(PP.alquiler + PP.servicios + PP.otrosFijos + PP.creditoMP + PP.abl)} sin expensas (Mercado Pago es variable: baja a ${fmt(PP.creditoMPSig)} desde el 2.º pago; ABL pendiente de cargar), expensas ${fmt(PP.expensas)} (mamá las cubre en los primeros ${PP.mamaMeses} pagos), gasto operativo nuevo por resumen ${fmt(ppOperativo(x.tc))} (US$ ${PP.usdMes} con percepción 30% + súper y necesidades en pesos ${fmt(PP.pesosMes)}; Pedro todavía decide cuáles suscripciones en USD mantiene), aguinaldo ${fmt(PP.aguinaldo)} en enero. Techo de resumen: ${fmt(PP.techo)}.`,
+    `- Supuestos: sueldo ${fmt(PP.sueldo)}, bono mensual ${fmt(PP.bono)} (los últimos 5, jun–oct, fueron entre $1,85M y $2,29M según Notion), vivienda+fijos del 1.er pago ${fmt(PP.alquiler + PP.servicios + PP.otrosFijos + PP.creditoMP + PP.abl)} sin expensas (Mercado Pago es variable: baja a ${fmt(PP.creditoMPSig)} desde el 2.º pago; ABL pendiente de cargar), expensas ${fmt(PP.expensas)} (mamá las cubre hasta ${PP.mamaHasta > 0 ? String(PP.mamaHasta).slice(4) + '/' + String(PP.mamaHasta).slice(0, 4) : 'nunca'}), gasto operativo nuevo por resumen ${fmt(ppOperativo(x.tc))} (US$ ${PP.usdMes} con percepción 30% + súper y necesidades en pesos ${fmt(PP.pesosMes)}; Pedro todavía decide cuáles suscripciones en USD mantiene), aguinaldo ${fmt(PP.aguinaldo)} en enero. Techo de resumen: ${fmt(PP.techo)}.`,
     `- Resultado estimado: deuda en cero ${S.cero ? ppMesTxt(S.cero) : 'más de 14 meses'}, interés ~${fmt(S.interesTot)}; resumen ≤ techo desde ${S.bajoTecho ? ppMesTxt(S.bajoTecho) : 'no en el período'}. Sin ayuda de mamá: cero en ${S0.cero ? ppMesTxt(S0.cero) : 'más de 14 meses'}, interés ~${fmt(S0.interesTot)}.`,
     `- Cadena: ${filas}.`].join('\n');
 }
