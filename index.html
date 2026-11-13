@@ -232,6 +232,17 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     <div class="sec-lbl" style="margin-bottom:4px;">Fecha</div>
     <input class="sim-input" type="date" id="mv-fc" style="width:100%;">
   </div>
+  <div class="note-sec" id="mv-vencwrap">
+    <div class="sec-lbl" style="margin-bottom:4px;">Vence / se paga el <span style="font-weight:400;opacity:.7;">(opcional)</span></div>
+    <input class="sim-input" type="date" id="mv-vc" style="width:100%;" oninput="prgSyncForm('mv')" onchange="prgSyncForm('mv')">
+    <div id="mv-vc-x" style="display:none;margin-top:8px;font-size:12px;line-height:1.6;">
+      <label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="mv-rep"> Se repite todos los meses (mismo día)</label>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap;">Hasta <input class="sim-input" type="date" id="mv-fin" style="width:150px;"> <span style="opacity:.7;">(opcional)</span></div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap;">Se paga con
+        <select class="sim-input" id="mv-fu" style="width:auto;"><option value="auto">automático (por fecha)</option><option value="sueldo">sueldo</option><option value="bono">bono</option></select></div>
+    </div>
+    <div id="mv-vc-h" style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.5;"></div>
+  </div>
   <div class="note-sec">
     <textarea class="note-in" id="mv-nt" rows="2" placeholder="Nota — Coto, SUBE, Judo abril…"></textarea>
   </div>
@@ -303,6 +314,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     <!-- Dashboard -->
     <div class="tab-pane on" id="t-dash">
       <div id="viv-pagos-aviso" style="display:none;"></div>
+      <div id="prg-aviso"></div>
       <div class="kpi-row">
         <div class="kpi"><div class="kpi-lbl">Ingresos ARS</div><div class="kpi-val g" id="k-ing">$0</div><div class="kpi-sub" id="k-ing2">—</div></div>
         <div class="kpi"><div class="kpi-lbl">Gastos ARS</div><div class="kpi-val r" id="k-gas">$0</div><div class="kpi-sub" id="k-gas2">—</div></div>
@@ -377,6 +389,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div id="cal45-saldo-ui" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;"></div>
             <div id="cal45-alerta"></div>
             <div id="cal45-tabla" style="overflow-x:auto;"></div>
+            <div id="prg-lista" style="margin-top:12px;border-top:1px solid var(--border2);padding-top:10px;"></div>
             <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5;">Dato vs. supuesto: saldo, cuotas MP, vencimiento y mínimo VISA = datos cargados; sueldo, bono, servicios y el monto del próximo resumen = <strong>supuestos del plan</strong> (el bono real se confirma cada mes; si viene &lt; $1,67M rige la regla del tope bajo). No incluye gasto diario (súper, transporte).</div>
           </div>
           <div class="card">
@@ -410,9 +423,9 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2);">
               <button class="hdr-btn" style="width:auto;" onclick="togglePagoTarjetaForm()">💳 Registrar pago de tarjeta</button>
               <div id="pago-tarjeta-form" style="display:none;margin-top:10px;">
-                <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Un pago de tarjeta no es un gasto nuevo -- esas compras ya se cuentan (o se van a contar) al facturarse en el resumen. Esto sólo baja la deuda: se aplica primero a cuotas Plan V completas, el resto a "Otros consumos".</div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Un pago de tarjeta no es un gasto nuevo -- esas compras ya se cuentan (o se van a contar) al facturarse en el resumen. Se asienta sobre el ÚLTIMO resumen cargado (mínimo, total u otro monto, con su fecha) y baja "Otros consumos". No toca las cuotas Plan V: ya vienen dentro del saldo del resumen.</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                  <input class="sim-input" type="number" id="pt-monto" placeholder="Monto ARS pagado" style="flex:1;min-width:140px;">
+                  <input class="sim-input" type="text" inputmode="decimal" id="pt-monto" placeholder="Monto ARS pagado" style="flex:1;min-width:140px;">
                   <input class="sim-input" type="date" id="pt-fecha" style="flex:1;min-width:140px;">
                 </div>
                 <button class="panel-sub" style="margin-top:8px;" onclick="registrarPagoTarjetaUI()">Aplicar pago</button>
@@ -430,14 +443,14 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
               <div style="font-size:11px;font-weight:700;margin-bottom:6px;">Escenario de pago</div>
               <div id="simv-btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
               <div id="simv-otro" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-                <input class="sim-input" type="number" id="simv-otro-monto" placeholder="Monto ARS" min="0" style="flex:1;min-width:130px;" oninput="simvInput('otroMonto',this)">
+                <input class="sim-input" type="text" inputmode="decimal" id="simv-otro-monto" placeholder="Monto ARS" style="flex:1;min-width:130px;" oninput="simvInput('otroMonto',this)">
                 <input class="sim-input" type="date" id="simv-otro-fecha" style="flex:1;min-width:130px;" oninput="simvInput('otroFecha',this)">
               </div>
               <div style="font-size:11px;font-weight:700;margin:12px 0 6px;">Supuestos del próximo resumen <a href="#" style="font-weight:400;color:var(--blue);margin-left:6px;" onclick="simvResetDefaults();return false;">restablecer</a></div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <div class="sim-field" style="flex:1;min-width:140px;"><span class="sim-lbl">Gasto nuevo en pesos (sin cuotas)</span><input class="sim-input" type="number" id="simv-consumo-pesos" min="0" oninput="simvInput('consumoPesos',this)"></div>
-                <div class="sim-field" style="flex:1;min-width:110px;"><span class="sim-lbl">Gasto nuevo en US$</span><input class="sim-input" type="number" id="simv-consumo-usd" min="0" step="0.01" oninput="simvInput('consumoUsd',this)"></div>
-                <div class="sim-field" style="flex:1;min-width:110px;"><span class="sim-lbl">TC para los US$</span><input class="sim-input" type="number" id="simv-tc" min="0" oninput="simvInput('tc',this)"></div>
+                <div class="sim-field" style="flex:1;min-width:140px;"><span class="sim-lbl">Gasto nuevo en pesos (sin cuotas)</span><input class="sim-input" type="text" inputmode="decimal" id="simv-consumo-pesos" oninput="simvInput('consumoPesos',this)"></div>
+                <div class="sim-field" style="flex:1;min-width:110px;"><span class="sim-lbl">Gasto nuevo en US$</span><input class="sim-input" type="text" inputmode="decimal" id="simv-consumo-usd" oninput="simvInput('consumoUsd',this)"></div>
+                <div class="sim-field" style="flex:1;min-width:110px;"><span class="sim-lbl">TC para los US$</span><input class="sim-input" type="text" inputmode="decimal" id="simv-tc" oninput="simvInput('tc',this)"></div>
               </div>
               <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);margin-top:8px;cursor:pointer;"><input type="checkbox" id="simv-usd-en-usd" onchange="simvInput('usdEnUsd',this)"> Pago los US$ en dólares (después del cierre, hasta el vto): el banco me devuelve la percepción 30%</label>
               <div id="simv-res" style="margin-top:12px;"></div>
@@ -455,8 +468,8 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border2);">
               <div id="ib-estado" style="font-size:11px;color:var(--text3);line-height:1.5;"></div>
               <input type="file" id="ib-file" accept=".md,.txt,text/markdown,text/plain" style="display:none;" onchange="iaBriefingCargar(event)">
-              <button class="hdr-btn" style="width:auto;margin-top:6px;" onclick="document.getElementById('ib-file').click()">🧠 Cargar briefing (briefing_ia.md)</button>
-              <div style="font-size:10px;color:var(--text3);margin-top:4px;">El briefing se guarda en tu Firebase (nodo iaBriefing, sólo vos podés leerlo) y se usa únicamente en este asesor; el asistente de Hogar no lo ve.</div>
+              <button class="hdr-btn" style="width:auto;margin-top:6px;" onclick="document.getElementById('ib-file').click()">🧠 Cargar contexto para el asesor (archivo briefing_ia.md)</button>
+              <div style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.5;"><b>Qué es:</b> el resumen que Claude deja al cierre de cada sesión (decisiones, plan, datos nuevos que no están en la app). <b>Cuándo cargarlo:</b> cada vez que Claude te avise «contexto actualizado»; sin eso el asesor no sabe nada de lo hablado fuera de la app. <b>Dónde está el archivo:</b> carpeta «finanzas personales» → <code>briefing_ia.md</code>. Se guarda en tu Firebase (nodo iaBriefing, sólo vos podés leerlo); el asistente de Hogar no lo ve.</div>
             </div>
           </div>
           <div class="card" id="pp-card">
@@ -478,7 +491,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div id="mp-lista" style="margin-bottom:8px;"></div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
               <input class="sim-input" id="mp-f" type="date" style="width:140px;">
-              <input class="sim-input" id="mp-m" type="number" min="0" step="0.01" placeholder="Monto $" style="width:120px;">
+              <input class="sim-input" id="mp-m" type="text" inputmode="decimal" placeholder="Monto $" style="width:120px;">
               <input class="sim-input" id="mp-n" type="text" placeholder="Nota (Línea, Dinero Plus…)" style="flex:1;min-width:140px;">
               <button class="hdr-btn" style="width:auto;margin:0;" onclick="mpAgregarUI()">➕ Agregar</button>
             </div>
@@ -504,8 +517,8 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <div class="card">
             <div class="card-ttl">Simulador de cuota rápido</div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-              <div class="sim-field"><span class="sim-lbl">Capital ARS</span><input class="sim-input" type="number" id="sc-cap" value="500000" oninput="calcSC()"></div>
-              <div class="sim-field"><span class="sim-lbl">TNA %</span><input class="sim-input" type="number" id="sc-tna" value="85" step="0.1" oninput="calcSC()"></div>
+              <div class="sim-field"><span class="sim-lbl">Capital ARS</span><input class="sim-input" type="text" inputmode="decimal" id="sc-cap" value="500000" oninput="calcSC()"></div>
+              <div class="sim-field"><span class="sim-lbl">TNA %</span><input class="sim-input" type="text" inputmode="decimal" id="sc-tna" value="85" oninput="calcSC()"></div>
               <div class="sim-field"><span class="sim-lbl">Plazo meses</span><input class="sim-input" type="number" id="sc-pzo" value="12" min="1" oninput="calcSC()"></div>
             </div>
             <div class="sim-res" id="sc-res"></div>
@@ -519,8 +532,8 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           no hace falta que la compra esté cargada en ningún lado para usar esto.
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="sim-field"><span class="sim-lbl">Valor real (contado)</span><input class="sim-input" type="number" id="rec-real" oninput="calcRecargo()"></div>
-          <div class="sim-field"><span class="sim-lbl">Lo que te cobraron</span><input class="sim-input" type="number" id="rec-cobro" oninput="calcRecargo()"></div>
+          <div class="sim-field"><span class="sim-lbl">Valor real (contado)</span><input class="sim-input" type="text" inputmode="decimal" id="rec-real" oninput="calcRecargo()"></div>
+          <div class="sim-field"><span class="sim-lbl">Lo que te cobraron</span><input class="sim-input" type="text" inputmode="decimal" id="rec-cobro" oninput="calcRecargo()"></div>
         </div>
         <div class="sim-res" id="rec-res"></div>
         <div style="font-size:10px;color:var(--text3);margin-top:10px;border-top:1px solid var(--border2);padding-top:8px;">
@@ -571,7 +584,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
               <div class="sim-field" style="margin:0;"><span class="sim-lbl">Cierre</span><input class="sim-input" type="date" id="rs-cierre"></div>
               <div class="sim-field" style="margin:0;"><span class="sim-lbl">Vencimiento</span><input class="sim-input" type="date" id="rs-vencimiento"></div>
-              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Saldo ARS</span><input class="sim-input" type="number" id="rs-saldo" placeholder="0"></div>
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Saldo ARS</span><input class="sim-input" type="text" inputmode="decimal" id="rs-saldo" placeholder="0"></div>
             </div>
             <button class="hdr-btn pri" style="width:100%;margin-bottom:12px;" onclick="addResumenUI()">+ Agregar resumen</button>
             <table class="tbl">
@@ -593,9 +606,9 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Nueva compra en cuotas</div>
             <div class="sim-field" style="margin:0 0 8px;"><span class="sim-lbl">Descripción</span><input class="sim-input" type="text" id="cc-nombre" placeholder="Ej: notebook, viaje, etc."></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Precio ARS</span><input class="sim-input" type="number" id="cc-precio" placeholder="0"></div>
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">Precio ARS</span><input class="sim-input" type="text" inputmode="decimal" id="cc-precio" placeholder="0"></div>
               <div class="sim-field" style="margin:0;"><span class="sim-lbl">Fecha de compra</span><input class="sim-input" type="date" id="cc-fecha"></div>
-              <div class="sim-field" style="margin:0;"><span class="sim-lbl">TNA %</span><input class="sim-input" type="number" id="cc-tna" value="82.04" step="0.01"></div>
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl">TNA %</span><input class="sim-input" type="text" inputmode="decimal" id="cc-tna" value="82,04"></div>
               <div class="sim-field" style="margin:0;"><span class="sim-lbl">Plazo cuotas</span><input class="sim-input" type="number" id="cc-plazo" value="1" min="1"></div>
             </div>
             <div class="sim-field" style="margin:0 0 10px;"><span class="sim-lbl">Categoría</span>
@@ -634,7 +647,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
                   <option value="USD">USD</option>
                 </select>
               </div>
-              <div class="sim-field" style="margin:0;"><span class="sim-lbl" id="gp-monto-lbl">Monto ARS</span><input class="sim-input" type="number" id="gp-monto" placeholder="0" step="1"></div>
+              <div class="sim-field" style="margin:0;"><span class="sim-lbl" id="gp-monto-lbl">Monto ARS</span><input class="sim-input" type="text" inputmode="decimal" id="gp-monto" placeholder="0"></div>
               <div class="sim-field" style="margin:0;"><span class="sim-lbl">Fecha de compra</span><input class="sim-input" type="date" id="gp-fecha"></div>
             </div>
             <div id="gp-usd-hint" style="display:none;font-size:10px;color:var(--text3);margin:-4px 0 8px;">Se anota en dólares tal cual la compra. El equivalente en pesos de hoy es sólo una referencia (dólar tarjeta en vivo) -- se cruza solo por el monto en USD cuando llegue el resumen real.</div>
@@ -758,7 +771,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         </div>
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;">
           <button class="hdr-btn" onclick="fetchTCExtra()">🔄 Actualizar cotizaciones</button>
-          <div class="sim-field" style="margin:0;width:220px;"><span class="sim-lbl">% adicional IVA/Percepciones (manual, opcional)</span><input class="sim-input" type="number" id="fx-pct" step="0.1" placeholder="Ej: 35" oninput="fxGuardarPct()"></div>
+          <div class="sim-field" style="margin:0;width:220px;"><span class="sim-lbl">% adicional IVA/Percepciones (manual, opcional)</span><input class="sim-input" type="text" inputmode="decimal" id="fx-pct" placeholder="Ej: 35" oninput="fxGuardarPct()"></div>
         </div>
         <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Compras en USD pendientes de conversión (según tus resúmenes)</div>
         <div id="fx-lista" style="font-size:12px;color:var(--text3);">Cargando…</div>
@@ -767,7 +780,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
         <div style="font-size:12px;font-weight:700;margin-bottom:8px;">Calculadora rápida USD/EUR → ARS</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
           <div class="sim-field" style="margin:0;"><span class="sim-lbl">Moneda</span><select class="sim-input" id="fx-calc-moneda" onchange="renderFxCalc()"><option value="USD">USD (dólar tarjeta)</option><option value="EUR">EUR (oficial)</option></select></div>
-          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Monto</span><input class="sim-input" type="number" id="fx-calc-monto" placeholder="0" oninput="renderFxCalc()"></div>
+          <div class="sim-field" style="margin:0;"><span class="sim-lbl">Monto</span><input class="sim-input" type="text" inputmode="decimal" id="fx-calc-monto" placeholder="0" oninput="renderFxCalc()"></div>
         </div>
         <div id="fx-calc-res" style="font-size:12px;color:var(--text3);"></div>
         <div style="font-size:10px;color:var(--text3);margin-top:8px;">Todo esto es un aproximado para tener una referencia rápida — no reemplaza lo que finalmente factura el banco (spread propio, fecha exacta de liquidación de la red, y los impuestos vigentes al momento del cierre).</div>
@@ -889,7 +902,7 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
             <div id="destino-ingreso-form" style="display:none;margin-top:10px;">
               <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Para hacer seguimiento de a qué destinaste tus ingresos del mes (Inversiones, Fondo de Emergencia, etc.) -- no reemplaza "Registrar movimiento", es sólo para anotarlo.</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <input class="sim-input" type="number" id="di-monto" placeholder="Monto ARS" style="flex:1;min-width:120px;">
+                <input class="sim-input" type="text" inputmode="decimal" id="di-monto" placeholder="Monto ARS" style="flex:1;min-width:120px;">
                 <select class="sim-input" id="di-destino" style="flex:1;min-width:140px;">
                   <option value="inversiones">Inversiones</option>
                   <option value="fondo_emergencia">Fondo de Emergencia</option>
@@ -1054,58 +1067,31 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
     <div class="tab-pane" id="t-obj">
       <div class="card" id="obj-wrap">
         <div class="card-ttl">🎯 Objetivos Financieros</div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:14px;">
-          Fase 1: curva de ahorro/aporte proyectado hacia una meta (monto + fecha), sin contar todavía rendimiento de cartera de inversión ni inflación en USD. El monto se carga en USD y se convierte con el dólar oficial en vivo (mismo TC que usa el resto del dashboard) — así el objetivo se ajusta solo si el tipo de cambio se mueve.
+        <div style="font-size:11px;color:var(--text3);">
+          Cada objetivo tiene su propia curva, sus aportes y su aviso de ritmo; se apilan hacia abajo y podés agregar los que quieras. Sin contar todavía rendimiento de cartera ni inflación en USD. El monto se carga en USD y se convierte con el dólar oficial en vivo (mismo TC que usa el resto del dashboard), así cada objetivo se ajusta solo si el tipo de cambio se mueve.
         </div>
+      </div>
 
-        <div id="obj-form-wrap">
-          <div class="sim-field"><span class="sim-lbl">Nombre del objetivo</span><input class="sim-input" type="text" id="obj-in-nombre" placeholder="Ej: Mac mini M5 Pro"></div>
-          <div class="sim-field"><span class="sim-lbl">Monto objetivo (USD)</span><input class="sim-input" type="number" id="obj-in-monto" placeholder="1699"></div>
-          <div class="sim-field"><span class="sim-lbl">Fecha objetivo</span><input class="sim-input" type="date" id="obj-in-fecha"></div>
-          <div class="sim-field"><span class="sim-lbl">Aporte mensual planeado ARS (opcional)</span><input class="sim-input" type="number" id="obj-in-aporte" placeholder="Dejalo vacío si todavía no lo definiste"></div>
-          <button class="hdr-btn pri" style="margin-top:6px;" onclick="guardarObjetivo()">Crear objetivo</button>
-        </div>
+      <div id="obj-lista" style="display:flex;flex-direction:column;gap:18px;"></div>
 
-        <div id="obj-activo-wrap" style="display:none;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
-            <div>
-              <div style="font-size:15px;font-weight:700;" id="obj-nombre"></div>
-              <div style="font-size:11px;color:var(--text3);">Meta: <span id="obj-fecha"></span> · Faltan <span id="obj-meses-rest"></span></div>
-            </div>
-            <button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:12px;" onclick="eliminarObjetivo()">✕ Eliminar</button>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
-            <div><div style="font-size:10px;color:var(--text3);">Monto en USD</div><div style="font-size:15px;font-weight:700;" id="obj-monto-usd"></div></div>
-            <div><div style="font-size:10px;color:var(--text3);">≈ ARS hoy</div><div style="font-size:15px;font-weight:700;" id="obj-monto-ars"></div></div>
-            <div><div style="font-size:10px;color:var(--text3);">Aportado hasta ahora</div><div style="font-size:15px;font-weight:700;color:var(--green);" id="obj-aportado"></div></div>
-            <div><div style="font-size:10px;color:var(--text3);">Aporte necesario</div><div style="font-size:15px;font-weight:700;" id="obj-aporte-nec"></div></div>
-          </div>
-          <div id="obj-aviso"></div>
-
-          <div style="border-top:1px solid var(--border);margin:14px 0;"></div>
-          <div style="font-size:12px;font-weight:700;margin-bottom:8px;">+ Aporte real</div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">
-            Cargá acá cada vez que efectivamente destines plata a este objetivo — con eso se arma la curva "Aportado (real)" y el aviso de ritmo de abajo, ya no una proyección teórica.
-          </div>
-          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
-            <div class="sim-field" style="margin-bottom:0;"><span class="sim-lbl">Monto ARS</span><input class="sim-input" type="number" id="obj-in-aporte-monto" placeholder="Ej: 400000"></div>
-            <div class="sim-field" style="margin-bottom:0;"><span class="sim-lbl">Fecha</span><input class="sim-input" type="date" id="obj-in-aporte-fecha"></div>
-            <button class="hdr-btn pri" id="obj-aporte-btn" onclick="agregarAporteObjetivo()">Agregar aporte</button>
-          </div>
-          <div id="obj-aporte-edit-note" style="font-size:11px;color:var(--blue);margin:-6px 0 10px;"></div>
-          <div id="obj-aportes-list" style="font-size:12px;color:var(--text3);margin-bottom:14px;">Cargando…</div>
-
-          <div style="position:relative;height:220px;margin-top:14px;"><canvas id="obj-ch"></canvas></div>
-        </div>
+      <div class="card" id="obj-nuevo-wrap">
+        <div class="card-ttl">➕ Nuevo objetivo</div>
+        <div class="sim-field"><span class="sim-lbl">Nombre del objetivo</span><input class="sim-input" type="text" id="obj-nuevo-nombre" placeholder="Ej: Viaje, Notebook, Curso"></div>
+        <div class="sim-field"><span class="sim-lbl">Monto objetivo (USD)</span><input class="sim-input" type="number" id="obj-nuevo-monto" placeholder="1699"></div>
+        <div class="sim-field"><span class="sim-lbl">Fecha objetivo</span><input class="sim-input" type="date" id="obj-nuevo-fecha"></div>
+        <div class="sim-field"><span class="sim-lbl">Aporte mensual planeado ARS (opcional)</span><input class="sim-input" type="number" id="obj-nuevo-aporte" placeholder="150000"></div>
+        <button class="hdr-btn pri" style="margin-top:6px;" onclick="guardarObjetivo()">Crear objetivo</button>
+        <div id="obj-nuevo-status" style="font-size:12px;margin-top:8px;color:var(--text2);"></div>
       </div>
 
       <div class="card" id="nota-ingreso-wrap">
         <div class="card-ttl">📝 Nota del mes — ¿por qué no hiciste un ingreso extra?</div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">
-          Espacio libre para anotar, mes a mes, si no pudiste hacer un aporte/ingreso extra y por qué (ej: "no me alcanzó", "gasto imprevisto"). No es obligatorio -- es sólo para vos, para tener contexto después. Guardar de nuevo sobre el mismo mes pisa la nota anterior.
+          Espacio libre para anotar, mes a mes, si no pudiste hacer un aporte/ingreso extra y por qué (ej: "no me alcanzó", "gasto imprevisto"). No es obligatorio -- es sólo para vos, para tener contexto después. Elegí a qué objetivo se refiere (o «General»). Guardar de nuevo sobre el mismo mes y objetivo pisa la nota anterior.
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
           <div class="sim-field" style="margin:0;flex:1;min-width:140px;"><span class="sim-lbl">Mes</span><input class="sim-input" type="month" id="ni-mes"></div>
+          <div class="sim-field" style="margin:0;flex:1;min-width:180px;"><span class="sim-lbl">Objetivo</span><select class="sim-input" id="ni-obj"><option value="">General (sin proyecto)</option></select></div>
         </div>
         <textarea class="sim-input" id="ni-motivo" rows="2" placeholder="Ej: Este mes no hice ingreso extra, no me alcanzó." style="width:100%;resize:vertical;"></textarea>
         <button class="hdr-btn pri" style="margin-top:8px;" onclick="guardarNotaIngresoMensual()">Guardar nota</button>
@@ -1354,6 +1340,17 @@ input.hidden-inp{position:absolute;opacity:0;width:1px;height:1px;pointer-events
           <div class="panel-lbl">Fecha</div>
           <input class="sim-input" type="date" id="p-fc" style="width:100%;">
         </div>
+        <div id="p-vencwrap">
+          <div class="panel-lbl">Vence / se paga el <span style="font-weight:400;opacity:.7;">(opcional)</span></div>
+          <input class="sim-input" type="date" id="p-vc" style="width:100%;" oninput="prgSyncForm('p')" onchange="prgSyncForm('p')">
+          <div id="p-vc-x" style="display:none;margin-top:8px;font-size:12px;line-height:1.6;">
+            <label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="p-rep"> Se repite todos los meses (mismo día)</label>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap;">Hasta <input class="sim-input" type="date" id="p-fin" style="width:150px;"> <span style="opacity:.7;">(opcional)</span></div>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap;">Se paga con
+              <select class="sim-input" id="p-fu" style="width:auto;"><option value="auto">automático (por fecha)</option><option value="sueldo">sueldo</option><option value="bono">bono</option></select></div>
+          </div>
+          <div id="p-vc-h" style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.5;"></div>
+        </div>
         <div>
           <div class="panel-lbl">Nota</div>
           <textarea class="panel-note" id="p-nt" rows="2" placeholder="Coto, SUBE, Judo…"></textarea>
@@ -1402,7 +1399,7 @@ const uid = 'JsW7CjDObEhn3DoFkwzuJUGLhrB3';
 window._write = async (type, monto, moneda, cat, nota, medio) => {
   const d = new Date(), y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0');
   await push(ref(db, `${type}s/${uid}/${y}/${m}`), {
-    fecha: d.toISOString().split('T')[0], monto: +monto,
+    fecha: y + '-' + m + '-' + String(d.getDate()).padStart(2,'0'), monto: +monto,
     moneda, categoria: cat, nota: nota||'', medio: medio||null, timestamp: serverTimestamp()
   });
 };
@@ -1663,6 +1660,13 @@ window._deleteResumen = async id => {
 window._marcarResumenPagado = async (id, pagado) => {
   await update(ref(db, `tarjeta/${uid}/resumenes/${id}`), { pagado });
 };
+// Estado de pago del resumen con monto y fecha (13/11/2026): `pagado` se mantiene (true = algún pago registrado) para no romper lo viejo.
+// p = null -> sin pagar. Los campos null se borran del nodo.
+window._setPagoResumen = async (id, p) => {
+  const base = `tarjeta/${uid}/resumenes/${id}`;
+  if (!p){ await update(ref(db, base), { pagado: false, pagoTipo: null, pagoMonto: null, pagoFecha: null }); return; }
+  await update(ref(db, base), { pagado: true, pagoTipo: p.tipo, pagoMonto: (p.monto == null ? null : +p.monto), pagoFecha: p.fecha || null });
+};
 // Corrige a mano la categoría auto-adivinada de una compra parseada del PDF (14/09/2026) --
 // necesario sobre todo para las MERPAGO*<nombre de persona> (transferencias P2P) que las
 // reglas automáticas no pueden clasificar solas por no ser un rubro identificable por texto.
@@ -1860,47 +1864,48 @@ window._listenGastosMes = (y, m, cb) => {
 window._listenObjetivo = cb => {
   onValue(ref(db, `objetivos/${uid}`), s => cb(s.val() || null));
 };
-window._setObjetivo = async (nombre, montoUSD, fechaInicio, fechaObjetivo, aporteMensualARS) => {
-  // update() y no set(): así nunca pisa el subnodo objetivos/{uid}/aportes si ya
-  // existe (ver más abajo) — sólo toca los campos propios del objetivo en sí.
-  await update(ref(db, `objetivos/${uid}`), {
+// ── Objetivos múltiples (13/11/2026, pedido de Pedro) ────────────────────────
+// El objetivo original (id 'principal') sigue en los campos de objetivos/{uid} y sus aportes en
+// objetivos/{uid}/aportes: NO se migra nada. Los objetivos nuevos viven en
+// objetivos/{uid}/lista/{id} = { nombre, montoUSD, fechaInicio, fechaObjetivo, aporteMensualARS, timestamp }
+// con sus aportes en objetivos/{uid}/lista/{id}/aportes/{aid} = { monto, fecha, timestamp }.
+// _listenObjetivo (arriba) devuelve el nodo completo, así que trae también `lista`.
+const _objIdOk = id => /^[A-Za-z0-9_-]{1,40}$/.test(String(id || ''));
+const _objAportesPath = id => id === 'principal' ? `objetivos/${uid}/aportes` : `objetivos/${uid}/lista/${id}/aportes`;
+window._objCrear = async (nombre, montoUSD, fechaInicio, fechaObjetivo, aporteMensualARS) => {
+  const id = push(ref(db, `objetivos/${uid}/lista`)).key;
+  await set(ref(db, `objetivos/${uid}/lista/${id}`), {
     nombre, montoUSD: +montoUSD, fechaInicio, fechaObjetivo,
     aporteMensualARS: aporteMensualARS ? +aporteMensualARS : null,
     timestamp: serverTimestamp()
   });
+  return id;
 };
-window._deleteObjetivo = async () => {
-  // remove() del nodo completo — se lleva también el historial de aportes.
-  // Coherente con que hoy "editar" un objetivo es borrar y crear de nuevo:
-  // si Pedro descarta el objetivo, descarta también su progreso.
-  await remove(ref(db, `objetivos/${uid}`));
+window._objBorrar = async id => {
+  if (!_objIdOk(id)) throw new Error('id de objetivo inválido');
+  if (id === 'principal'){
+    // NO se hace remove() de objetivos/{uid}: se llevaría también `lista` (los objetivos nuevos).
+    await update(ref(db, `objetivos/${uid}`), {
+      nombre: null, montoUSD: null, fechaInicio: null, fechaObjetivo: null,
+      aporteMensualARS: null, timestamp: null, aportes: null
+    });
+  } else {
+    await remove(ref(db, `objetivos/${uid}/lista/${id}`));
+  }
 };
-
-// ── Aportes reales hacia el objetivo (agregado 07/09/2026) ──────────────────
-// Historial de aportes efectivamente cargados por Pedro (no un plan teórico):
-// objetivos/{uid}/aportes/{id} = { monto, fecha, timestamp }. La curva
-// "Aportado (real)" de renderObjetivo() se arma acumulando esto, y el aviso de
-// ritmo compara el acumulado real contra lo que hacía falta tener ahorrado a
-// esta altura del horizonte — ya no un proxy basado en el aporte planeado.
 window._listenAportesObjetivo = cb => {
   onValue(ref(db, `objetivos/${uid}/aportes`), s => cb(s.val() || {}));
 };
-window._addAporteObjetivo = async (monto, fecha) => {
-  const id = push(ref(db, `objetivos/${uid}/aportes`)).key;
-  await set(ref(db, `objetivos/${uid}/aportes/${id}`), {
-    monto: +monto, fecha, timestamp: serverTimestamp()
-  });
+window._objAporteSet = async (id, aid, monto, fecha) => {
+  if (!_objIdOk(id)) throw new Error('id de objetivo inválido');
+  const base = _objAportesPath(id);
+  const k = aid || push(ref(db, base)).key;
+  if (!_objIdOk(k)) throw new Error('id de aporte inválido');
+  await set(ref(db, `${base}/${k}`), { monto: +monto, fecha, timestamp: serverTimestamp() });
 };
-window._updateAporteObjetivo = async (id, monto, fecha) => {
-  // set() sobre un id puntual, no sobre todo el nodo `aportes` — no afecta a
-  // los demás aportes ya cargados (agregado 07/09/2026, pedido de Pedro para
-  // poder corregir un aporte mal cargado en vez de borrar y recrear).
-  await set(ref(db, `objetivos/${uid}/aportes/${id}`), {
-    monto: +monto, fecha, timestamp: serverTimestamp()
-  });
-};
-window._deleteAporteObjetivo = async id => {
-  await remove(ref(db, `objetivos/${uid}/aportes/${id}`));
+window._objAporteBorrar = async (id, aid) => {
+  if (!_objIdOk(id) || !_objIdOk(aid)) throw new Error('id inválido');
+  await remove(ref(db, `${_objAportesPath(id)}/${aid}`));
 };
 
 // ── Historial de cartera (Alfy) — agregado 07/09/2026 ───────────────────────
@@ -2437,8 +2442,15 @@ function manejarConfigLive(c){
   if(c && c.mp && c.mp.ts){
     if(MP_CUOTAS === null || +c.mp.ts > +(_lsGet('zar_mp_ts') || 0)){
       const it = c.mp.items ? (Array.isArray(c.mp.items) ? c.mp.items : Object.values(c.mp.items)) : [];
-      MP_CUOTAS = it.filter(q => q && /^\d{4}-\d{2}-\d{2}$/.test(String(q.f)) && +q.m > 0).map(q => ({ f: String(q.f), m: +q.m, n: String(q.n == null ? '' : q.n).slice(0, 60) }));
+      MP_CUOTAS = it.filter(q => q && /^\d{4}-\d{2}-\d{2}$/.test(String(q.f)) && +q.m > 0).map(q => ({ f: String(q.f), m: +q.m, n: String(q.n == null ? '' : q.n).slice(0, 60), ...(q.pag === true ? { pag: true } : {}) }));
       _lsSet('zar_mp_cuotas', MP_CUOTAS); _lsSet('zar_mp_ts', +c.mp.ts); restaurado.push('cuotas de Mercado Pago');
+    }
+  }
+  if(c && c.pagosProg && c.pagosProg.ts){
+    if(PAGOS_PROG === null || +c.pagosProg.ts > +(_lsGet('zar_pagos_prog_ts') || 0)){
+      const itp = c.pagosProg.items ? (Array.isArray(c.pagosProg.items) ? c.pagosProg.items : Object.values(c.pagosProg.items)) : [];
+      PAGOS_PROG = itp.map(_prgSanear).filter(Boolean);
+      _lsSet('zar_pagos_prog', PAGOS_PROG); _lsSet('zar_pagos_prog_ts', +c.pagosProg.ts); restaurado.push('pagos programados');
     }
   }
   if(c && c.caja && c.caja.saldo != null && isFinite(+c.caja.saldo)){
@@ -2456,6 +2468,7 @@ function manejarConfigLive(c){
   if((!c || c.planPagos == null) && tienePP) cfgPush();
   if(MP_CUOTAS !== null && !(c && c.mp && c.mp.ts)) cfgPushCampo({ mp: { ts: +(_lsGet('zar_mp_ts') || Date.now()), items: MP_CUOTAS } });
   if(CAJA_CFG.saldo != null && !(c && c.caja && c.caja.saldo != null)) cfgPushCampo({ caja: CAJA_CFG });
+  if(PAGOS_PROG !== null && (!(c && c.pagosProg && c.pagosProg.ts) || (+(_lsGet('zar_pagos_prog_ts') || 0)) > +c.pagosProg.ts)) cfgPushCampo({ pagosProg: { ts: +(_lsGet('zar_pagos_prog_ts') || Date.now()), items: PAGOS_PROG } });
   respaldoActualizarBtn();
   safe(renderMPCard,'renderMPCard'); safe(renderTopeCard,'renderTopeCard'); safe(renderCashCal45,'renderCashCal45');
 }
@@ -2487,11 +2500,72 @@ let MP_CUOTAS = _lsGet('zar_mp_cuotas');                  // null = este navegad
 let CAJA_CFG  = _lsGet('zar_caja') || { saldo: null, fechaISO: null };
 let TOPE_CFG  = Object.assign({ tope: 300000, desdeISO: '2026-10-30', usdMes: 50 }, _lsGet('zar_tope') || {});
 // Semilla: capturas de MP del 07/11 (changelog 45). Solo se usa si no hay nada local ni en Firebase.
-const MP_SEED = [ { f: '2026-11-16', m: 206493.29, n: 'Línea de crédito' }, { f: '2026-11-25', m: 140049.53, n: 'Dinero Plus' } ];
+// 13/11/2026: ambas cuotas ya se pagaron ese día (pag:true); la semilla solo aparece en un navegador sin datos propios.
+const MP_SEED = [ { f: '2026-11-16', m: 206493.29, n: 'Línea de crédito', pag: true }, { f: '2026-11-25', m: 140049.53, n: 'Dinero Plus', pag: true } ];
 function _mpLista(){ return MP_CUOTAS === null ? MP_SEED : MP_CUOTAS; }
 function _escH(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); } // declaración hoisted: segura aunque se llame antes que hgEsc
 function _fmtDM(iso){ return /^\d{4}-\d{2}-\d{2}$/.test(String(iso)) ? iso.slice(8,10) + '/' + iso.slice(5,7) : '—'; }
 function _hoyISO(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+// ── 13/11/2026 (auditoría Crédito·DTI): lectura de montos al estilo argentino y estado de pago de los resúmenes ──
+// numAR (BG-39/45): "1.262.970" -> 1262970; "1.262.970,50" -> 1262970.5; "1262970.5" -> 1262970.5; "1,5" -> 1.5.
+// tasa=true: un solo punto es decimal ("73.5"); sin tasa, un punto con exactamente 3 dígitos detrás ("1.500") es miles.
+function numAR(v, tasa){
+  if (typeof v === 'number') return isFinite(v) ? v : NaN;
+  let t = String(v == null ? '' : v).trim().replace(/[\s$]/g, '');
+  if (!t) return NaN;
+  let neg = false;
+  if (t.charAt(0) === '-'){ neg = true; t = t.slice(1); }
+  if (!/^[\d.,]+$/.test(t)) return NaN;
+  const nd = (t.match(/\./g) || []).length, nc = (t.match(/,/g) || []).length;
+  if (nd && nc){
+    if (t.lastIndexOf(',') > t.lastIndexOf('.')) t = t.replace(/\./g, '').replace(',', '.');
+    else t = t.replace(/,/g, '');
+  } else if (nc){
+    t = nc === 1 ? t.replace(',', '.') : t.replace(/,/g, '');
+  } else if (nd){
+    if (nd > 1 || (!tasa && /^[1-9]\d{0,2}\.\d{3}$/.test(t))) t = t.replace(/\./g, '');
+  }
+  if ((t.match(/\./g) || []).length > 1) return NaN;
+  const n = parseFloat(t);
+  return isFinite(n) ? (neg ? -n : n) : NaN;
+}
+// Lee un input por id o elemento: los type=number siguen con parseFloat (valor canónico), los de texto pasan por numAR.
+function numEl(idOrEl, tasa){
+  const e = typeof idOrEl === 'string' ? document.getElementById(idOrEl) : idOrEl;
+  if (!e) return NaN;
+  return e.type === 'number' ? parseFloat(e.value) : numAR(e.value, tasa);
+}
+function _isoLocal(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+const _PAGO_LBL = { minimo: 'mínimo', total: 'total', otro: 'otro monto' };
+// Estado de pago de un resumen (BG-42/47). `pagado` solo (marca vieja) cuenta como total sin monto.
+function _pagoDe(r){
+  if (!r) return null;
+  const tipo = r.pagoTipo || (r.pagado ? 'total' : null);
+  if (!tipo) return null;
+  return { tipo, monto: (r.pagoMonto != null && isFinite(+r.pagoMonto)) ? +r.pagoMonto : null,
+    fecha: /^\d{4}-\d{2}-\d{2}$/.test(String(r.pagoFecha || '')) ? String(r.pagoFecha) : null, legado: !r.pagoTipo };
+}
+// ESTIMACIÓN de la mora por pagar tarde el mínimo: (TNA compensatoria + TNA punitoria del PDF) × días / 365, más IVA 21 %. El resumen real manda.
+function moraEstimada(r){
+  const p = _pagoDe(r); if (!p || !p.fecha || !r || !r.vencimiento) return null;
+  const dias = simvDias(r.vencimiento, p.fecha);
+  if (!(dias > 0)) return { dias: Math.max(0, dias), monto: 0, base: 0 };
+  const i = r.pdfInfo || {};
+  const base = i.pagoMinimo != null ? +i.pagoMinimo : (p.monto || 0);
+  const tasa = (+i.tna || 0) + (+i.punitorioTna || 0);
+  return { dias, base, monto: base * tasa / 100 / 365 * dias * 1.21 };
+}
+function _pagoChipTxt(r){
+  const p = _pagoDe(r); if (!p) return '';
+  return 'pagado' + (p.legado ? '' : ' (' + (_PAGO_LBL[p.tipo] || '') + (p.fecha ? ' ' + fD(p.fecha) : '') + ')');
+}
+function _pagoTxtIA(r){
+  const p = _pagoDe(r); if (!p) return '';
+  const mo = moraEstimada(r);
+  return p.legado ? 'marcado como pagado, sin monto ni fecha'
+    : 'pago registrado: ' + (_PAGO_LBL[p.tipo] || p.tipo) + (p.monto != null ? ' ' + fmt(p.monto) : '') + (p.fecha ? ' el ' + fD(p.fecha) : '')
+      + (mo && mo.dias > 0 ? '; ' + mo.dias + ' día(s) después del vencimiento, mora ≈ ' + fmt(mo.monto) + ' (estimación)' : '');
+}
 
 // ── Mercado Pago ──
 function mpGuardar(){
@@ -2501,7 +2575,7 @@ function mpGuardar(){
   renderMPCard(); safe(renderCashCal45,'renderCashCal45');
 }
 function mpAgregarUI(){
-  const f = $('mp-f').value, m = parseFloat($('mp-m').value), n = ($('mp-n').value || '').trim();
+  const f = $('mp-f').value, m = numEl('mp-m'), n = ($('mp-n').value || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(f) || !(m > 0)){ alert('Falta la fecha o el monto (mayor a 0).'); return; }
   if (MP_CUOTAS === null) MP_CUOTAS = MP_SEED.slice();
   MP_CUOTAS.push({ f, m: Math.round(m * 100) / 100, n });
@@ -2514,19 +2588,26 @@ function mpBorrar(i){
   if (!confirm('¿Borrar esta cuota de Mercado Pago?')) return;
   MP_CUOTAS.splice(i, 1); mpGuardar();
 }
+// 13/11/2026 (BG-44): una cuota pagada deja de restar de la proyección pero queda en la lista.
+function mpTogglePag(i){
+  if (MP_CUOTAS === null) MP_CUOTAS = MP_SEED.map(q => ({ ...q }));
+  if (!MP_CUOTAS[i]) return;
+  if (MP_CUOTAS[i].pag) delete MP_CUOTAS[i].pag; else MP_CUOTAS[i].pag = true;
+  mpGuardar();
+}
 function renderMPCard(){
   const el = $('mp-lista'), pie = $('mp-pie'); if (!el) return;
   const lista = _mpLista(), hoy = _hoyISO(), mesHoy = hoy.slice(0,7);
   el.innerHTML = !lista.length
     ? '<div style="font-size:11px;color:var(--text3);">Sin cuotas cargadas.</div>'
     : lista.map((q, i) => {
-        const pasada = q.f < hoy;
-        return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px dashed var(--border);' + (pasada ? 'opacity:.5;' : '') + '">'
-          + '<span>' + _fmtDM(q.f) + ' · ' + _escH(q.n || 'cuota') + (pasada ? ' <span style="font-size:10px;">(pasada)</span>' : '') + '</span>'
-          + '<span style="white-space:nowrap;font-weight:600;">' + fmt(q.m) + ' <a href="#" style="color:var(--red);text-decoration:none;margin-left:6px;" onclick="mpBorrar(' + i + ');return false;">✕</a></span></div>';
+        const pasada = q.f < hoy, pag = q.pag === true;
+        return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px dashed var(--border);' + (pasada || pag ? 'opacity:.5;' : '') + '">'
+          + '<span>' + _fmtDM(q.f) + ' · ' + _escH(q.n || 'cuota') + (pag ? ' <span style="font-size:10px;color:var(--green);">(pagada)</span>' : pasada ? ' <span style="font-size:10px;">(pasada)</span>' : '') + '</span>'
+          + '<span style="white-space:nowrap;font-weight:600;">' + (pag ? '<s>' + fmt(q.m) + '</s>' : fmt(q.m)) + ' <a href="#" style="color:var(--green);text-decoration:none;margin-left:6px;" title="' + (pag ? 'Marcar como pendiente' : 'Marcar como pagada') + '" onclick="mpTogglePag(' + i + ');return false;">' + (pag ? '↩' : '✓') + '</a> <a href="#" style="color:var(--red);text-decoration:none;margin-left:6px;" onclick="mpBorrar(' + i + ');return false;">✕</a></span></div>';
       }).join('');
-  const fut = lista.filter(q => q.f >= hoy);
-  const mes = lista.filter(q => String(q.f).slice(0,7) === mesHoy);
+  const fut = lista.filter(q => q.f >= hoy && !q.pag);
+  const mes = lista.filter(q => String(q.f).slice(0,7) === mesHoy && !q.pag);
   pie.innerHTML = '<strong>' + fmt(mes.reduce((s,q)=>s+q.m,0)) + '</strong> este mes · pendiente total ' + fmt(fut.reduce((s,q)=>s+q.m,0))
     + (fut.length ? ' · próxima: ' + _fmtDM(fut[0].f) : '')
     + (MP_CUOTAS === null ? '<br><span style="color:var(--amber);">Mostrando la semilla del 07/11 — tocá ➕ o borrá algo para guardarla como tuya (requiere sesión de Google).</span>' : '');
@@ -2534,7 +2615,7 @@ function renderMPCard(){
 
 // ── Tope de compras del mes ──
 function topeGuardar(){
-  const t = parseFloat($('tope-t') && $('tope-t').value), u = parseFloat($('tope-u') && $('tope-u').value);
+  const t = numEl('tope-t'), u = numEl('tope-u');
   if (isFinite(t) && t >= 0) TOPE_CFG.tope = t;
   if (isFinite(u) && u >= 0) TOPE_CFG.usdMes = u;
   _lsSet('zar_tope', TOPE_CFG); cfgPushCampo({ tope: TOPE_CFG }); renderTopeCard();
@@ -2563,15 +2644,15 @@ function renderTopeCard(){
     + '<div style="display:flex;justify-content:space-between;font-size:14px;padding:8px 0 2px;border-top:1px solid var(--border2);margin-top:4px;"><span style="font-weight:600;">' + sem[0] + ' Disponible del mes</span><span style="font-weight:700;color:' + (disp >= 0 ? sem[1] : 'var(--red)') + ';">' + (disp < 0 ? '−' + fmt(-disp) + ' EXCEDIDO' : fmt(disp)) + '</span></div>'
     + fila('Comprometido para el mes que viene (cuotas de compras nuevas)', fmt(compSig), 'margin-top:4px;')
     + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:11px;color:var(--text3);">'
-    + 'Tope $ <input class="sim-input" id="tope-t" type="number" step="1000" value="' + TOPE_CFG.tope + '" style="width:100px;" onchange="topeGuardar()">'
-    + ' · Suscripciones US$ <input class="sim-input" id="tope-u" type="number" step="1" value="' + TOPE_CFG.usdMes + '" style="width:60px;" onchange="topeGuardar()">'
+    + 'Tope $ <input class="sim-input" id="tope-t" type="text" inputmode="decimal" value="' + String(TOPE_CFG.tope).replace('.', ',') + '" style="width:100px;" onchange="topeGuardar()">'
+    + ' · Suscripciones US$ <input class="sim-input" id="tope-u" type="text" inputmode="decimal" value="' + String(TOPE_CFG.usdMes).replace('.', ',') + '" style="width:60px;" onchange="topeGuardar()">'
     + '</div>'
     + '<div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5;">Cuenta las compras cargadas en Pendientes con fecha ≥ ' + _fmtDM(desde) + ' (ciclo actual del régimen). Si el bono del mes viene &lt; $1.670.000, el tope baja a solo suscripciones (regla del 07/11). Las cuotas comprometidas de ciclos anteriores del régimen: SEGUIMIENTO §8d.</div>';
 }
 
 // ── Calendario de caja 45 días ──
 function cajaGuardarUI(){
-  const v = parseFloat($('caja-s') && $('caja-s').value);
+  const v = numEl('caja-s');
   if (!isFinite(v)){ alert('Poné el saldo (puede ser 0).'); return; }
   CAJA_CFG = { saldo: v, fechaISO: _hoyISO(), ts: Date.now() };
   _lsSet('zar_caja', CAJA_CFG); cfgPushCampo({ caja: CAJA_CFG }); renderCashCal45();
@@ -2581,7 +2662,9 @@ function _cal45Eventos(){
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const fin = new Date(hoy); fin.setDate(fin.getDate() + 45);
   const ev = [];
-  const add = (d, c, m, sup) => { if (d >= hoy && d <= fin) ev.push({ d, c, m, sup }); };
+  // BG-43 (13/11/2026): si hay saldo de caja cargado, lo de ese día y anteriores ya está dentro del saldo: no se cuenta dos veces.
+  const corte = (CAJA_CFG && CAJA_CFG.saldo != null && /^\d{4}-\d{2}-\d{2}$/.test(String(CAJA_CFG.fechaISO || ''))) ? _isoADate(CAJA_CFG.fechaISO) : null;
+  const add = (d, c, m, sup) => { if (d >= hoy && d <= fin && !(corte && d <= corte)) ev.push({ d, c, m, sup }); };
   for (let k = 0; k < 3; k++){
     const y = hoy.getFullYear(), mth = hoy.getMonth() + k;
     add(new Date(y, mth, 1), 'Sueldo', +PP.sueldo || 0, true);
@@ -2601,24 +2684,31 @@ function _cal45Eventos(){
   if (sb && sb.r && sb.r.vencimiento && sb.info && sb.info.pagoMinimo != null){
     const [yy, mm, dd] = String(sb.r.vencimiento).split('-').map(Number);
     const dv = new Date(yy, mm - 1, dd), min = +sb.info.pagoMinimo || 0;
-    if (dv < hoy) ev.push({ d: hoy, c: 'VISA — mínimo VENCIDO el ' + _fmtDM(sb.r.vencimiento) + ' (pagar ya)', m: -min, sup: false });
-    else add(dv, 'VISA — mínimo del resumen (débito automático)', -min, false);
+    // BG-42 (13/11/2026): un mínimo ya pagado deja de figurar; un pago parcial deja solo la diferencia.
+    const pg = _pagoDe(sb.r);
+    const debeMin = pg ? (pg.monto != null ? Math.max(0, min - pg.monto) : 0) : min;
+    if (debeMin > 0.5){
+      if (dv < hoy) ev.push({ d: hoy, c: 'VISA — mínimo VENCIDO el ' + _fmtDM(sb.r.vencimiento) + (pg ? ' (resta del mínimo)' : '') + ' (pagar ya)', m: -debeMin, sup: false });
+      else add(dv, 'VISA — mínimo del resumen (débito automático)' + (pg ? ' (resta)' : ''), -debeMin, false);
+    }
     if (sb.info.proximoVto){
       const [y2, m2, d2] = String(sb.info.proximoVto).split('-').map(Number);
       add(new Date(y2, m2 - 1, d2), 'VISA — próximo resumen (monto ≈ mínimo actual, SUPUESTO)', -min, true);
     }
   }
-  _mpLista().forEach(q => { const [y3, m3, d3] = String(q.f).split('-').map(Number); if (y3) add(new Date(y3, m3 - 1, d3), 'Mercado Pago — ' + _escH(q.n || 'cuota'), -q.m, false); });
+  _mpLista().forEach(q => { const [y3, m3, d3] = String(q.f).split('-').map(Number); if (y3 && !q.pag) add(new Date(y3, m3 - 1, d3), 'Mercado Pago — ' + _escH(q.n || 'cuota'), -q.m, false); });
+  try{ _prgEventos(hoy, fin).forEach(e => ev.push(e)); }catch(e){ console.error('[ZAR] pagos programados en calendario:', e); }
   ev.sort((a, b) => a.d - b.d || a.m - b.m);
   return ev;
 }
 function renderCashCal45(){
+  try{ _prgRenderExtras(); }catch(e){ console.error('[ZAR] pagos programados (render):', e); }
   const ui = $('cal45-saldo-ui'), tb = $('cal45-tabla'), al = $('cal45-alerta'); if (!tb) return;
   const tiene = CAJA_CFG.saldo != null;
   if (ui) ui.innerHTML = '<span style="font-size:11px;color:var(--text2);">Saldo C.A. ...8545 hoy $</span>'
-    + '<input class="sim-input" id="caja-s" type="number" step="0.01" value="' + (tiene ? CAJA_CFG.saldo : '') + '" style="width:130px;">'
+    + '<input class="sim-input" id="caja-s" type="text" inputmode="decimal" value="' + (tiene ? String(CAJA_CFG.saldo).replace('.', ',') : '') + '" style="width:130px;">'
     + '<button class="hdr-btn" style="width:auto;margin:0;" onclick="cajaGuardarUI()">💾 Guardar</button>'
-    + (tiene ? '<span style="font-size:10px;color:var(--text3);">cargado el ' + _fmtDM(CAJA_CFG.fechaISO) + '</span>' : '<span style="font-size:10px;color:var(--amber);">sin saldo cargado: la proyección arranca de $0</span>');
+    + (tiene ? '<span style="font-size:10px;color:var(--text3);">cargado el ' + _fmtDM(CAJA_CFG.fechaISO) + ' · se asume que ya incluye lo del ' + _fmtDM(CAJA_CFG.fechaISO) + ' y anteriores</span>' : '<span style="font-size:10px;color:var(--amber);">sin saldo cargado: la proyección arranca de $0</span>');
   let saldo = tiene ? +CAJA_CFG.saldo : 0, primeraRoja = null;
   const filas = _cal45Eventos().map(e => {
     saldo += e.m;
@@ -2627,7 +2717,7 @@ function renderCashCal45(){
     const fecha = String(e.d.getDate()).padStart(2,'0') + '/' + String(e.d.getMonth()+1).padStart(2,'0');
     return '<div style="display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:2px 8px;align-items:start;padding:6px;border-top:1px solid var(--border2);' + (neg ? 'background:var(--red-l);' : '') + '">'
       + '<div style="font-size:11px;color:var(--text3);white-space:nowrap;">' + fecha + '</div>'
-      + '<div style="font-size:12px;line-height:1.35;overflow-wrap:anywhere;">' + e.c + (e.sup ? ' <span style="font-size:9px;color:var(--text3);">(supuesto)</span>' : '') + '</div>'
+      + '<div style="font-size:12px;line-height:1.35;overflow-wrap:anywhere;">' + e.c + (e.sup ? ' <span style="font-size:9px;color:var(--text3);">(supuesto)</span>' : '') + (e.x || '') + '</div>'
       + '<div style="text-align:right;white-space:nowrap;"><div style="font-size:12px;color:' + (e.m >= 0 ? 'var(--green)' : 'var(--red)') + ';">' + (e.m >= 0 ? '+' : '−') + fmt(Math.abs(e.m)) + '</div>'
       + '<div style="font-size:10px;font-weight:600;color:' + (neg ? 'var(--red)' : 'var(--text3)') + ';">saldo ' + (saldo < 0 ? '−' : '') + fmt(Math.abs(saldo)) + '</div></div></div>';
   }).join('');
@@ -2638,6 +2728,194 @@ function renderCashCal45(){
     ? '<div style="margin:0 0 8px;padding:8px 10px;border-radius:8px;background:var(--red-l);border-left:3px solid var(--red);font-size:12px;font-weight:600;color:var(--red);">⚠️ El ' + String(primeraRoja.d.getDate()).padStart(2,'0') + '/' + String(primeraRoja.d.getMonth()+1).padStart(2,'0') + ' la caja queda en −' + fmt(Math.abs(primeraRoja.s)) + ' (' + primeraRoja.c + '). Mover plata antes o asumir mora.</div>'
     : (tiene ? '<div style="margin:0 0 8px;padding:6px 10px;border-radius:8px;background:var(--green-l);border-left:3px solid var(--green);font-size:11px;color:var(--text2);">✅ Con estos supuestos la caja no queda en rojo en 45 días.</div>' : '');
 }
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🗓️ Pagos programados (12/11/2026)
+// Un pago con "Vence" NO es un gasto: vive en config/{uid}.pagosProg (+ espejo en localStorage) hasta que se
+// marca ✓ Pagado; recién ahí se escribe el gasto real en gastos/{uid}/{y}/{m} con fecha = día del pago.
+// Vencido sin marcar: queda en rojo en el calendario y sigue restando de la proyección.
+// Solo ARS y solo medios líquidos (el crédito lo cubre el resumen de la VISA). Persistencia igual que MP/caja:
+// gana la copia con ts más nuevo; sin sesión de escritura queda local.
+// ═══════════════════════════════════════════════════════════════════════════════
+let PAGOS_PROG = _lsGet('zar_pagos_prog');            // null = este navegador todavía no tiene dato propio
+const PRG_AVISO_DIAS = 3, PRG_ATRAS_DIAS = 90;
+const _prgBusy = new Set();
+const _RE_ISO = /^\d{4}-\d{2}-\d{2}$/;
+function _prgLista(){ return Array.isArray(PAGOS_PROG) ? PAGOS_PROG : []; }
+function _isoOf(y, m0, d){ return y + '-' + String(m0 + 1).padStart(2,'0') + '-' + String(d).padStart(2,'0'); }
+function _isoADate(iso){ const p = String(iso).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+function _isoSumar(iso, dias){ const p = String(iso).split('-').map(Number); const x = new Date(p[0], p[1] - 1, p[2] + dias); return _isoOf(x.getFullYear(), x.getMonth(), x.getDate()); }
+// Normaliza un ítem que viene de Firebase (puede faltar cualquier campo; Firebase omite objetos/arrays vacíos).
+function _prgSanear(it){
+  if(!it || typeof it !== 'object') return null;
+  const f = String(it.f || ''), m = +it.m, id = String(it.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24);
+  if(!_RE_ISO.test(f) || !(m > 0) || !id) return null;
+  const pg = {};
+  if(it.pg && typeof it.pg === 'object') Object.keys(it.pg).forEach(k => { if(_RE_ISO.test(k)) pg[k] = String(it.pg[k]).slice(0, 10); });
+  return { id, n: String(it.n == null ? '' : it.n).slice(0, 60), m: Math.round(m * 100) / 100, f, rep: !!it.rep,
+    fin: _RE_ISO.test(String(it.fin || '')) ? String(it.fin) : '', fu: (it.fu === 'sueldo' || it.fu === 'bono') ? it.fu : 'auto',
+    cat: (typeof CM !== 'undefined' && CM[it.cat]) ? it.cat : 'varios',
+    medio: (it.medio === 'efectivo' || it.medio === 'debito' || it.medio === 'transferencia') ? it.medio : 'transferencia', pg };
+}
+function prgGuardar(){
+  const ts = Date.now();
+  _lsSet('zar_pagos_prog', PAGOS_PROG || []); _lsSet('zar_pagos_prog_ts', ts);
+  cfgPushCampo({ pagosProg: { ts, items: PAGOS_PROG || [] } });   // lista vacía: Firebase omite el array, por eso viaja con ts
+  safe(renderCashCal45, 'renderCashCal45');
+}
+// Fechas de vencimiento (ISO) de un ítem dentro de [desde, hasta]. Mensual: mismo día cada mes (31 → último día del mes).
+function _prgOcc(it, desde, hasta){
+  const out = [];
+  if(!it || !_RE_ISO.test(it.f)) return out;
+  if(!it.rep){ if(it.f >= desde && it.f <= hasta) out.push(it.f); return out; }
+  const dia = +it.f.slice(8, 10);
+  let y = +desde.slice(0, 4), m = +desde.slice(5, 7) - 1;
+  const yh = +hasta.slice(0, 4), mh = +hasta.slice(5, 7) - 1;
+  for(let g = 0; g < 40 && (y < yh || (y === yh && m <= mh)); g++){
+    const dim = new Date(y, m + 1, 0).getDate();
+    const due = _isoOf(y, m, Math.min(dia, dim));
+    if(due >= it.f && due >= desde && due <= hasta && (!it.fin || due <= it.fin)) out.push(due);
+    m++; if(m > 11){ m = 0; y++; }
+  }
+  return out;
+}
+// Vencimientos sin pagar ni omitir entre dos fechas ISO.
+function _prgPend(desde, hasta){
+  const out = [];
+  _prgLista().forEach(it => _prgOcc(it, desde, hasta).forEach(due => { if(!(it.pg && it.pg[due])) out.push({ it, due }); }));
+  out.sort((a, b) => a.due.localeCompare(b.due) || String(a.it.n).localeCompare(String(b.it.n)));
+  return out;
+}
+// Con qué ingreso se paga: antes del bono del mes → sueldo; desde el día del bono → bono. Se puede pisar por ítem.
+function _prgFuente(it, due){
+  if(it.fu === 'sueldo' || it.fu === 'bono') return it.fu;
+  const p = String(due).split('-').map(Number);
+  return _isoADate(due) < _habilAtras(new Date(p[0], p[1] - 1, 15)) ? 'sueldo' : 'bono';
+}
+function _prgAcciones(it, due){
+  const a = 'font-size:11px;text-decoration:none;margin-left:8px;white-space:nowrap;';
+  return ' <a href="#" style="' + a + 'color:var(--green);font-weight:700;" onclick="prgMarcarPagado(\'' + it.id + '\',\'' + due + '\');return false;">✓ Pagado</a>'
+    + (it.rep ? ' <a href="#" style="' + a + 'color:var(--text3);" onclick="prgOmitir(\'' + it.id + '\',\'' + due + '\');return false;">omitir</a>' : '');
+}
+// Eventos para el calendario de 45 días (los vencidos sin marcar se anclan en hoy y siguen restando).
+function _prgEventos(hoy, fin){
+  const hI = _isoOf(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()), fI = _isoOf(fin.getFullYear(), fin.getMonth(), fin.getDate());
+  return _prgPend(_isoSumar(hI, -PRG_ATRAS_DIAS), fI).map(({ it, due }) => {
+    const venc = due < hI;
+    return { d: venc ? hoy : _isoADate(due),
+      c: (venc ? '<span style="color:var(--red);font-weight:700;">VENCIDO ' + _fmtDM(due) + '</span> · ' : '') + _escH(it.n || 'Pago')
+         + (it.rep ? ' <span style="font-size:9px;color:var(--text3);">(mensual)</span>' : ''),
+      m: -it.m, sup: false,
+      x: ' <span style="font-size:10px;color:var(--text3);">→ ' + _prgFuente(it, due) + '</span>' + _prgAcciones(it, due) };
+  });
+}
+function prgAgregarDesdeForm(pfx, monto, vence, nota){
+  const gv = id => { const e = $(pfx + '-' + id); return e ? e.value : ''; };
+  const rep = !!($(pfx + '-rep') && $(pfx + '-rep').checked), finV = gv('fin'), fuV = gv('fu');
+  const c = CM[S.cat];
+  const it = { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), n: (nota || (c && c.n) || 'Pago').slice(0, 60),
+    m: Math.round(monto * 100) / 100, f: vence, rep, fin: (rep && _RE_ISO.test(finV) && finV >= vence) ? finV : '',
+    fu: (fuV === 'sueldo' || fuV === 'bono') ? fuV : 'auto', cat: S.cat, medio: S.medio, pg: {} };
+  if(PAGOS_PROG === null) PAGOS_PROG = [];
+  PAGOS_PROG.push(it); PAGOS_PROG.sort((a, b) => a.f.localeCompare(b.f));
+  prgGuardar();
+  return it;
+}
+async function prgMarcarPagado(id, due){
+  const it = _prgLista().find(x => x.id === id);
+  if(!it || (it.pg && it.pg[due])) return;
+  const k = id + '|' + due; if(_prgBusy.has(k)) return;
+  if(!window._escrituraOK || !window._writeDate){ alert('Para marcar pagado hace falta la sesión de Google (modo escritura). Iniciá sesión y repetí.'); return; }
+  _prgBusy.add(k);
+  try{
+    const hoy = _hoyISO();
+    await window._writeDate('gasto', it.m, 'ARS', it.cat, (it.n + ' (programado, vto ' + _fmtDM(due) + ')').slice(0, 120), hoy, it.medio);
+    if(!it.pg) it.pg = {};
+    it.pg[due] = hoy; prgGuardar();
+    try{ _flash('✓ ' + (it.n || 'Pago'), fmt(it.m) + ' pagado · gasto de hoy'); }catch(e){}
+  }catch(e){ alert('No se pudo registrar el pago (no se marcó como pagado): ' + (e && e.message || e)); }
+  finally{ _prgBusy.delete(k); }
+}
+function prgOmitir(id, due){
+  const it = _prgLista().find(x => x.id === id); if(!it || (it.pg && it.pg[due])) return;
+  if(!confirm('¿Omitir "' + it.n + '" del ' + _fmtDM(due) + '? No se registra ningún gasto.')) return;
+  if(!it.pg) it.pg = {};
+  it.pg[due] = 'omitido'; prgGuardar();
+}
+function prgBorrar(id){
+  const i = _prgLista().findIndex(x => x.id === id); if(i < 0) return;
+  if(!confirm('¿Borrar el pago programado "' + PAGOS_PROG[i].n + '"? Los gastos que ya registraste como pagados no se tocan.')) return;
+  PAGOS_PROG.splice(i, 1); prgGuardar();
+}
+function prgEditarMonto(id){
+  const it = _prgLista().find(x => x.id === id); if(!it) return;
+  const r = prompt('Nuevo monto para "' + it.n + '" (aplica a los vencimientos que todavía no pagaste):', String(it.m));
+  if(r === null) return;
+  const v = parseFloat(String(r).replace(',', '.'));
+  if(!(v > 0)){ alert('Monto inválido.'); return; }
+  it.m = Math.round(v * 100) / 100; prgGuardar();
+}
+function renderPrgAviso(){
+  const el = $('prg-aviso'); if(!el) return;
+  const hI = _hoyISO(), lim = _isoSumar(hI, PRG_AVISO_DIAS);
+  const lista = _prgPend(_isoSumar(hI, -PRG_ATRAS_DIAS), lim);
+  if(!lista.length){ el.innerHTML = ''; return; }
+  const venc = lista.filter(x => x.due < hI).length;
+  const col = venc ? 'var(--red)' : 'var(--amber)', bg = venc ? 'var(--red-l)' : 'var(--amber-l)';
+  const filas = lista.slice(0, 6).map(({ it, due }) => {
+    const v = due < hI;
+    return '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;padding:3px 0;">'
+      + '<span>' + (v ? '<strong style="color:var(--red);">VENCIDO</strong> ' : '') + _fmtDM(due) + ' · ' + _escH(it.n || 'Pago') + ' · <strong>' + fmt(it.m) + '</strong> <span style="font-size:10px;color:var(--text3);">→ ' + _prgFuente(it, due) + '</span></span>'
+      + '<span>' + _prgAcciones(it, due) + '</span></div>';
+  }).join('');
+  el.innerHTML = '<div style="margin:0 0 12px;padding:8px 12px;border-radius:10px;background:' + bg + ';border-left:3px solid ' + col + ';">'
+    + '<div style="font-size:12px;font-weight:700;color:' + col + ';margin-bottom:2px;">' + (venc ? '🔴 ' + venc + ' pago' + (venc > 1 ? 's' : '') + ' vencido' + (venc > 1 ? 's' : '') + ' sin marcar' : '🟠 Pagos que vencen en ≤ ' + PRG_AVISO_DIAS + ' días') + '</div>'
+    + filas + (lista.length > 6 ? '<div style="font-size:11px;color:var(--text3);">+' + (lista.length - 6) + ' más — ver 📆 Calendario de caja</div>' : '') + '</div>';
+}
+function renderPrgLista(){
+  const el = $('prg-lista'); if(!el) return;
+  const L = _prgLista();
+  const tit = '<div style="font-size:12px;font-weight:700;margin-bottom:6px;">🗓️ Pagos programados' + (L.length ? ' (' + L.length + ')' : '') + '</div>';
+  if(!L.length){ el.innerHTML = tit + '<div style="font-size:11px;color:var(--text3);line-height:1.5;">Ninguno. Cargalos desde <strong>Registrar</strong> con el campo <strong>Vence / se paga el</strong>: no cuentan como gasto hasta que los marques ✓ Pagado.</div>'; return; }
+  const hI = _hoyISO(), ini = _isoSumar(hI, -PRG_ATRAS_DIAS);
+  const tot = { sueldo: 0, bono: 0 };
+  _prgPend(ini, _isoSumar(hI, 45)).forEach(p => { tot[_prgFuente(p.it, p.due)] += p.it.m; });
+  const filas = L.map(it => {
+    const sig = _prgOcc(it, ini, _isoSumar(hI, 400)).find(d => !(it.pg && it.pg[d]));
+    const cuando = it.rep ? 'todos los meses, día ' + (+it.f.slice(8, 10)) + (it.fin ? ' hasta ' + _fmtDM(it.fin) + '/' + it.fin.slice(2, 4) : '') : 'una vez, ' + _fmtDM(it.f);
+    const est = sig ? (sig < hI ? '<span style="color:var(--red);font-weight:700;">VENCIDO ' + _fmtDM(sig) + '</span>' : 'próx. ' + _fmtDM(sig) + ' → ' + _prgFuente(it, sig)) : '<span style="opacity:.6;">sin pendientes</span>';
+    return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border);">'
+      + '<span style="min-width:0;overflow-wrap:anywhere;">' + _escH(it.n || 'Pago') + ' <span style="font-size:10px;color:var(--text3);">· ' + cuando + ' · ' + est + '</span></span>'
+      + '<span style="white-space:nowrap;font-weight:600;">' + fmt(it.m) + ' <a href="#" title="Cambiar monto" style="color:var(--text3);text-decoration:none;margin-left:6px;" onclick="prgEditarMonto(\'' + it.id + '\');return false;">✎</a>'
+      + ' <a href="#" title="Borrar" style="color:var(--red);text-decoration:none;margin-left:6px;" onclick="prgBorrar(\'' + it.id + '\');return false;">✕</a></span></div>';
+  }).join('');
+  el.innerHTML = tit + filas
+    + '<div style="font-size:11px;color:var(--text2);margin-top:6px;">Pendiente próximos 45 días: con sueldo <strong>' + fmt(tot.sueldo) + '</strong> · con bono <strong>' + fmt(tot.bono) + '</strong></div>'
+    + '<div style="font-size:10px;color:var(--amber);margin-top:4px;line-height:1.5;">⚠️ Si cargaste acá un servicio que ya está dentro de "Servicios" del Plan de pagos (hoy ' + fmt(+PP.servicios || 0) + ', fecha estimada día 15), bajá ese valor allá para no restarlo dos veces.</div>';
+}
+function _prgRenderExtras(){ renderPrgAviso(); renderPrgLista(); }
+// Formulario "Vence": bloque visible solo para gastos; con Crédito se desactiva (lo cubre la VISA).
+function prgSyncForm(pfx){
+  const vc = $(pfx + '-vc'); if(!vc) return;
+  const esG = S.type === 'g', cred = S.medio === 'credito';
+  const w = $(pfx + '-vencwrap'); if(w) w.style.display = esG ? '' : 'none';
+  if(cred && vc.value) vc.value = '';
+  vc.disabled = cred;
+  const con = esG && !cred && !!vc.value;
+  const x = $(pfx + '-vc-x'); if(x) x.style.display = con ? '' : 'none';
+  const h = $(pfx + '-vc-h');
+  if(h) h.textContent = cred ? 'Crédito: lo cubre el resumen de la VISA, no se programa acá.'
+    : con ? 'Queda como PAGO PROGRAMADO (solo ARS): no suma al gasto hasta que lo marques ✓ Pagado en 📆 Calendario o en el aviso del Dashboard.'
+          : 'Vacío = gasto ya pagado (cuenta hoy). Con fecha = pago futuro, aparece en el calendario y no cuenta como gasto todavía.';
+  const sb = $(pfx === 'mv' ? 'mv-sb' : 'p-sb');
+  if(sb && !sb.disabled) sb.textContent = con ? 'Programar pago' : (pfx === 'mv' ? 'Registrar' : 'Registrar ' + (esG ? 'gasto' : 'ingreso'));
+}
+function prgResetForm(pfx){
+  ['vc', 'fin'].forEach(k => { const e = $(pfx + '-' + k); if(e) e.value = ''; });
+  const r = $(pfx + '-rep'); if(r) r.checked = false;
+  const u = $(pfx + '-fu'); if(u) u.value = 'auto';
+  prgSyncForm(pfx);
+}
+
 async function exportarRespaldo(){
   const b = $('respaldo-btn'); if(!b) return;
   if(!window._respaldoCompleto){ alert('Firebase todavía no está listo; probá en unos segundos.'); return; }
@@ -2913,8 +3191,8 @@ function initICLDefaults(){
   if (!desdeEl || !hastaEl) return;
   const hoy = new Date();
   const haceUnAnio = new Date(hoy.getFullYear()-1, hoy.getMonth(), hoy.getDate());
-  if (!hastaEl.value) hastaEl.value = hoy.toISOString().split('T')[0];
-  if (!desdeEl.value) desdeEl.value = haceUnAnio.toISOString().split('T')[0];
+  if (!hastaEl.value) hastaEl.value = _isoLocal(hoy);
+  if (!desdeEl.value) desdeEl.value = _isoLocal(haceUnAnio);
 }
 // Alquiler agosto ($867.000, 01/08/2026) cargado 03/09 desde el rollup mensual
 // de Notion ("Presupuesto" → Todos los gastos, fila "Renta") — cierra el hueco
@@ -3290,9 +3568,9 @@ let VIVIENDA_LIVE = {}; // vivienda/{uid} desde Firebase — migrado del array h
 let PEND_EDIT_ID = null; // id del pendiente en edición inline (null = ninguno)
 let PENDIENTES_LIVE = {}; // comprasPendientes/{uid} — compras posteriores al último cierre cargado
 let GASTOS_RECURRENTES_LIVE = {}; // gastosRecurrentes/{uid} — suscripciones/gastos fijos en seguimiento
-let OBJETIVO_LIVE = null; // objetivos/{uid} — un solo objetivo activo (Fase 1)
+let OBJETIVO_LIVE = null; // objetivos/{uid} — objetivo 'principal' en los campos + `lista` con los nuevos (13/11/2026)
 let APORTES_OBJETIVO_LIVE = {}; // objetivos/{uid}/aportes — historial real de aportes cargados
-let editandoAporteId = null; // id del aporte en edición (null = modo alta normal)
+let objEditandoAporte = null; // {id, aid} del aporte en edición (null = modo alta normal)
 let CARTERA_HIST_LIVE = {}; // carteraHist/{uid} — snapshots históricos de la cartera Alfy
 
 // ── Balance por resumen (agregado 06/09/2026) ────────────────────────────────
@@ -3366,9 +3644,22 @@ function renderCountdown() {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const diff = Math.ceil((vto - hoy) / 86400000);
   const prox = b.info && b.info.proximoVto ? ` · próximo vto ${fD(b.info.proximoVto)}` : '';
-  if (r.pagado){
-    el.style.background = 'var(--green-l)'; el.style.color = 'var(--green)';
-    el.innerHTML = `✅ Resumen VISA del ${fD(r.cierre)} pagado${prox}`;
+  const pg = _pagoDe(r), minV = b.info && b.info.pagoMinimo != null ? +b.info.pagoMinimo : null;
+  if (pg){
+    const mo = moraEstimada(r), moraTxt = mo && mo.dias > 0 ? ` · pagado ${mo.dias} día${mo.dias === 1 ? '' : 's'} tarde, mora ≈ ${fmt(mo.monto)} (estimación)` : '';
+    const fch = pg.fecha ? ` el ${fD(pg.fecha)}` : '';
+    const completo = pg.tipo === 'total' || pg.legado || (pg.monto != null && pg.monto >= (+r.saldo || 0) - 1);
+    const cubreMin = pg.monto == null || minV == null || pg.monto >= minV - 1;
+    if (completo){
+      el.style.background = 'var(--green-l)'; el.style.color = 'var(--green)';
+      el.innerHTML = `✅ Resumen VISA del ${fD(r.cierre)} pagado${fch}${moraTxt}${prox}`;
+    } else if (cubreMin){
+      el.style.background = 'var(--amber-l)'; el.style.color = 'var(--amber)';
+      el.innerHTML = `✅ Mínimo del resumen del ${fD(r.cierre)} pagado${fch} (${fmt(pg.monto)})${moraTxt} · quedan ${fmt(Math.max(0, (+r.saldo || 0) - (pg.monto || 0)))} financiados${prox}`;
+    } else {
+      el.style.background = 'var(--red-l)'; el.style.color = 'var(--red)';
+      el.innerHTML = `⚠️ Pago parcial del resumen del ${fD(r.cierre)}${fch}: faltan ${fmt(minV - pg.monto)} para el mínimo${prox}`;
+    }
   } else if (diff > 0){
     const col = diff <= 3 ? 'var(--red)' : diff <= 7 ? 'var(--amber)' : 'var(--blue)';
     const bg  = diff <= 3 ? 'var(--red-l)' : diff <= 7 ? 'var(--amber-l)' : 'var(--blue-l)';
@@ -3379,7 +3670,7 @@ function renderCountdown() {
     el.innerHTML = `🚨 <strong>HOY vence el resumen VISA</strong>${min} — Llamar ya: 0810 666 4444`;
   } else {
     el.style.background = 'var(--red-l)'; el.style.color = 'var(--red)';
-    el.innerHTML = `⚠️ El resumen del ${fD(r.cierre)} venció hace <strong>${-diff} día${-diff===1?'':'s'}</strong> y no está marcado como pagado (si ya lo pagaste, tildalo en <em>Resúmenes cargados</em>)`;
+    el.innerHTML = `⚠️ El resumen del ${fD(r.cierre)} venció hace <strong>${-diff} día${-diff===1?'':'s'}</strong> y no está marcado como pagado (si ya lo pagaste, marcá el pago en <em>Resúmenes cargados</em>)`;
   }
 }
 
@@ -3393,7 +3684,7 @@ function renderArkad() {
   // antes sólo contaba los movimientos manuales y mostraba 49,2% con el Dashboard en -39,6%.
   const ing = fl(S.data?.ingresos), gas = [...fl(S.data?.gastos), ...gastosResumenParaMes(S.year, S.month)];
   const tI  = sARS(ing), tG = sARS(gas);
-  const dti = tI > 0 ? CUO_TOT / tI : 1;
+  const dti = tI > 0 ? cuoRealTotal() / tI : 1; // BG-48: carga real
   // Inactivo mientras DTI > 50%
   if (dti > 0.5 || tI === 0) {
     elS.style.background = 'var(--bg)'; elS.style.color = 'var(--text3)';
@@ -3416,68 +3707,47 @@ function renderArkad() {
   if(elB) elB.style.background = ok ? 'var(--green)' : 'var(--red)';
 }
 
-// ── Objetivos Financieros (agregado 06/09/2026) ─────────────────────────────
-// Fase 1: sin rendimiento de cartera ni inflación en USD (ver changelog) — sólo
-// curva de aporte/ahorro proyectado hacia el objetivo. El monto en ARS se
-// recalcula siempre con el TC oficial en vivo (objetivoARS = montoUSD * TC),
-// nunca se guarda fijo.
-function renderObjetivo(){
-  const form = $('obj-form-wrap'), activo = $('obj-activo-wrap');
-  if (!form || !activo) return;
-  if (!OBJETIVO_LIVE){
-    form.style.display = '';
-    activo.style.display = 'none';
-    return;
+// ── Objetivos Financieros (agregado 06/09/2026; múltiples desde 13/11/2026) ─────────────────
+// Varios objetivos conviven apilados, cada uno con su curva. Sin rendimiento de cartera ni inflación en
+// USD (Fase 1). El monto en ARS se recalcula siempre con el TC oficial en vivo (montoUSD * TC), nunca se
+// guarda fijo. Datos: objetivo 'principal' en objetivos/{uid} + nuevos en objetivos/{uid}/lista/{id}.
+const _OBJ_ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
+const _OBJ_FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
+function objListar(){
+  const out = [];
+  const base = OBJETIVO_LIVE;
+  if (base && base.nombre && base.montoUSD && base.fechaObjetivo){
+    out.push({ id:'principal', nombre:String(base.nombre), montoUSD:+base.montoUSD, fechaInicio:base.fechaInicio || base.fechaObjetivo,
+               fechaObjetivo:base.fechaObjetivo, aporteMensualARS:base.aporteMensualARS || null, aportes:APORTES_OBJETIVO_LIVE || {} });
   }
-  form.style.display = 'none';
-  activo.style.display = '';
-
-  const o = OBJETIVO_LIVE;
-  const montoARS = o.montoUSD * TC;
-  const hoy = new Date();
+  const lista = (base && base.lista) || {};
+  Object.keys(lista).sort().forEach(id => {
+    const o = lista[id];
+    if (!_OBJ_ID_RE.test(id) || !o || !o.nombre || !o.montoUSD || !o.fechaObjetivo) return;
+    out.push({ id, nombre:String(o.nombre), montoUSD:+o.montoUSD, fechaInicio:o.fechaInicio || _hoyISO(),
+               fechaObjetivo:o.fechaObjetivo, aporteMensualARS:o.aporteMensualARS || null, aportes:o.aportes || {} });
+  });
+  return out;
+}
+// Cálculo puro (sin DOM): recibe el objetivo normalizado, el TC y la fecha de hoy.
+function objCalcular(o, tc, hoy){
+  const montoARS = o.montoUSD * tc;
   const inicio = new Date(o.fechaInicio + 'T00:00:00');
   const fin = new Date(o.fechaObjetivo + 'T00:00:00');
   const totalDias = Math.max(1, (fin - inicio) / 86400000);
   const mesesTotales = Math.max(1, Math.round(totalDias / 30.44));
   const mesesTranscurridos = Math.min(mesesTotales, Math.max(0, Math.round((hoy - inicio) / 86400000 / 30.44)));
   const mesesRestantes = Math.max(0, mesesTotales - mesesTranscurridos);
+  const aportesArr = Object.entries(o.aportes || {})
+    .map(([aid, a]) => ({ aid, monto: +(a && a.monto), fecha: a && a.fecha }))
+    .filter(a => _OBJ_ID_RE.test(a.aid) && isFinite(a.monto) && _OBJ_FECHA_RE.test(String(a.fecha)))
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const acumuladoReal = aportesArr.reduce((t, a) => t + a.monto, 0);
+  const restante = Math.max(0, montoARS - acumuladoReal);
+  const aporteNecesario = mesesRestantes > 0 ? restante / mesesRestantes : restante;
+  const esperadoAHoy = Math.round(montoARS * (mesesTranscurridos / mesesTotales));
   const aporteMensual = o.aporteMensualARS || null;
-
-  // Aportes reales cargados (agregado 07/09/2026) — historial en
-  // objetivos/{uid}/aportes, es la base real de la curva y del aviso de ritmo,
-  // ya no un proxy calculado sobre el aporte mensual planeado.
-  const aportesArr = Object.entries(APORTES_OBJETIVO_LIVE || {})
-    .map(([id, a]) => ({ id, monto: +a.monto, fecha: a.fecha }))
-    .sort((a,b) => a.fecha.localeCompare(b.fecha));
-  const acumuladoReal = aportesArr.reduce((s,a) => s + a.monto, 0);
-
-  $('obj-nombre').textContent = o.nombre;
-  $('obj-monto-usd').textContent = `USD ${o.montoUSD.toLocaleString('en-US')}`;
-  $('obj-monto-ars').textContent = fmt(montoARS) + ' (TC $' + Math.round(TC).toLocaleString('es-AR') + ')';
-  $('obj-fecha').textContent = fD(o.fechaObjetivo);
-  $('obj-meses-rest').textContent = mesesRestantes > 0 ? `${mesesRestantes} meses` : (fin < hoy ? 'vencido' : 'este mes');
-  const acumuladoRealUSD = TC > 0 ? Math.round(acumuladoReal / TC) : 0;
-  $('obj-aportado').innerHTML = `${fmt(acumuladoReal)}<div style="font-size:10px;color:var(--text3);font-weight:400;">≈ USD ${acumuladoRealUSD.toLocaleString('en-US')}</div>`;
-
-  const restanteParaMeta = Math.max(0, montoARS - acumuladoReal);
-  const aporteNecesario = mesesRestantes > 0 ? restanteParaMeta / mesesRestantes : restanteParaMeta;
-  const aporteNecesarioUSD = TC > 0 ? Math.round(aporteNecesario / TC) : 0;
-  $('obj-aporte-nec').innerHTML = restanteParaMeta <= 0
-    ? '¡cubierto!'
-    : (mesesRestantes > 0
-        ? `${fmt(aporteNecesario)}/mes<div style="font-size:10px;color:var(--text3);font-weight:400;">≈ USD ${aporteNecesarioUSD.toLocaleString('en-US')}/mes</div>`
-        : `${fmt(restanteParaMeta)}<div style="font-size:10px;color:var(--text3);font-weight:400;">≈ USD ${aporteNecesarioUSD.toLocaleString('en-US')}</div>`);
-
-  // Curva: "Necesario para llegar" (recta 0→montoARS a lo largo de todo el
-  // horizonte, referencia fija) + "Aportado (real)" (acumulado real de los
-  // aportes cargados, mes a mes — se corta en el mes de hoy, no se inventa
-  // nada hacia adelante) + si Pedro cargó un aporte mensual planeado al crear
-  // el objetivo, "Proyectado (tu plan)" de referencia, punteada, informativa
-  // (no depende de los aportes reales, es sólo el plan original).
-  const labels = [];
-  const necesaria = [];
-  const aportadoReal = [];
-  const proyectadaPlan = aporteMensual ? [] : null;
+  const labels = [], necesaria = [], aportadoReal = [], proyectadaPlan = aporteMensual ? [] : null;
   const acumuladoPorMes = new Array(mesesTotales + 1).fill(0);
   for (const a of aportesArr){
     const fa = new Date(a.fecha + 'T00:00:00');
@@ -3494,128 +3764,200 @@ function renderObjetivo(){
     aportadoReal.push(i <= mesesTranscurridos ? Math.round(corrida) : null);
     if (proyectadaPlan) proyectadaPlan.push(Math.min(Math.round(aporteMensual * i), montoARS));
   }
-  const cv = $('obj-ch');
-  if (objetivoChart){ objetivoChart.destroy(); objetivoChart = null; }
-  if (cv){
-    const datasets = [
-      { label:'Necesario para llegar', data: necesaria, borderColor:'#0066FF', backgroundColor:'transparent', tension:.2, pointRadius:0 },
-      { label:'Aportado (real)', data: aportadoReal, borderColor:'#10B981', backgroundColor:'transparent', tension:.2, pointRadius:2, spanGaps:true }
-    ];
-    if (proyectadaPlan) datasets.push({ label:'Proyectado (tu plan)', data: proyectadaPlan, borderColor:'#9CA3AF', backgroundColor:'transparent', tension:.2, pointRadius:0, borderDash:[5,3] });
-    objetivoChart = new Chart(cv.getContext('2d'), {
-      type: 'line',
-      data: { labels, datasets },
-      options: { responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{display:true, position:'bottom', labels:{font:{size:10}, boxWidth:8}},
-          tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${c.parsed.y==null?'—':fmt(c.parsed.y)}` } } },
-        scales:{ x:{ grid:{display:false}, ticks:{font:{size:9}} },
-                 y:{ grid:{color:'#F1F5F9'}, ticks:{font:{size:10}, callback:v=>'$'+fmtK(v)} } } }
-    });
-  }
-
-  // Aviso de ritmo: compara lo REALMENTE aportado contra lo que hacía falta
-  // tener ahorrado a esta altura del horizonte — ya no un plan teórico.
-  const avisoEl = $('obj-aviso');
-  if (avisoEl){
-    if (restanteParaMeta <= 0){
-      avisoEl.innerHTML = `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--green-l);border-left:3px solid var(--green);font-size:11px;color:var(--text2);">🏆 ¡Objetivo cubierto! Aportaste ${fmt(acumuladoReal)} de ${fmt(montoARS)}.</div>`;
-    } else if (!aportesArr.length){
-      avisoEl.innerHTML = `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--bg);font-size:11px;color:var(--text3);">Todavía no cargaste ningún aporte real — usá "+ Aporte real" de abajo cada vez que destines plata a este objetivo, para ver acá tu ritmo real.</div>`;
-    } else {
-      const esperadoAHoy = Math.round(montoARS * (mesesTranscurridos / mesesTotales));
-      const vaBien = acumuladoReal >= esperadoAHoy;
-      const restoNota = mesesRestantes > 0 ? `Con lo que falta, necesitás ${fmt(aporteNecesario)}/mes de acá a la meta.` : 'Ya no queda tiempo hasta la fecha objetivo.';
-      avisoEl.innerHTML = vaBien
-        ? `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--green-l);border-left:3px solid var(--green);font-size:11px;color:var(--text2);">✅ Vas bien: aportaste ${fmt(acumuladoReal)}, hacían falta ${fmt(esperadoAHoy)} a esta altura. ${restoNota}</div>`
-        : `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--red-l);border-left:3px solid var(--red);font-size:11px;color:var(--text2);">⚠️ Vas atrasado: aportaste ${fmt(acumuladoReal)}, hacían falta ${fmt(esperadoAHoy)} a esta altura. ${restoNota}</div>`;
-    }
-  }
-
-  // Historial de aportes cargados.
-  const listEl = $('obj-aportes-list');
-  if (listEl){
-    listEl.innerHTML = !aportesArr.length
-      ? 'Sin aportes cargados todavía.'
-      : aportesArr.slice().reverse().map(a => `
+  return { montoARS, mesesTotales, mesesTranscurridos, mesesRestantes, aportesArr, acumuladoReal, restante,
+           aporteNecesario, esperadoAHoy, labels, necesaria, aportadoReal, proyectadaPlan, vencido: fin < hoy };
+}
+function objAvisoHtml(c){
+  const caja = (bg, borde, txt) => `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;${bg}${borde}font-size:11px;color:var(--text2);">${txt}</div>`;
+  if (c.restante <= 0)
+    return caja('background:var(--green-l);', 'border-left:3px solid var(--green);', `🏆 ¡Objetivo cubierto! Aportaste ${fmt(c.acumuladoReal)} de ${fmt(c.montoARS)}.`);
+  if (!c.aportesArr.length)
+    return `<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--bg);font-size:11px;color:var(--text3);">Todavía no cargaste ningún aporte real — usá «+ Aporte real» de abajo cada vez que destines plata a este objetivo, para ver acá tu ritmo real.</div>`;
+  const resto = c.mesesRestantes > 0 ? `Con lo que falta, necesitás ${fmt(c.aporteNecesario)}/mes de acá a la meta.` : 'Ya no queda tiempo hasta la fecha objetivo.';
+  return c.acumuladoReal >= c.esperadoAHoy
+    ? caja('background:var(--green-l);', 'border-left:3px solid var(--green);', `✅ Vas bien: aportaste ${fmt(c.acumuladoReal)}, hacían falta ${fmt(c.esperadoAHoy)} a esta altura. ${resto}`)
+    : caja('background:var(--red-l);', 'border-left:3px solid var(--red);', `⚠️ Vas atrasado: aportaste ${fmt(c.acumuladoReal)}, hacían falta ${fmt(c.esperadoAHoy)} a esta altura. ${resto}`);
+}
+function objCardHtml(o, c){
+  const id = o.id;
+  const editando = objEditandoAporte && objEditandoAporte.id === id;
+  const usd = n => (TC > 0 ? Math.round(n / TC) : 0).toLocaleString('en-US');
+  const sub = t => `<div style="font-size:10px;color:var(--text3);font-weight:400;">${t}</div>`;
+  const nec = c.restante <= 0 ? '¡cubierto!'
+    : (c.mesesRestantes > 0 ? `${fmt(c.aporteNecesario)}/mes${sub('≈ USD ' + usd(c.aporteNecesario) + '/mes')}` : `${fmt(c.restante)}${sub('≈ USD ' + usd(c.restante))}`);
+  const mesesTxt = c.mesesRestantes > 0 ? `${c.mesesRestantes} meses` : (c.vencido ? 'vencido' : 'este mes');
+  const aportesHtml = !c.aportesArr.length ? 'Sin aportes cargados todavía.'
+    : c.aportesArr.slice().reverse().map(a => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border2);">
           <span style="color:var(--text2);">${fD(a.fecha)} — ${fmt(a.monto)}</span>
           <span>
-            <button style="border:none;background:none;color:var(--blue);cursor:pointer;font-size:12px;margin-right:6px;" onclick="editarAporteObjetivo('${a.id}', ${a.monto}, '${a.fecha}')" title="Editar aporte">✏️</button>
-            <button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:12px;" onclick="eliminarAporteObjetivo('${a.id}')" title="Eliminar aporte">✕</button>
+            <button style="border:none;background:none;color:var(--blue);cursor:pointer;font-size:12px;margin-right:6px;" onclick="editarAporteObjetivo('${id}','${a.aid}',${a.monto},'${a.fecha}')" title="Editar aporte">✏️</button>
+            <button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:12px;" onclick="eliminarAporteObjetivo('${id}','${a.aid}')" title="Eliminar aporte">✕</button>
           </span>
         </div>`).join('');
-  }
+  const notas = Object.entries(NOTAS_INGRESO_LIVE || {})
+    .filter(([k, n]) => n && n.obj === id && notaKeyParse(k))
+    .sort((a, b) => b[0].localeCompare(a[0])).slice(0, 3)
+    .map(([k, n]) => `<div style="margin-top:4px;">📝 <strong>${viviendaKeyToLabel(notaKeyParse(k).mes)}:</strong> ${_escH(n.motivo || '')}</div>`).join('');
+  return `<div class="card" id="obj-card-${id}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+      <div>
+        <div style="font-size:15px;font-weight:700;">${_escH(o.nombre)}</div>
+        <div style="font-size:11px;color:var(--text3);">Meta: ${fD(o.fechaObjetivo)} · Faltan ${mesesTxt}</div>
+      </div>
+      <button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:12px;" onclick="eliminarObjetivo('${id}')">✕ Eliminar</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px;">
+      <div><div style="font-size:10px;color:var(--text3);">Monto en USD</div><div style="font-size:15px;font-weight:700;">USD ${o.montoUSD.toLocaleString('en-US')}</div></div>
+      <div><div style="font-size:10px;color:var(--text3);">≈ ARS hoy</div><div style="font-size:15px;font-weight:700;">${fmt(c.montoARS)} (TC $${Math.round(TC).toLocaleString('es-AR')})</div></div>
+      <div><div style="font-size:10px;color:var(--text3);">Aportado hasta ahora</div><div style="font-size:15px;font-weight:700;color:var(--green);">${fmt(c.acumuladoReal)}${sub('≈ USD ' + usd(c.acumuladoReal))}</div></div>
+      <div><div style="font-size:10px;color:var(--text3);">Aporte necesario</div><div style="font-size:15px;font-weight:700;">${nec}</div></div>
+    </div>
+    ${objAvisoHtml(c)}
+    <div style="border-top:1px solid var(--border);margin:14px 0;"></div>
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px;">+ Aporte real</div>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:8px;">Cargá acá cada vez que efectivamente destines plata a este objetivo — con eso se arma la curva «Aportado (real)» y el aviso de ritmo.</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
+      <div class="sim-field" style="margin-bottom:0;"><span class="sim-lbl">Monto ARS</span><input class="sim-input" type="number" id="obj-in-aporte-monto-${id}" placeholder="Ej: 400000"></div>
+      <div class="sim-field" style="margin-bottom:0;"><span class="sim-lbl">Fecha</span><input class="sim-input" type="date" id="obj-in-aporte-fecha-${id}"></div>
+      <button class="hdr-btn pri" onclick="agregarAporteObjetivo('${id}')">${editando ? 'Guardar cambios' : 'Agregar aporte'}</button>
+    </div>
+    <div style="font-size:11px;color:var(--blue);margin:-6px 0 10px;">${editando ? `Editando el aporte del ${fD(objEditandoAporte.fecha)} — <a href="javascript:void(0)" onclick="cancelarEdicionAporte()" style="color:var(--blue);">cancelar</a>` : ''}</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">${aportesHtml}</div>
+    ${notas ? `<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">${notas}</div>` : ''}
+    <div style="position:relative;height:220px;margin-top:14px;"><canvas id="obj-ch-${id}"></canvas></div>
+  </div>`;
+}
+function objActualizarSelectNota(objs){
+  const sel = $('ni-obj'); if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">General (sin proyecto)</option>' + objs.map(o => `<option value="${o.id}">${_escH(o.nombre)}</option>`).join('');
+  if ([...sel.options].some(op => op.value === prev)) sel.value = prev;
+}
+function renderObjetivo(){
+  const cont = $('obj-lista'); if (!cont) return;
+  // Se repinta todo en cada evento de Firebase / de TC: se conserva lo tipeado y el foco.
+  const guardado = {};
+  cont.querySelectorAll('input[id^="obj-in-"]').forEach(i => { guardado[i.id] = i.value; });
+  const foco = document.activeElement && cont.contains(document.activeElement) ? document.activeElement.id : null;
+  Object.values(objetivoCharts).forEach(ch => { try { ch.destroy(); } catch(e){} });
+  objetivoCharts = {};
+
+  const objs = objListar();
+  const hoy = new Date();
+  const calc = {};
+  objs.forEach(o => { calc[o.id] = objCalcular(o, TC, hoy); });
+  cont.innerHTML = objs.length
+    ? objs.map(o => objCardHtml(o, calc[o.id])).join('')
+    : '<div class="card" style="font-size:12px;color:var(--text3);">Todavía no hay objetivos. Creá el primero abajo en «Nuevo objetivo».</div>';
+
+  objs.forEach(o => {
+    const c = calc[o.id], cv = $('obj-ch-' + o.id);
+    if (!cv) return;
+    const datasets = [
+      { label:'Necesario para llegar', data: c.necesaria, borderColor:'#0066FF', backgroundColor:'transparent', tension:.2, pointRadius:0 },
+      { label:'Aportado (real)', data: c.aportadoReal, borderColor:'#10B981', backgroundColor:'transparent', tension:.2, pointRadius:2, spanGaps:true }
+    ];
+    if (c.proyectadaPlan) datasets.push({ label:'Proyectado (tu plan)', data: c.proyectadaPlan, borderColor:'#9CA3AF', backgroundColor:'transparent', tension:.2, pointRadius:0, borderDash:[5,3] });
+    objetivoCharts[o.id] = new Chart(cv.getContext('2d'), {
+      type: 'line',
+      data: { labels: c.labels, datasets },
+      options: { responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:true, position:'bottom', labels:{font:{size:10}, boxWidth:8}},
+          tooltip:{ callbacks:{ label:x=>` ${x.dataset.label}: ${x.parsed.y==null?'—':fmt(x.parsed.y)}` } } },
+        scales:{ x:{ grid:{display:false}, ticks:{font:{size:9}} },
+                 y:{ grid:{color:'#F1F5F9'}, ticks:{font:{size:10}, callback:v=>'$'+fmtK(v)} } } }
+    });
+  });
+
+  Object.entries(guardado).forEach(([id, v]) => { const el = document.getElementById(id); if (el && v !== '') el.value = v; });
+  if (foco){ const f = document.getElementById(foco); if (f) f.focus(); }
+  objActualizarSelectNota(objs);
+  if (typeof renderNotasIngresoMensual === 'function') renderNotasIngresoMensual();
 }
 async function guardarObjetivo(){
-  const nombre = $('obj-in-nombre').value.trim();
-  const montoUSD = +$('obj-in-monto').value;
-  const fechaObjetivo = $('obj-in-fecha').value;
-  const aporte = $('obj-in-aporte').value;
-  if (!nombre || !montoUSD || !fechaObjetivo){
+  const nombre = $('obj-nuevo-nombre').value.trim();
+  const montoUSD = +$('obj-nuevo-monto').value;
+  const fechaObjetivo = $('obj-nuevo-fecha').value;
+  const aporte = $('obj-nuevo-aporte').value;
+  const st = $('obj-nuevo-status');
+  if (!nombre || !(montoUSD > 0) || !fechaObjetivo){
     alert('Completá al menos nombre, monto en USD y fecha objetivo.');
     return;
   }
-  const fechaInicio = new Date().toISOString().slice(0,10);
+  if (fechaObjetivo <= _hoyISO()){
+    alert('La fecha objetivo tiene que ser posterior a hoy.');
+    return;
+  }
+  if (st) st.textContent = 'Guardando…';
   try {
-    await window._setObjetivo(nombre, montoUSD, fechaInicio, fechaObjetivo, aporte);
+    await window._objCrear(nombre, montoUSD, _hoyISO(), fechaObjetivo, aporte);
+    ['obj-nuevo-nombre','obj-nuevo-monto','obj-nuevo-fecha','obj-nuevo-aporte'].forEach(i => { $(i).value = ''; });
+    if (st) st.textContent = `✅ Objetivo «${nombre}» creado.`;
   } catch(e){
     console.error('[ZAR] Error guardando objetivo:', e);
+    if (st) st.textContent = '';
     alert('No se pudo guardar el objetivo: ' + e.message);
   }
 }
-async function eliminarObjetivo(){
-  if (!confirm('¿Eliminar este objetivo? Se borra también el historial de aportes. Vas a poder cargar uno nuevo después.')) return;
+async function eliminarObjetivo(id){
+  const o = objListar().find(x => x.id === id);
+  const nombre = o ? o.nombre : 'este objetivo';
+  if (!confirm(`¿Eliminar «${nombre}»? Se borra también su historial de aportes y no se puede deshacer (los demás objetivos no se tocan).`)) return;
   try {
-    await window._deleteObjetivo();
+    if (objEditandoAporte && objEditandoAporte.id === id) objEditandoAporte = null;
+    await window._objBorrar(id);
   } catch(e){
     console.error('[ZAR] Error eliminando objetivo:', e);
     alert('No se pudo eliminar el objetivo: ' + e.message);
   }
 }
-async function agregarAporteObjetivo(){
-  const monto = +$('obj-in-aporte-monto').value;
-  const fecha = $('obj-in-aporte-fecha').value || new Date().toISOString().slice(0,10);
+async function agregarAporteObjetivo(id){
+  const montoEl = $('obj-in-aporte-monto-' + id), fechaEl = $('obj-in-aporte-fecha-' + id);
+  if (!montoEl || !fechaEl) return;
+  const monto = +montoEl.value;
+  const fecha = fechaEl.value || _hoyISO();
   if (!monto || monto <= 0){
     alert('Cargá un monto válido.');
     return;
   }
   try {
-    if (editandoAporteId){
-      await window._updateAporteObjetivo(editandoAporteId, monto, fecha);
-      cancelarEdicionAporte();
+    if (objEditandoAporte && objEditandoAporte.id === id){
+      await window._objAporteSet(id, objEditandoAporte.aid, monto, fecha);
+      objEditandoAporte = null;
     } else {
-      await window._addAporteObjetivo(monto, fecha);
-      $('obj-in-aporte-monto').value = '';
+      await window._objAporteSet(id, null, monto, fecha);
     }
+    montoEl.value = ''; fechaEl.value = '';
+    renderObjetivo();
   } catch(e){
     console.error('[ZAR] Error guardando aporte:', e);
     alert('No se pudo guardar el aporte: ' + e.message);
   }
 }
-// Editar un aporte ya cargado (agregado 07/09/2026, pedido de Pedro para poder
-// corregir un monto/fecha mal cargados sin tener que borrar y crear de nuevo):
-// precarga el form con los valores existentes y pone agregarAporteObjetivo()
-// en modo "guardar cambios" hasta que se confirme o se cancele.
-function editarAporteObjetivo(id, monto, fecha){
-  editandoAporteId = id;
-  $('obj-in-aporte-monto').value = monto;
-  $('obj-in-aporte-fecha').value = fecha;
-  const btn = $('obj-aporte-btn'); if (btn) btn.textContent = 'Guardar cambios';
-  const note = $('obj-aporte-edit-note');
-  if (note) note.innerHTML = `Editando el aporte del ${fD(fecha)} — <a href="javascript:void(0)" onclick="cancelarEdicionAporte()" style="color:var(--blue);">cancelar</a>`;
+// Editar un aporte ya cargado (07/09/2026): precarga el form de ESE objetivo y pasa el botón a «Guardar cambios».
+function editarAporteObjetivo(id, aid, monto, fecha){
+  objEditandoAporte = { id, aid, fecha };
+  const m = $('obj-in-aporte-monto-' + id), f = $('obj-in-aporte-fecha-' + id);
+  if (m) m.value = monto;
+  if (f) f.value = fecha;
+  renderObjetivo();
 }
 function cancelarEdicionAporte(){
-  editandoAporteId = null;
-  $('obj-in-aporte-monto').value = '';
-  $('obj-in-aporte-fecha').value = '';
-  const btn = $('obj-aporte-btn'); if (btn) btn.textContent = 'Agregar aporte';
-  const note = $('obj-aporte-edit-note'); if (note) note.innerHTML = '';
+  const e = objEditandoAporte;
+  objEditandoAporte = null;
+  if (e){
+    const m = $('obj-in-aporte-monto-' + e.id), f = $('obj-in-aporte-fecha-' + e.id);
+    if (m) m.value = '';
+    if (f) f.value = '';
+  }
+  renderObjetivo();
 }
-async function eliminarAporteObjetivo(id){
+async function eliminarAporteObjetivo(id, aid){
   if (!confirm('¿Eliminar este aporte del historial?')) return;
   try {
-    if (editandoAporteId === id) cancelarEdicionAporte();
-    await window._deleteAporteObjetivo(id);
+    if (objEditandoAporte && objEditandoAporte.id === id && objEditandoAporte.aid === aid) objEditandoAporte = null;
+    await window._objAporteBorrar(id, aid);
   } catch(e){
     console.error('[ZAR] Error eliminando aporte:', e);
     alert('No se pudo eliminar el aporte: ' + e.message);
@@ -3818,7 +4160,7 @@ function _defaultFecha(){
   // Siempre editable a mano en el input antes de guardar.
   const now = new Date();
   const curY = String(now.getFullYear()), curM = String(now.getMonth()+1).padStart(2,'0');
-  if (S.year === curY && S.month === curM) return now.toISOString().split('T')[0];
+  if (S.year === curY && S.month === curM) return _hoyISO();   // BG-38 (12/11/2026): toISOString() era UTC y desde las 21:00 AR proponía mañana
   const lastDay = new Date(Number(S.year), Number(S.month), 0).getDate();
   return `${S.year}-${S.month}-${String(lastDay).padStart(2,'0')}`;
 }
@@ -4333,7 +4675,7 @@ function renderDebtTable(){
   const all = [...fijas, ...live];
   tb.innerHTML=all.map(d=>{
     const saldoCell = d._tipo === 'revolving'
-      ? `<input class="sim-input" type="number" value="${d.s}" style="width:110px;padding:4px 6px;font-size:12px;" onchange="actualizarSaldoRevolvingUI('${d._id}', this.value)">`
+      ? `<input class="sim-input" type="text" inputmode="decimal" value="${String(d.s).replace('.', ',')}" style="width:110px;padding:4px 6px;font-size:12px;" onchange="actualizarSaldoRevolvingUI('${d._id}', this.value)">`
       : fmt(d.s);
     let accionCell = '';
     if (d._tipo === 'cuotas'){
@@ -4344,7 +4686,7 @@ function renderDebtTable(){
       <div style="font-size:10px;color:var(--text3);margin-top:2px;">${d._pagadas}/${d._total} cuotas</div>`;
     }
     return `<tr>
-    <td>${d.n}</td>
+    <td>${_escH(d.n)}</td>
     <td style="font-weight:600;font-variant-numeric:tabular-nums;">${saldoCell}</td>
     <td style="font-variant-numeric:tabular-nums;">${d.c?fmt(d.c):'—'}</td>
     <td>${d.r!=null?d.r+'c':'—'}</td>
@@ -4371,9 +4713,63 @@ function renderDebtTable(){
   recalcDTI();
 }
 
+// ── Carga mensual REAL (BG-48/60/64, 13/11/2026; definición conservadora, Pedro puede cambiarla) ──
+// carga real = deudas cargadas (CUO_TOT) + cuotas del banco del PRÓXIMO resumen que todavía no están cargadas + Mercado Pago del mes.
+// El pago mínimo NO se suma: ya contiene las cuotas facturadas y duplicaría. Las cuotas del banco salen de «Cuotas a vencer» del PDF;
+// para no duplicar lo que ya cargaste en Tactical/Plan V, cada ítem cargado se empareja por monto (±1 %) con una línea «C.nn/mm» del
+// último resumen (el Plan V, con la línea PLAN V). Lo no emparejado queda como «banco no cargado». ESTIMACIÓN: el emparejamiento es por monto.
+function _esLineaCuota(d){ return /(?:\bC\.\s*|\bCuota\s*)\d{2}\s*\/\s*\d{2}/i.test(d || ''); }
+function cuotasBancoNoCargadas(){
+  try{
+    const b = (typeof simvBase === 'function') ? simvBase() : null;
+    if (!b || !b.info || !b.info.proximoCierre || !b.info.cuotasAVencer) return null;
+    const k = String(b.info.proximoCierre).slice(0, 7);
+    if (b.info.cuotasAVencer[k] == null) return null;
+    const bank = +b.info.cuotasAVencer[k]; if (!(bank >= 0)) return null;
+    const txs = simvTxs(b.r).filter(t => +t.pesos > 0 && _esLineaCuota(t.detalle));
+    const usadas = new Set(); let matched = 0, nMatch = 0;
+    const items = [...deudasFijasNormalized().filter(d => d._tipo === 'cuotas' && d.r > 0), ...liveDeudasNormalized().filter(d => d.c != null && d.r != null && d.r > 0)];
+    items.forEach(d => {
+      if (d._tipo === 'cuotas'){ const pv = b.info.planV; if (pv && pv.cuota < pv.de){ matched += d.c; nMatch++; } return; }
+      const tol = Math.max(1, d.c * 0.01);
+      const i = txs.findIndex((t, ix) => !usadas.has(ix) && Math.abs(t.pesos - d.c) <= tol);
+      if (i >= 0){ usadas.add(i); matched += d.c; nMatch++; }
+    });
+    return { bank, matched, nMatch, extra: Math.max(0, bank - matched), mes: k, cierre: b.r.cierre };
+  }catch(e){ console.error('[ZAR] cuotasBancoNoCargadas', e); return null; }
+}
+// Mercado Pago del mes en curso (pagadas o no: es compromiso del mes; sin fecha futura cargada el mes siguiente da 0).
+function mpMesActual(){
+  const mes = _hoyISO().slice(0, 7);
+  return _mpLista().filter(q => String(q.f).slice(0, 7) === mes).reduce((a, q) => a + (+q.m || 0), 0);
+}
+function cuoReal(){
+  const bk = cuotasBancoNoCargadas(), banco = bk ? bk.extra : 0, mp = mpMesActual();
+  return { base: CUO_TOT, banco, mp, total: CUO_TOT + banco + mp, bk };
+}
+function cuoRealTotal(){ return cuoReal().total; }
+// Detalle visible junto al semáforo (reemplaza al aviso de la entrada 95): qué compone la carga y cómo se ve contra el ingreso total.
+function dtiFueraHTML(ingFijo){
+  try{
+    if (!(ingFijo > 0)) return '';
+    const cr = cuoReal(), pct = v => (v / ingFijo * 100).toFixed(1) + '%';
+    const ingTot = (typeof ingresoTotalRef === 'function') ? ingresoTotalRef() : 0;
+    const f = [];
+    f.push('Deudas cargadas (Plan V + Tactical): ' + fmt(cr.base) + ' (' + pct(cr.base) + ')');
+    if (cr.bk) f.push('+ Cuotas del banco del próximo resumen no cargadas: ' + fmt(cr.banco) + ' (' + pct(cr.banco) + ') — el PDF informa ' + fmt(cr.bk.bank) + ' para ' + simvMesLabel(cr.bk.mes) + (cr.bk.nMatch ? ', ' + cr.bk.nMatch + ' ítem(s) cargado(s) ya incluido(s)' : ''));
+    else f.push('+ Cuotas del banco: sin dato (falta «Cuotas a vencer» en el PDF)');
+    f.push('+ Mercado Pago del mes: ' + fmt(cr.mp) + ' (' + pct(cr.mp) + ')');
+    const b = (typeof simvBase === 'function') ? simvBase() : null;
+    let min = '';
+    if (b && b.info && b.info.pagoMinimo != null && !_pagoDe(b.r)) min = '<br><span style="color:var(--text3);">Aparte (no sumado, ya contiene cuotas): pago mínimo sin pagar del resumen del ' + fD(b.r.cierre) + ' = ' + fmt(+b.info.pagoMinimo) + '.</span>';
+    const sobreTot = ingTot > 0 ? '<br><span style="color:var(--text3);">Sobre tu ingreso total de referencia (' + fmt(ingTot) + ', con bono): ' + (cr.total / ingTot * 100).toFixed(1) + '%.</span>' : '';
+    return '<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--amber-l);border-left:3px solid var(--amber);font-size:11px;line-height:1.5;color:var(--text2);">📐 <strong>Carga mensual real: ' + fmt(cr.total) + ' = ' + pct(cr.total) + ' del ingreso fijo (' + fmt(ingFijo) + ')</strong> (estimación; emparejo por monto lo ya cargado)<br>' + f.join('<br>') + min + sobreTot + '</div>';
+  }catch(e){ console.error('[ZAR] dtiFueraHTML', e); return ''; }
+}
 function recalcDTI(){
   const ingFijo = ingresoFijoRef();
-  const dti = ingFijo>0 ? (CUO_TOT/ingFijo*100) : 0;
+  const CR = cuoReal(); // BG-48 (13/11/2026): el semáforo usa la carga mensual real, no solo las deudas cargadas
+  const dti = ingFijo>0 ? (CR.total/ingFijo*100) : 0;
   set('dti-num', dti.toFixed(1)+'%');
   const kdti=$('k-dti');
   if (kdti){ kdti.textContent = dti.toFixed(1)+'%'; kdti.className='kpi-val '+(dti>=36?'r':dti>=20?'':'g'); }
@@ -4385,7 +4781,7 @@ function recalcDTI(){
   if (bar){ bar.style.width=Math.min(dti,100)+'%'; bar.style.background=col; }
   if (pill) pill.className='dti-pill '+cls;
   if (txt) txt.textContent=label;
-  set('dti-cuotas', fmt(CUO_TOT));
+  set('dti-cuotas', fmt(CR.total));
   set('dti-ingref', fmt(ingFijo));
   set('dti-umbral', '< '+fmt(ingFijo*0.36)+'/mes');
 
@@ -4406,6 +4802,7 @@ function recalcDTI(){
       <span style="color:var(--text3);">Fase 1: calculado sobre el total de tu deuda actual (todavía no distinguimos "necesario" de "consumo/ocio").</span>
     </div>`;
   }
+  if (limBadge) limBadge.insertAdjacentHTML('beforeend', dtiFueraHTML(ingFijo));
   // El consejo del balance por resumen usa este mismo DTI — si cambió, se repinta.
   // Cada repintado va aislado (19/09/2026): si uno falla, los siguientes igual corren (antes un error en la bóveda cortaba
   // la cadena y la Proyección DTI / el Próximo resumen quedaban con datos viejos).
@@ -4487,6 +4884,9 @@ function proximoResumenEstimado(){
   const fijas = deudasFijasNormalized().filter(d => d._tipo === 'cuotas' && d.r > 0);
   const live = liveDeudasNormalized().filter(d => d.c != null && d.r != null && d.r > 0);
   const items = [...fijas, ...live];
+  // BG-60 (13/11/2026): las cuotas que el banco ya tiene comprometidas para ese resumen y que no están cargadas (según «Cuotas a vencer» del PDF).
+  const bk = cuotasBancoNoCargadas();
+  if (bk && bk.extra > 0) items.push({ n: 'Cuotas del banco no cargadas (PDF, ' + simvMesLabel(bk.mes) + ')', c: bk.extra, r: null, _banco: true });
   const total = items.reduce((s,d)=>s+(d.c||0),0);
   return { total, items };
 }
@@ -4548,7 +4948,7 @@ function renderProximoResumen(){
     renderProximoTorta();
     return;
   }
-  const filas = items.map(d => `<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;"><span style="color:var(--text2);">${d.n}</span><span style="font-weight:600;">${fmt(d.c)}</span></div>`).join('');
+  const filas = items.map(d => `<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;"><span style="color:var(--text2);">${_escH(d.n)}</span><span style="font-weight:600;">${fmt(d.c)}</span></div>`).join('');
   const filaPend = pend.total > 0
     ? `<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;"><span style="color:var(--text2);">Compras pendientes de resumen (${pend.nPagos + pend.nCuotas})</span><span style="font-weight:600;">${fmt(pend.total)}</span></div>`
     : '';
@@ -4567,7 +4967,7 @@ function renderResumenes(){
     <td>${fD(r.cierre)}</td>
     <td>${fD(r.vencimiento)}</td>
     <td style="font-variant-numeric:tabular-nums;">${fmt(r.saldo)}</td>
-    <td style="text-align:center;"><input type="checkbox" ${r.pagado?'checked':''} onchange="toggleResumenPagadoUI('${id}', this.checked)" title="Marcar como pagado"></td>
+    <td style="text-align:center;">${_pagoCeldaHTML(id, r)}</td>
     <td>${i===0?'<span style="font-size:10px;font-weight:700;color:var(--blue);">ÚLTIMO</span> ':''}<button style="border:none;background:none;cursor:pointer;font-size:13px;${r.pdfInfo?'':'color:var(--amber);'}" onclick="rereadResumenPdfUI(\'${id}\')" title="${r.pdfInfo?'Datos del banco cargados. Re-leer el PDF de este resumen (no borra nada)':'Faltan los datos del banco (pago mínimo, tasas, cuotas a vencer): elegí el PDF de este resumen para completarlos (no borra nada)'}">🔄</button><button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px;" onclick="deleteResumenUI(\'${id}\')" title="Eliminar">✕</button></td>
   </tr>`).join('');
 }
@@ -4822,7 +5222,7 @@ function parsearDatosPdfVisa(textoCompleto){
   if (m){ put('percepcionBase', fnum(m[1])); put('percepcion', fnum(m[2])); }
   m = t.match(/Total\s*Consumos[^\d-]*([\d.]+,\d{2})\s+([\d.]+,\d{2})/i);
   if (m){ put('totalConsumosPesos', fnum(m[1])); put('totalConsumosUsd', fnum(m[2])); }
-  out.leidoEl = new Date().toISOString().slice(0, 10);
+  out.leidoEl = _hoyISO();
   return { info: out, faltan };
 }
 // Veredicto de saldo del resumen (14/09/2026, pedido de Pedro): feedback inmediato al leer el PDF
@@ -4883,7 +5283,7 @@ async function onResumenPdfSeleccionado(ev){
     const faltantes = [];
     if (r.cierre) $('rs-cierre').value = r.cierre; else faltantes.push('cierre');
     if (r.vencimiento) $('rs-vencimiento').value = r.vencimiento; else faltantes.push('vencimiento');
-    if (r.saldo != null && !isNaN(r.saldo)) $('rs-saldo').value = r.saldo; else faltantes.push('saldo');
+    if (r.saldo != null && !isNaN(r.saldo)) $('rs-saldo').value = String(r.saldo).replace('.', ','); else faltantes.push('saldo');
     let txMsg = '', pdfDescuadre = false;
     try {
       const textoCompleto = await extraerTextoPdfTodasPaginas(file);
@@ -4935,8 +5335,8 @@ function renderRevisionTransacciones(){
   const filas = _pdfTxPendientes.map((t,i) => `
       <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;">
         <span style="color:var(--text3);width:52px;flex-shrink:0;">${t.fecha}</span>
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${t.detalle}">${t.detalle}</span>
-        <span style="width:80px;text-align:right;flex-shrink:0;">${t.pesos>0?'$'+fmt(t.pesos):(t.dolar>0?'US$'+t.dolar.toFixed(2):'$0')}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${_escH(t.detalle)}">${_escH(t.detalle)}</span>
+        <span style="width:80px;text-align:right;flex-shrink:0;">${t.pesos>0?fmt(t.pesos):(t.dolar>0?'US$'+t.dolar.toFixed(2):'$0')}</span>
         <select style="font-size:11px;padding:2px 4px;border-radius:5px;border:1px solid var(--border);" onchange="_pdfTxPendientes[${i}].categoria=this.value">${optsFor(t.categoria)}</select>
       </div>`).join('');
   el.innerHTML = `
@@ -4945,8 +5345,9 @@ function renderRevisionTransacciones(){
     ${conciliacionHTML()}`;
 }
 async function addResumenUI(){
-  const cierre = $('rs-cierre').value, vencimiento = $('rs-vencimiento').value, saldo = parseFloat($('rs-saldo').value);
+  const cierre = $('rs-cierre').value, vencimiento = $('rs-vencimiento').value, saldo = numEl('rs-saldo');
   if (!cierre || !vencimiento || isNaN(saldo)){ alert('Completá cierre, vencimiento y saldo'); return; }
+  const planVPdf = (typeof _pdfPlanV !== 'undefined' && _pdfPlanV) ? _pdfPlanV.slice() : [];
   const anterior = getUltimoResumen(); // capturado ANTES de agregar -- si no, "último" pasaría a ser el que recién se carga
   // Leer los tildes de la conciliación ANTES de que el re-render de abajo borre el panel del DOM.
   const concAplicar = (_pdfTxPendientes && _pdfTxPendientes.length)
@@ -4993,14 +5394,78 @@ async function addResumenUI(){
     const el = $('rs-veredicto');
     if (el){
       const v = generarVeredictoSaldo(saldo, anterior ? anterior.saldo : null);
-      el.innerHTML = v ? `<span style="color:${v.col};font-weight:500;">${v.html}</span>` : '';
+      el.innerHTML = (v ? `<span style="color:${v.col};font-weight:500;">${v.html}</span>` : '') + sugerenciaDeudasHTML(saldo, planVPdf);
     }
   }catch(err){ alert('Error al guardar el resumen: '+err.message); }
+}
+// BG-50 (13/11/2026): al cargar un resumen, propone (sin guardar solo) las cuotas Plan V y el saldo de «Otros consumos».
+// Regla del 14/09: Otros = saldo del resumen − cuotas Plan V que todavía no se facturaron. Convención de la app: las cuotas
+// «pagadas» son las que el PDF ya facturó menos la del propio resumen mientras no esté pago (como simvAvisoPlanV).
+let _SUG_DEUDAS = null;
+function sugerenciaDeudasHTML(saldo, planV){
+  _SUG_DEUDAS = null;
+  const def = DEUDAS_DEF.find(d => d.id === 'planv73'), fij = deudasFijasNormalized().find(d => d._id === 'planv73');
+  const otrosAct = (DEUDAS_FIJAS_LIVE.otros && DEUDAS_FIJAS_LIVE.otros.saldoActual != null) ? +DEUDAS_FIJAS_LIVE.otros.saldoActual : ((DEUDAS_ESTADO_SEED.otros || {}).saldoActual || 0);
+  if (!def || !fij || !(saldo >= 0)) return '';
+  let n = null;
+  (planV || []).forEach(l => { const m = String(l.detalle || '').match(/(\d+)\s*-\s*(\d+)\s*\(\s*TNA\s*([\d.,]+)/i); if (m && +m[2] === def.cuotaTotal && Math.abs(numAR(m[3], true) - 73) < 0.01) n = +m[1]; });
+  let pagadas;
+  if (n != null){ pagadas = Math.max(0, n - 1); }
+  else if (fij._pagadas >= def.cuotaTotal){ pagadas = def.cuotaTotal; }
+  else return '<div style="margin-top:6px;font-size:11px;color:var(--amber);">No encontré líneas del Plan V 73 % en este PDF: revisá a mano «Deudas activas».</div>';
+  // Invariante de la regla del 14/09: cuotas Plan V restantes × cuota + Otros = saldo del resumen (así no se cuenta dos veces la cuota ya facturada y sin pagar).
+  const otros = Math.max(0, Math.round((saldo - (def.cuotaTotal - pagadas) * def.c) * 100) / 100);
+  _SUG_DEUDAS = { pagadas, pagadasAntes: fij._pagadas, otros };
+  return '<div id="rs-sugerencia" style="margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--blue-l);border-left:3px solid var(--blue);font-size:11px;line-height:1.5;color:var(--text2);">💡 <strong>Sugerencia para «Deudas activas»</strong> (no se guarda sola): Plan V ' + fij._pagadas + '/' + def.cuotaTotal + ' → ' + pagadas + '/' + def.cuotaTotal + ' cuotas pagadas · Otros consumos ' + fmt(otrosAct) + ' → ' + fmt(otros) + '. <button class="hdr-btn" style="width:auto;margin:0 0 0 6px;padding:3px 8px;font-size:11px;" onclick="aplicarSugerenciaDeudas()">Aplicar</button></div>';
+}
+async function aplicarSugerenciaDeudas(){
+  const s = _SUG_DEUDAS, box = $('rs-sugerencia'); if (!s) return;
+  try{
+    if (s.pagadas !== s.pagadasAntes) await window._marcarCuotaPagada('planv73', s.pagadas - s.pagadasAntes);
+    await window._setSaldoRevolving('otros', s.otros);
+    _SUG_DEUDAS = null;
+    if (box) box.innerHTML = '✅ Aplicado: Plan V ' + s.pagadas + ' cuotas pagadas y Otros consumos ' + fmt(s.otros) + '.';
+  }catch(err){ alert('No se pudo aplicar: ' + err.message); }
 }
 async function deleteResumenUI(id){
   if (!confirm('¿Eliminar este resumen del historial?')) return;
   try{ await window._deleteResumen(id); }
   catch(err){ alert('Error: '+err.message); }
+}
+function _pagoCeldaHTML(id, r){
+  const pg = _pagoDe(r), tipo = pg ? pg.tipo : '';
+  const opt = (v, t) => '<option value="' + v + '"' + (tipo === v ? ' selected' : '') + '>' + t + '</option>';
+  let info = '';
+  if (pg){
+    const mo = moraEstimada(r);
+    const partes = [];
+    if (pg.legado) partes.push('pagado (sin detalle)');
+    if (pg.fecha) partes.push(fD(pg.fecha));
+    if (pg.monto != null) partes.push(fmt(pg.monto));
+    if (mo && mo.dias > 0) partes.push(mo.dias + ' d tarde, mora ≈ ' + fmt(mo.monto) + ' (est.)');
+    info = '<div style="font-size:10px;color:var(--text3);line-height:1.3;">' + partes.join(' · ') + '</div>';
+  }
+  return '<select style="font-size:11px;padding:2px 4px;border-radius:5px;border:1px solid var(--border);" onchange="setPagoResumenUI(\'' + id + '\', this.value)" title="Estado de pago de este resumen">'
+    + opt('', 'Sin pagar') + opt('minimo', 'Mínimo') + opt('total', 'Total') + opt('otro', 'Otro monto') + '</select>' + info;
+}
+// BG-42/47 (13/11/2026): el pago del resumen lleva tipo, monto y fecha. No toca «Deudas activas» (eso lo propone el próximo resumen).
+async function setPagoResumenUI(id, tipo){
+  const r = RESUMENES_LIVE[id]; if (!r) return;
+  try{
+    if (!tipo){ await window._setPagoResumen(id, null); return; }
+    const min = r.pdfInfo && r.pdfInfo.pagoMinimo != null ? +r.pdfInfo.pagoMinimo : null;
+    let monto = null;
+    if (tipo === 'minimo'){
+      monto = min;
+      if (monto == null){ monto = numAR(prompt('El PDF no trae el pago mínimo. ¿Monto pagado (ARS)?') || ''); }
+    } else if (tipo === 'total'){ monto = +r.saldo || 0; }
+    else { monto = numAR(prompt('¿Monto pagado (ARS)? Ej: 1.262.970') || ''); }
+    if (!(monto > 0)){ renderResumenes(); return; }
+    const f = prompt('Fecha del pago (AAAA-MM-DD):', _hoyISO());
+    if (f === null){ renderResumenes(); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(f.trim())){ alert('Fecha inválida: usá AAAA-MM-DD.'); renderResumenes(); return; }
+    await window._setPagoResumen(id, { tipo, monto, fecha: f.trim() });
+  }catch(err){ alert('No se pudo actualizar: ' + err.message + ' (si dice PERMISSION_DENIED, falta permitir pagoTipo/pagoMonto/pagoFecha en tarjeta/…/resumenes/…)'); renderResumenes(); }
 }
 async function toggleResumenPagadoUI(id, pagado){
   try{ await window._marcarResumenPagado(id, pagado); }
@@ -5011,7 +5476,7 @@ async function marcarCuotaPagadaUI(id, delta){
   catch(err){ alert('No se pudo actualizar la cuota: '+err.message); }
 }
 async function actualizarSaldoRevolvingUI(id, valor){
-  const monto = parseFloat(valor);
+  const monto = numAR(valor);
   if (isNaN(monto) || monto < 0){ alert('Monto inválido.'); renderDebtTable(); return; }
   try{ await window._setSaldoRevolving(id, monto); }
   catch(err){ alert('No se pudo actualizar el saldo: '+err.message); }
@@ -5028,36 +5493,34 @@ function togglePagoTarjetaForm(){
   const show = el.style.display === 'none';
   el.style.display = show ? 'block' : 'none';
   const fechaEl = $('pt-fecha');
-  if (show && fechaEl && !fechaEl.value) fechaEl.value = new Date().toISOString().split('T')[0];
+  if (show && fechaEl && !fechaEl.value) fechaEl.value = _hoyISO();
 }
 async function registrarPagoTarjetaUI(){
+  // BG-51 (13/11/2026): el pago se registra sobre el ÚLTIMO resumen (acumula si ya había uno) y baja «Otros consumos».
+  // Las cuotas Plan V NO se tocan: ya vienen dentro del saldo del resumen y avanzan con la sugerencia del próximo PDF.
   const montoEl = $('pt-monto'), fechaEl = $('pt-fecha'), st = $('pago-tarjeta-status');
-  const monto = parseFloat(montoEl?.value);
-  const fecha = fechaEl?.value || new Date().toISOString().split('T')[0];
-  if (!monto || monto <= 0){ if (st) st.textContent = '⚠️ Ingresá un monto válido.'; return; }
-  const def = DEUDAS_DEF.find(d => d.id === 'planv73');
-  const estPlanV = DEUDAS_FIJAS_LIVE.planv73 || {};
-  const cuotasAntes = estPlanV.cuotasPagadas != null ? estPlanV.cuotasPagadas : (DEUDAS_ESTADO_SEED.planv73?.cuotasPagadas || 0);
+  const monto = numEl(montoEl);
+  const fecha = (fechaEl && fechaEl.value) || _hoyISO();
+  if (!(monto > 0)){ if (st) st.textContent = '⚠️ Ingresá un monto válido (ej: 1.262.970).'; return; }
+  const b = simvBase();
+  if (!b){ if (st) st.textContent = '⚠️ Cargá primero un resumen VISA.'; return; }
+  const r = b.r, pg = _pagoDe(r), previo = pg && pg.monto != null ? pg.monto : 0, total = previo + monto;
+  const min = b.info && b.info.pagoMinimo != null ? +b.info.pagoMinimo : null, saldo = +r.saldo || 0;
+  const tipo = total >= saldo - 1 ? 'total' : (min != null && Math.abs(total - min) <= 1 ? 'minimo' : 'otro');
+  const fechaPago = previo > 0 && pg && pg.fecha ? pg.fecha : fecha;
   const estOtros = DEUDAS_FIJAS_LIVE.otros || {};
   const otrosAntes = estOtros.saldoActual != null ? estOtros.saldoActual : (DEUDAS_ESTADO_SEED.otros?.saldoActual || 0);
-  const cuotasFaltantes = Math.max(0, def.cuotaTotal - cuotasAntes);
-  const cuotasAPagar = Math.min(cuotasFaltantes, Math.floor(monto / def.c));
-  const aPlanV = cuotasAPagar * def.c;
-  const restanteTrasPlanV = monto - aPlanV;
-  const aOtros = Math.min(otrosAntes, restanteTrasPlanV);
-  const sobrante = Math.max(0, restanteTrasPlanV - aOtros);
-  const otrosDespues = Math.max(0, otrosAntes - restanteTrasPlanV);
-  const cuotasDespues = cuotasAntes + cuotasAPagar;
+  const aOtros = Math.min(otrosAntes, monto), otrosDespues = otrosAntes - aOtros;
+  const cuotasPl = (deudasFijasNormalized().find(d => d._id === 'planv73') || {})._pagadas || 0;
   if (st) st.textContent = 'Aplicando…';
   try{
-    if (cuotasAPagar > 0) await window._marcarCuotaPagada('planv73', cuotasAPagar);
-    if (otrosDespues !== otrosAntes) await window._setSaldoRevolving('otros', otrosDespues);
-    await window._logPagoTarjeta({ fecha, monto, aPlanV, cuotasAPagar, aOtros, sobrante, cuotasAntes, cuotasDespues, otrosAntes, otrosDespues });
-    const partes = [];
-    if (cuotasAPagar > 0) partes.push(`${cuotasAPagar} cuota${cuotasAPagar===1?'':'s'} Plan V (${fmt(aPlanV)})`);
-    if (aOtros > 0) partes.push(`${fmt(aOtros)} a Otros consumos`);
-    let msg = '✅ Aplicado: ' + (partes.length ? partes.join(' + ') : 'nada (la deuda ya estaba en $0)');
-    if (sobrante > 0) msg += ` — sobraron ${fmt(sobrante)} sin aplicar (deuda ya saldada)`;
+    await window._setPagoResumen(b.id, { tipo, monto: total, fecha: fechaPago });
+    if (aOtros > 0) await window._setSaldoRevolving('otros', otrosDespues);
+    await window._logPagoTarjeta({ fecha, monto, aPlanV: 0, cuotasAPagar: 0, aOtros, sobrante: Math.max(0, monto - aOtros), cuotasAntes: cuotasPl, cuotasDespues: cuotasPl, otrosAntes, otrosDespues });
+    const mo = moraEstimada({ ...r, pagado: true, pagoTipo: tipo, pagoMonto: total, pagoFecha: fechaPago });
+    let msg = '✅ ' + fmt(monto) + ' registrados sobre el resumen del ' + fD(r.cierre) + ' (' + (_PAGO_LBL[tipo] || tipo) + ', acumulado ' + fmt(total) + ').';
+    if (aOtros > 0) msg += ' Otros consumos: ' + fmt(otrosAntes) + ' → ' + fmt(otrosDespues) + '.';
+    if (mo && mo.dias > 0) msg += ' Pago ' + mo.dias + ' día(s) tarde: mora ≈ ' + fmt(mo.monto) + ' (estimación).';
     if (st) st.textContent = msg;
     if (montoEl) montoEl.value = '';
   } catch(err){
@@ -5093,13 +5556,13 @@ function toggleDestinoIngresoForm(){
   const show = el.style.display === 'none';
   el.style.display = show ? 'block' : 'none';
   const fechaEl = $('di-fecha');
-  if (show && fechaEl && !fechaEl.value) fechaEl.value = new Date().toISOString().split('T')[0];
+  if (show && fechaEl && !fechaEl.value) fechaEl.value = _hoyISO();
 }
 async function registrarDestinoIngresoUI(){
   const montoEl = $('di-monto'), destinoEl = $('di-destino'), fechaEl = $('di-fecha'), notaEl = $('di-nota'), st = $('destino-ingreso-status');
-  const monto = parseFloat(montoEl?.value);
+  const monto = numEl(montoEl);
   const destino = destinoEl?.value || 'otro';
-  const fecha = fechaEl?.value || new Date().toISOString().split('T')[0];
+  const fecha = fechaEl?.value || _hoyISO();
   const nota = (notaEl?.value || '').trim();
   if (!monto || monto <= 0){ if (st) st.textContent = '⚠️ Ingresá un monto válido.'; return; }
   if (st) st.textContent = 'Guardando…';
@@ -5141,15 +5604,22 @@ async function eliminarDestinoIngresoUI(id){
 // ── Nota mensual de ingresos (16/09/2026) ───────────────────────────────────
 // Pedro pidió un lugar para anotar, mes a mes, por qué no hizo un ingreso/aporte
 // extra (ej. "no me alcanzó") -- vive en Objetivos Financieros, una nota por mes.
+// Clave de nota: «AAAA-MM» (general, como siempre) o «AAAA-MM__<idObjetivo>» (13/11/2026: nota por objetivo).
+function notaKeyParse(k){
+  const m = /^(\d{4}-\d{2})(?:__([A-Za-z0-9_-]{1,40}))?$/.exec(String(k));
+  return m ? { mes: m[1], obj: m[2] || null } : null;
+}
 async function guardarNotaIngresoMensual(){
   const mesEl = $('ni-mes'), motivoEl = $('ni-motivo'), st = $('nota-ingreso-status');
   const mes = mesEl?.value;
+  const objId = ($('ni-obj')?.value || '') || null;
   const motivo = (motivoEl?.value || '').trim();
   if (!mes){ if (st) st.textContent = '⚠️ Elegí un mes.'; return; }
   if (!motivo){ if (st) st.textContent = '⚠️ Escribí algo antes de guardar.'; return; }
+  if (objId && !_OBJ_ID_RE.test(objId)){ if (st) st.textContent = '⚠️ Objetivo inválido.'; return; }
   if (st) st.textContent = 'Guardando…';
   try{
-    await window._setNotaIngresoMensual(mes, { motivo });
+    await window._setNotaIngresoMensual(objId ? `${mes}__${objId}` : mes, objId ? { motivo, obj: objId } : { motivo });
     if (st) st.textContent = `✅ Guardado para ${viviendaKeyToLabel(mes)}.`;
     motivoEl.value = '';
   } catch(err){
@@ -5160,12 +5630,18 @@ function renderNotasIngresoMensual(){
   const el = $('notas-ingreso-list'); if (!el) return;
   const mesEl = $('ni-mes');
   if (mesEl && !mesEl.value) mesEl.value = `${S.year}-${S.month}`;
+  const nombres = {};
+  objListar().forEach(o => { nombres[o.id] = o.nombre; });
   const entries = Object.entries(NOTAS_INGRESO_LIVE || {}).sort((a,b) => b[0].localeCompare(a[0]));
   if (!entries.length){ el.innerHTML = ''; return; }
-  el.innerHTML = '<div style="font-weight:600;color:var(--text2);margin-bottom:4px;">Notas guardadas</div>' + entries.map(([mes,n]) => {
+  el.innerHTML = '<div style="font-weight:600;color:var(--text2);margin-bottom:4px;">Notas guardadas</div>' + entries.map(([k,n]) => {
+    const p = notaKeyParse(k);
+    const objId = (n && n.obj) || (p && p.obj) || null;
+    const quien = objId ? (nombres[objId] ? _escH(nombres[objId]) : 'objetivo eliminado') : 'General';
+    const del = p ? `<button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px;flex-shrink:0;" onclick="eliminarNotaIngresoUI('${k}')" title="Eliminar nota">✕</button>` : '';
     return `<div style="padding:4px 0;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;gap:8px;">
-      <span><strong>${viviendaKeyToLabel(mes)}:</strong> ${n.motivo||''}</span>
-      <button style="border:none;background:none;color:var(--red);cursor:pointer;font-size:13px;flex-shrink:0;" onclick="eliminarNotaIngresoUI('${mes}')" title="Eliminar nota">✕</button>
+      <span><strong>${p ? viviendaKeyToLabel(p.mes) : _escH(k)} · ${quien}:</strong> ${_escH(n && n.motivo || '')}</span>
+      ${del}
     </div>`;
   }).join('');
 }
@@ -5399,7 +5875,7 @@ let _pdfTxPendientes = null;
 let _pdfInfo = null; // datos del banco (pdfInfo) del PDF leído, se guardan junto al resumen al confirmar
 let _pdfPlanV = []; // líneas 'VISA PLAN V' del PDF leído (parsearTransaccionesVisa las excluye; el comparativo las necesita)
 let _verDetalleResumenTx = false;
-let objetivoChart = null;
+let objetivoCharts = {}; // un Chart por objetivo, clave = id (13/11/2026)
 function renderResumenBalance(){
   const wrap = $('resumen-balance-wrap'); if (!wrap) return;
   const idsDesc = Object.entries(RESUMENES_LIVE).sort((a,b)=> b[1].cierre.localeCompare(a[1].cierre));
@@ -5431,7 +5907,7 @@ function renderResumenBalance(){
       });
     }
     const ingFijo = ingresoFijoRef();
-    const dti = ingFijo > 0 ? (CUO_TOT/ingFijo*100) : 0;
+    const dti = ingFijo > 0 ? (cuoRealTotal()/ingFijo*100) : 0;
     const consejo = generarConsejoResumen(comp, dti);
     if (consejoEl && consejo){
       consejoEl.innerHTML = `<div style="margin-top:8px;padding:9px 11px;border-radius:8px;background:${consejo.bg};border-left:3px solid ${consejo.col};font-size:11px;line-height:1.5;color:var(--text2);">${consejo.html}</div>`;
@@ -5451,8 +5927,8 @@ function renderResumenBalance(){
           detListEl.innerHTML = comp.entries.slice().sort((a,b)=>(b.pesos||0)-(a.pesos||0)).map(e => `
             <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;">
               <span style="color:var(--text3);width:52px;flex-shrink:0;">${e.fecha||''}</span>
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.detalle||''}">${e.detalle||''}</span>
-              <span style="width:80px;text-align:right;flex-shrink:0;">${e.pesos>0?'$'+fmt(e.pesos):(e.dolar>0?'US$'+e.dolar.toFixed(2):'$0')}</span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${_escH(e.detalle||'')}">${_escH(e.detalle||'')}</span>
+              <span style="width:80px;text-align:right;flex-shrink:0;">${e.pesos>0?fmt(e.pesos):(e.dolar>0?'US$'+e.dolar.toFixed(2):'$0')}</span>
               <select style="font-size:11px;padding:2px 4px;border-radius:5px;border:1px solid var(--border);" onchange="cambiarCategoriaTxUI('${ultimoId}','${e.txId}',this.value)">${optsFor(e.categoria)}</select>
             </div>`).join('');
         } else {
@@ -5855,12 +6331,12 @@ function conciliacionHTML(){
     const dif = m.difMonto > 0.005 ? ` <span style="color:var(--amber);">(difiere ${fmt(m.difMonto)})</span>` : '';
     return `<label style="display:flex;gap:6px;align-items:flex-start;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;cursor:pointer;">
       <input type="checkbox" id="conc-chk-${m.pendId}" checked style="margin-top:2px;">
-      <span><strong>${p.nombre}</strong> (${pendienteMontoLabel(p)} · compra ${fD(p.fechaCompra)}) ↔ <span style="color:var(--text2);">${t.detalle} · ${t.fecha} · ${fmt(t.pesos)}</span>${dif}</span>
+      <span><strong>${_escH(p.nombre)}</strong> (${pendienteMontoLabel(p)} · compra ${fD(p.fechaCompra)}) ↔ <span style="color:var(--text2);">${_escH(t.detalle)} · ${t.fecha} · ${fmt(t.pesos)}</span>${dif}</span>
     </label>`;
   }).join('');
   const filasSin = c.sinMatch.map(pid => {
     const p = PENDIENTES_LIVE[pid]; if (!p) return '';
-    return `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--amber);">⚠️ <strong>${p.nombre}</strong> — ${pendienteMontoLabel(p)} (compra ${fD(p.fechaCompra)}): no aparece en el PDF con ese monto. ¿Monto mal tipeado? Corregilo con ✏️ en Pendientes; sigue pendiente.</div>`;
+    return `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;color:var(--amber);">⚠️ <strong>${_escH(p.nombre)}</strong> — ${pendienteMontoLabel(p)} (compra ${fD(p.fechaCompra)}): no aparece en el PDF con ese monto. ¿Monto mal tipeado? Corregilo con ✏️ en Pendientes; sigue pendiente.</div>`;
   }).join('');
   return `<div style="font-size:11px;font-weight:700;margin:10px 0 6px;">🔗 Conciliación con tus pendientes</div>
     ${c.matches.length ? `<div style="font-size:10px;color:var(--text3);margin-bottom:4px;">Estos pendientes ya figuran en el PDF. Al confirmar "+ Agregar resumen", los tildados se sacan de Pendientes SIN cargar el gasto de nuevo (ya cuenta por el PDF; las compras en cuotas igual crean su deuda). La categoría que elegiste en el pendiente pasa a la compra del PDF.</div>
@@ -5979,7 +6455,7 @@ function calcularComparativo(o){
     if (iTx >= 0 && txs[iTx].pesos > 0){ usadosTx.add(iTx); e.real = txs[iTx].pesos; }
   });
   proximoResumenEstimado().items.forEach(d => {
-    if (d.c > 0) esperados.push({ tipo: 'cuota', nombre: d.n, monto: d.c, categoria: 'cuotas', real: null });
+    if (d.c > 0) esperados.push({ tipo: d._banco ? 'cuota-banco' : 'cuota', nombre: d.n, monto: d.c, categoria: 'cuotas', real: null });
   });
   esperados.filter(e => e.tipo === 'cuota').sort((a,b) => b.monto - a.monto).forEach(e => {
     const tol = Math.max(1, e.monto * 0.01);
@@ -5988,6 +6464,11 @@ function calcularComparativo(o){
     const prefierePV = /plan\s*v/i.test(e.nombre);
     if (iPV >= 0 && (prefierePV || iTx < 0)){ usadosPV.add(iPV); e.real = planV[iPV].pesos; }
     else if (iTx >= 0){ usadosTx.add(iTx); e.real = txs[iTx].pesos; }
+  });
+  // BG-60: lo esperado «del banco no cargado» se da por llegado con las líneas de cuotas (C.nn/mm) que no emparejaron con ningún ítem cargado.
+  esperados.filter(e => e.tipo === 'cuota-banco').forEach(e => {
+    let acum = 0; txs.forEach((t, i) => { if (!usadosTx.has(i) && t.pesos > 0 && _esLineaCuota(t.detalle)){ usadosTx.add(i); acum += t.pesos; } });
+    if (acum > 0) e.real = acum;
   });
   const sum = (arr, f) => arr.reduce((s,x) => s + f(x), 0);
   const txPos = txs.map((t,i) => ({ t, i })).filter(x => x.t.pesos > 0);
@@ -6011,7 +6492,7 @@ function calcularComparativo(o){
     version: 1, cierre: o.cierre, vencimiento: o.vencimiento, creado: new Date().toISOString(),
     esperado: {
       total: _r2(eTot),
-      cuotas: _r2(sum(esperados.filter(e => e.tipo === 'cuota'), e => e.monto)),
+      cuotas: _r2(sum(esperados.filter(e => e.tipo === 'cuota' || e.tipo === 'cuota-banco'), e => e.monto)),
       pendientes: _r2(sum(esperados.filter(e => e.tipo === 'pendiente'), e => e.monto)),
       usdPendiente: _r2(sum(esperados.filter(e => e.tipo === 'usd-pendiente'), e => e.monto)),
       faltante: _r2(eTot - matchedExp),
@@ -6178,7 +6659,7 @@ function renderPendientes(){
     if (id === PEND_EDIT_ID) return pendienteEditFormHTML(id, p, esGasto);
     return `<div style="border:1px solid var(--border2);border-radius:8px;padding:8px 10px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
-        <div><strong>${p.nombre}</strong> — ${montoTxt}${esGasto ? (esUsd ? ' · <span style="color:var(--text3);">gasto en USD, pago único</span>' : ' · <span style="color:var(--text3);">pago único, sin cuotas</span>') : ` · TNA ${p.tna}% · ${p.plazoMeses}c`} · compra ${fD(p.fechaCompra)}</div>
+        <div><strong>${_escH(p.nombre)}</strong> — ${montoTxt}${esGasto ? (esUsd ? ' · <span style="color:var(--text3);">gasto en USD, pago único</span>' : ' · <span style="color:var(--text3);">pago único, sin cuotas</span>') : ` · TNA ${p.tna}% · ${p.plazoMeses}c`} · compra ${fD(p.fechaCompra)}</div>
         <div style="display:flex;gap:2px;flex-shrink:0;">
           <button style="border:none;background:none;cursor:pointer;font-size:13px;padding:0 4px;" onclick="editarPendienteUI('${id}')" title="Editar">✏️</button>
           <button style="border:none;background:none;cursor:pointer;font-size:13px;padding:0 4px;" onclick="eliminarPendienteUI('${id}')" title="Eliminar">🗑</button>
@@ -6445,7 +6926,7 @@ function gpMonedaCambio(){
 async function registrarGastoTarjeta(){
   const nombre = $('gp-nombre').value.trim(), cat = $('gp-cat').value;
   const moneda = ($('gp-moneda') && $('gp-moneda').value) || 'ARS';
-  const monto = parseFloat($('gp-monto').value), fecha = $('gp-fecha').value;
+  const monto = numEl('gp-monto'), fecha = $('gp-fecha').value;
   const res = $('gp-result');
   if (!nombre || isNaN(monto) || !fecha){ alert('Completá descripción, monto y fecha'); return; }
   const ultimo = getUltimoResumen();
@@ -6472,7 +6953,7 @@ async function registrarGastoTarjeta(){
 }
 async function registrarCompraCuotas(){
   const nombre = $('cc-nombre').value.trim(), cat = $('cc-cat').value;
-  const precio = parseFloat($('cc-precio').value), tna = parseFloat($('cc-tna').value);
+  const precio = numEl('cc-precio'), tna = numEl('cc-tna', true);
   const plazo = parseInt($('cc-plazo').value), fecha = $('cc-fecha').value;
   const res = $('cc-result');
   if (!nombre || isNaN(precio) || isNaN(tna) || !plazo || !fecha){
@@ -6509,7 +6990,8 @@ function renderDTIProj(){
   const live = liveDeudasNormalized();
   const items = [...deudasFijasNormalized(), ...live].filter(d => d.c != null && d.r != null && d.r > 0);
 
-  const curY = +S.year, curM = +S.month;
+  // BG-49 (13/11/2026): las cuotas restantes son de HOY, así que la proyección parte del mes actual y no del período elegido en el selector.
+  const _hy = _hoyISO(), curY = +_hy.slice(0, 4), curM = +_hy.slice(5, 7);
   const addMonths = (y, m, n) => { const d = new Date(y, (m - 1) + n, 1); return { y: d.getFullYear(), m: d.getMonth() + 1 }; };
   const key = (y, m) => `${y}-${String(m).padStart(2,'0')}`;
   const cmp = (a, b) => key(a.y,a.m).localeCompare(key(b.y,b.m));
@@ -6784,7 +7266,7 @@ function simRow(l,v,col){return`<div class="sim-row"><span class="lbl">${l}</spa
 
 // 19/10/2026: antes `+valor||default` trataba un 0 como "vacío" y lo reemplazaba por el default (IPC 0% -> 35%,
 // TNA 0% -> 60%/85%, capital 0 -> $500.000). Ahora solo se usa el default si el campo está vacío o no es número.
-function numIn(id,def){ const v=parseFloat($(id)?.value); return Number.isFinite(v)?v:def; }
+function numIn(id,def){ const v=numEl(id, /tna|ipc|tasa|pct/i.test(id)); return Number.isFinite(v)?v:def; }
 // Cuota francesa; con tasa 0 la fórmula da 0/0, así que es capital/plazo.
 function cuotaFrancesa(cap,tm,pzo){ return tm===0 ? cap/pzo : cap*(tm*(1+tm)**pzo)/((1+tm)**pzo-1); }
 const SIM_NOTA_IVA='<div style="font-size:10px;color:var(--text3);margin-top:6px;">Cálculo teórico: no incluye el IVA del 21% sobre intereses ni gastos/seguros del banco, así que el costo real es mayor.</div>';
@@ -6812,14 +7294,14 @@ function calcSC(){
   const cap=numIn('sc-cap',5e5),tna=numIn('sc-tna',85)/100,pzo=Math.max(1,Math.round(numIn('sc-pzo',12)));
   const tm=tna/12,cu=cuotaFrancesa(cap,tm,pzo),tot=cu*pzo;
   const r=$('sc-res');if(!r)return;
-  r.innerHTML=simRow('Cuota mensual',fmt(cu),'var(--red)')+simRow('Total pagado',fmt(tot))+simRow('Intereses',fmt(tot-cap))+simRow('Nuevo DTI estimado',ingresoFijoRef()>0?((CUO_TOT+cu)/ingresoFijoRef()*100).toFixed(1)+'%':'— (esperando ingresos)','var(--red)')+SIM_NOTA_IVA;
+  r.innerHTML=simRow('Cuota mensual',fmt(cu),'var(--red)')+simRow('Total pagado',fmt(tot))+simRow('Intereses',fmt(tot-cap))+simRow('Nuevo DTI estimado',ingresoFijoRef()>0?((cuoRealTotal()+cu)/ingresoFijoRef()*100).toFixed(1)+'%':'— (esperando ingresos)','var(--red)')+SIM_NOTA_IVA;
 }
 function calcRecargo(){
   // FEATURE 06/09/2026: card "Calculadora rápida de recargo" -- chequeo suelto de
   // cuánto de más cobra una compra financiada vs. el valor de contado. Diferencia
   // en $ es la resta directa; el % es esa diferencia dividida por el valor real
   // (no la resta sola, error común) -- ver nota fija abajo de la card en el HTML.
-  const real=+$('rec-real')?.value||0, cobro=+$('rec-cobro')?.value||0;
+  const real=numEl('rec-real')||0, cobro=numEl('rec-cobro')||0;
   const r=$('rec-res'); if(!r) return;
   if(!real||!cobro){ r.innerHTML=''; return; }
   const diff=cobro-real, pct=diff/real*100, col=diff>0?'var(--red)':'var(--green)';
@@ -7164,7 +7646,7 @@ function hogarEspera(lista, n, tna, tope){
   const ingFijo = ingresoFijoRef();
   for (let k = 0; k <= 36; k++){
     const liquidadas = items.filter(d => d.r <= k).reduce((s, d) => s + d.c, 0);
-    const otras = Math.max(0, CUO_TOT - liquidadas);
+    const otras = Math.max(0, cuoRealTotal() - liquidadas);
     const precioK = lista * Math.pow(1 + pi, k);
     const cuotaK = hogarCuota(precioK, tna, n);
     const dti = ingFijo > 0 ? (otras + cuotaK) / ingFijo * 100 : 0;
@@ -7186,11 +7668,12 @@ function hogarSimCalc(inp){
   const teaRef = (Math.pow(1 + cfg.infMensual / 100, 12) - 1) * 100;
   const vpRef = hogarVP(cuota, n, d, cfg.infMensual / 100);
   const ingFijo = ingresoFijoRef(), ingTotal = ingresoTotalRef();
-  const dtiAntes = ingFijo > 0 ? CUO_TOT / ingFijo * 100 : 0;
-  const dtiDespues = ingFijo > 0 ? (CUO_TOT + cuota) / ingFijo * 100 : 0;
+  const CR = cuoRealTotal();
+  const dtiAntes = ingFijo > 0 ? CR / ingFijo * 100 : 0;
+  const dtiDespues = ingFijo > 0 ? (CR + cuota) / ingFijo * 100 : 0;
   const prox = proximoResumenEstimado().total + pendientesResumen().total;
   const viv = cashflow90Vivienda() / 3;
-  const dispMes = ingTotal - CUO_TOT - viv;
+  const dispMes = ingTotal - CR - viv;
   const disp3 = ingTotal * 3 - cashflow90Deuda() - cashflow90Vivienda();
   return {
     inp, cfg, contado, lista, n, cuota, total, sobrecosto: total - contado, sobrecostoPct: contado > 0 ? (total - contado) / contado * 100 : 0,
@@ -7264,7 +7747,7 @@ function renderHogarEstado(){
   const el = $('hg-estado'); if (!el) return;
   const cfg = hogarCfg();
   const ingFijo = ingresoFijoRef(), ingTotal = ingresoTotalRef();
-  const dti = ingFijo > 0 ? CUO_TOT / ingFijo * 100 : 0;
+  const dti = ingFijo > 0 ? cuoRealTotal() / ingFijo * 100 : 0;
   const faltaFE = Math.max(FE_META - FE_ACTUAL, 0);
   const repuesto = (MADRE_REPO_HIST[MADRE_REPO_HIST.length - 1] || {}).repuesto || 0;
   const faltaMadre = Math.max(MADRE_REPO_OBJETIVO - repuesto, 0);
@@ -7294,7 +7777,7 @@ function renderHogarEstado(){
       ${kpi('DTI actual', dti.toFixed(1) + '%', `límite consumo ${cfg.dtiMax}% · alto 36%`, colDti)}
       ${kpi('Fondo de Emergencia', pctFE.toFixed(0) + '%', `${fmt(FE_ACTUAL)} de ${fmt(FE_META)}`, faltaFE > 0 ? 'var(--amber)' : 'var(--green)')}
       ${kpi('Reposición a tu madre', pctMadre.toFixed(0) + '%', `${fmt(repuesto)} de ${fmt(MADRE_REPO_OBJETIVO)}`, faltaMadre > 0 ? 'var(--amber)' : 'var(--green)')}
-      ${kpi('Margen mensual', fmt(ingTotal - CUO_TOT - cashflow90Vivienda() / 3), 'ingreso − cuotas − vivienda, antes del día a día')}
+      ${kpi('Margen mensual', fmt(ingTotal - cuoRealTotal() - cashflow90Vivienda() / 3), 'ingreso − carga real (cuotas+banco+MP) − vivienda, antes del día a día')}
     </div>${banner}${err}`;
 }
 
@@ -7822,7 +8305,7 @@ async function hogarArchivos(ev){
 }
 function hogarContextoFinanciero(){
   const cfg = hogarCfg();
-  const dti = ingresoFijoRef() > 0 ? CUO_TOT / ingresoFijoRef() * 100 : 0;
+  const dti = ingresoFijoRef() > 0 ? cuoRealTotal() / ingresoFijoRef() * 100 : 0;
   const pctFE = FE_META > 0 ? FE_ACTUAL / FE_META * 100 : 0;
   const repuesto = (MADRE_REPO_HIST[MADRE_REPO_HIST.length - 1] || {}).repuesto || 0;
   const pctM = MADRE_REPO_OBJETIVO > 0 ? repuesto / MADRE_REPO_OBJETIVO * 100 : 0;
@@ -7976,8 +8459,8 @@ function fxPctGuardado(){
 }
 function fxGuardarPct(){
   try {
-    const v = $('fx-pct').value;
-    if (v === '') localStorage.removeItem('zarfx_pct'); else localStorage.setItem('zarfx_pct', v);
+    const v = numEl('fx-pct', true);
+    if (!isFinite(v)) localStorage.removeItem('zarfx_pct'); else localStorage.setItem('zarfx_pct', String(v));
   } catch (e){}
   cfgPush();
   renderFxExtranjera();
@@ -8087,7 +8570,7 @@ function renderFxExtranjera(){
 function renderFxCalc(){
   const res = $('fx-calc-res'); if (!res) return;
   const moneda = $('fx-calc-moneda').value;
-  const monto = parseFloat($('fx-calc-monto').value);
+  const monto = numEl('fx-calc-monto');
   if (!(monto > 0)){ res.innerHTML = 'Cargá un monto para convertir.'; return; }
   const pct = fxPctGuardado();
   let base, sinImp, esFallback = false;
@@ -8166,11 +8649,13 @@ function simvPagosDe(esc, b, tc, usdEnUsd){
   const i = b.info, r = b.r, vto = r.vencimiento;
   const saldo = +r.saldo || 0, usd = +i.saldoUsd || 0, min = +i.pagoMinimo || 0, perc = simvPercepcion(r, i);
   const total = usdEnUsd ? Math.max(0, saldo - perc) : saldo + usd * tc;
-  if (esc === 'min') return [{ monto: min, fecha: vto }];
-  if (esc === 'total') return [{ monto: total, fecha: vto }];
+  // 13/11/2026 (pasada 3): si el resumen ya tiene un pago real de ese tipo, el escenario usa SU monto y fecha (un mínimo pagado tarde ya no se simula como pagado en el vencimiento).
+  const pgR = _pagoDe(r), real = pgR && pgR.monto != null && pgR.fecha ? pgR : null;
+  if (esc === 'min') return [real && real.tipo === 'minimo' ? { monto: real.monto, fecha: real.fecha } : { monto: min, fecha: vto }];
+  if (esc === 'total') return [real && real.tipo === 'total' ? { monto: real.monto, fecha: real.fecha } : { monto: total, fecha: vto }];
   if (esc === 'resto') return [{ monto: Math.max(0, total - min), fecha: vto }];
   if (esc === 'minresto') return [{ monto: min, fecha: vto }, { monto: Math.max(0, total - min), fecha: simvFechaBono(vto) }];
-  const m = parseFloat(SIMV.otroMonto);
+  const m = numAR(SIMV.otroMonto);
   return [{ monto: isFinite(m) && m > 0 ? m : 0, fecha: SIMV.otroFecha || vto }];
 }
 function simvParams(b){
@@ -8232,7 +8717,7 @@ function simvInput(campo, el){
   SIMV.tocado[campo] = true;
   if (campo === 'usdEnUsd') SIMV.usdEnUsd = !!el.checked;
   else if (campo === 'otroMonto' || campo === 'otroFecha') SIMV[campo] = el.value;
-  else SIMV[campo] = el.value === '' ? null : parseFloat(el.value);
+  else SIMV[campo] = el.value === '' ? null : numEl(el);
   renderSimVisa();
 }
 function simvEsc(k){ SIMV.esc = k; SIMV.escElegido = true; renderSimVisa(); }
@@ -8253,7 +8738,7 @@ function renderSimVisaCore(){
     cuerpo.style.display = '';
     const d = simvDefaults(b), P = simvParams(b), c = simvCalc(b, P);
     // inputs: sólo se pisan con el default si Pedro no los tocó y no están en foco
-    const setIn = (id, campo, val) => { const e = $(id); if (e && document.activeElement !== e && !SIMV.tocado[campo]) e.value = (val != null && isFinite(val)) ? val : ''; };
+    const setIn = (id, campo, val) => { const e = $(id); if (e && document.activeElement !== e && !SIMV.tocado[campo]) e.value = (val != null && isFinite(val)) ? String(Math.round(val * 100) / 100).replace('.', ',') : ''; };
     setIn('simv-consumo-pesos', 'consumoPesos', d.consumoPesos); setIn('simv-consumo-usd', 'consumoUsd', d.consumoUsd); setIn('simv-tc', 'tc', d.tc);
     const ck = $('simv-usd-en-usd'); if (ck) ck.checked = !!SIMV.usdEnUsd;
     const ov = $('simv-otro'); if (ov) ov.style.display = SIMV.esc === 'otro' ? 'flex' : 'none';
@@ -8261,7 +8746,7 @@ function renderSimVisaCore(){
     const dias = simvDias(simvHoyISO(), b.r.vencimiento);
     const chip = (a, v) => `<div style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;font-size:11px;"><span style="color:var(--text3);">${a}</span> <strong>${v}</strong></div>`;
     $('simv-chips').innerHTML = chip('Resumen', fD(b.r.cierre)) + chip('Saldo', fmt(c.saldo)) + chip('Saldo USD', 'US$ ' + c.usd.toFixed(2))
-      + chip('Pago mínimo', fmt(c.min)) + chip('Vence', fD(b.r.vencimiento) + (b.r.pagado ? ' ✅ pagado' : dias >= 0 ? ` (en ${dias} d)` : ` (venció hace ${-dias} d)`))
+      + chip('Pago mínimo', fmt(c.min)) + chip('Vence', fD(b.r.vencimiento) + (_pagoDe(b.r) ? ' ✅ ' + _pagoChipTxt(b.r) : dias >= 0 ? ` (en ${dias} d)` : ` (venció hace ${-dias} d)`))
       + chip('Próx. cierre / vto', fD(c.pCierre) + ' / ' + fD(c.pVto)) + chip('TNA', (info.tna != null ? info.tna : '—') + '%');
     $('simv-btns').innerHTML = SIMV_ESC.map(e => `<button class="hdr-btn" title="${e.t}" style="width:auto;margin:0;${SIMV.esc === e.k ? 'background:var(--blue);color:#fff;border-color:var(--blue);' : ''}" onclick="simvEsc('${e.k}')">${e.n}</button>`).join('');
     const esc = SIMV_ESC.find(e => e.k === SIMV.esc) || SIMV_ESC[0];
@@ -8336,9 +8821,14 @@ function renderIaBriefing(){
       : '⚠️ No se pudo leer el briefing: ' + hgEsc(IA_BRIEFING_ERR);
     return;
   }
+  const _ibDias = IA_BRIEFING.actualizado ? Math.floor((Date.now() - new Date(IA_BRIEFING.actualizado).getTime()) / 86400000) : null;
+  const _ibViejo = _ibDias != null && _ibDias >= 3;
+  const _ibCorta = IA_BRIEFING.texto.length > 6000;
   el.innerHTML = IA_BRIEFING.texto
-    ? `🧠 Briefing cargado${IA_BRIEFING.fuente ? ' (' + hgEsc(IA_BRIEFING.fuente) + ')' : ''} · ${String(IA_BRIEFING.actualizado || '').slice(0, 10)} · ${(IA_BRIEFING.texto.length / 1024).toFixed(1)} KB — la IA lo recibe como contexto. <a href="#" style="color:var(--blue);" onclick="iaBriefingQuitar();return false;">Quitar</a>`
-    : '🧠 Sin briefing cargado: la IA sólo ve lo que está en la app. Cargá el archivo <code>briefing_ia.md</code> que deja Claude al cierre de cada sesión.';
+    ? `🧠 Contexto del asesor cargado${IA_BRIEFING.fuente ? ' (' + hgEsc(IA_BRIEFING.fuente) + ')' : ''} · ${String(IA_BRIEFING.actualizado || '').slice(0, 10)}${_ibDias != null ? ' (hace ' + _ibDias + ' d)' : ''} · ${(IA_BRIEFING.texto.length / 1024).toFixed(1)} KB — la IA lo recibe como contexto. <a href="#" style="color:var(--blue);" onclick="iaBriefingQuitar();return false;">Quitar</a>`
+      + (_ibViejo ? '<br><span style="color:var(--amber);">⚠️ Tiene ' + _ibDias + ' días: cargá el <code>briefing_ia.md</code> más nuevo si Claude te avisó que lo actualizó.</span>' : '')
+      + (_ibCorta ? '<br><span style="color:var(--amber);">⚠️ La IA sólo lee los primeros 6 KB de este contexto; lo que esté más abajo no le llega.</span>' : '')
+    : '🧠 Sin contexto cargado: el asesor sólo ve lo que está en la app, no lo hablado con Claude. Cargá <code>briefing_ia.md</code> (carpeta «finanzas personales») cada vez que Claude te avise que lo actualizó.';
 }
 async function iaBriefingCargar(ev){
   const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
@@ -8349,7 +8839,7 @@ async function iaBriefingCargar(ev){
     let aviso = '';
     if (t.length > 12000){ t = t.slice(0, 12000); aviso = ' (se recortó a 12 KB)'; }
     await window._setIaBriefing(t, f.name);
-    if (el) el.innerHTML = '✅ Briefing guardado' + aviso + '.';
+    if (el) el.innerHTML = '✅ Contexto del asesor guardado' + aviso + '.';
   } catch (err){
     if (el) el.innerHTML = '❌ ' + (/permission/i.test(err.message) ? 'Firebase rechazó la escritura: falta publicar la regla de <code>iaBriefing</code> (ver CHANGELOG 05/10).' : hgEsc(err.message));
   }
@@ -8362,7 +8852,7 @@ function simvContextoIA(){
   const b = simvBase(); if (!b || !b.info || b.info.pagoMinimo == null) return '';
   const P = simvParams(b), c = simvCalc(b, P), i = b.info;
   const L = [`SIMULADOR DE PAGO VISA (estimaciones de la app; el interés da orden de magnitud, en septiembre la misma fórmula quedó ~14% por debajo del real):`,
-    `- Resumen con cierre ${fD(b.r.cierre)}, vencimiento ${fD(b.r.vencimiento)}${b.r.pagado ? ' (ya marcado como pagado)' : ''}. Saldo ${fmt(c.saldo)} + US$ ${c.usd.toFixed(2)}. Pago mínimo ${fmt(c.min)}. TNA ${i.tna}% (TEM ${i.tem}%), punitorio TNA ${i.punitorioTna}%. Próximo cierre ${fD(c.pCierre)}, próximo vencimiento ${fD(c.pVto)}.`,
+    `- Resumen con cierre ${fD(b.r.cierre)}, vencimiento ${fD(b.r.vencimiento)}${_pagoDe(b.r) ? ' (' + _pagoTxtIA(b.r) + ')' : ''}. Saldo ${fmt(c.saldo)} + US$ ${c.usd.toFixed(2)}. Pago mínimo ${fmt(c.min)}. TNA ${i.tna}% (TEM ${i.tem}%), punitorio TNA ${i.punitorioTna}%. Próximo cierre ${fD(c.pCierre)}, próximo vencimiento ${fD(c.pVto)}.`,
     `- Cuotas que el banco ya tiene comprometidas (todas las compras en cuotas + Plan V): ${Object.entries(i.cuotasAVencer || {}).sort((a, b2) => a[0].localeCompare(b2[0])).map(([k, v]) => simvMesLabel(k) + ' ' + fmt(v)).join(', ')}.`,
     `- Escenario ${SIMV.escElegido ? 'que Pedro seleccionó en el simulador' : 'que el simulador muestra POR DEFECTO (Pedro todavía no eligió ninguno: NO es una decisión tomada, no la elogies ni la critiques como si lo fuera; compará todos los escenarios)'}: "${(SIMV_ESC.find(e => e.k === SIMV.esc) || {}).n}" -> pagos ${simvPagosTxt(c.pagos)}${c.usdEnUsd ? '; paga los US$ en dólares (descuenta la percepción 30% de ' + fmt(c.perc) + ')' : '; el banco convierte los US$ (la percepción 30% de ' + fmt(c.perc) + ' no se devuelve)'}.`,
     `- Resultado estimado: salida de caja ${fmt(c.salidaCaja)}; queda financiado ${fmt(c.arrastrePesos + c.arrastreUsd)}; intereses ${fmt(c.interes)} + punitorio ${fmt(c.punit)} + IVA ${fmt(c.iva)} = costo financiero ${fmt(c.costo)}; próximo resumen estimado ${fmt(c.proximo)} (cuotas ${fmt(c.cuotas)}, consumo nuevo en pesos supuesto ${fmt(c.consumoPesos)}, US$ ${c.consumoUsd.toFixed(2)} nuevos).`,
@@ -8422,7 +8912,8 @@ if (window._fbOK) iaBriefingSuscribir();
 // Escenario oficial: mamá cubre las expensas hasta la fecha fija `mamaHasta` (AAAAMM; Pedro 11/11/2026: «hasta marzo–abril» 2027, se toma marzo); aguinaldo en el resumen de enero.
 // 15/10/2026: alquiler real $925.000 y expensa de setiembre $520.331. Mercado Pago es VARIABLE (cuotas sueltas): creditoMP = lo que vence ahora ($206.296 al 13/10),
 // creditoMPSig = estimación para los pagos siguientes (~$15.000 = lo que sigue vigente en las capturas, sin consumos nuevos). Ajustable en la card.
-const PP_DEF = { sueldo: 870000, bono: 1800000, alquiler: 925000, expensas: 520331, servicios: 97000, otrosFijos: 51000, creditoMP: 206296, creditoMPSig: 15000, abl: 0, usdMes: 130, pesosMes: 150000, aguinaldo: 1750000, mamaHasta: 202703, techo: 1000000 };
+// BG-57 (13/11/2026): sueldo 907.000 y expensas 523.319 = valores actuales de la planilla (antes 870.000 / 520.331). Lo guardado en el navegador/Firebase pisa estos defaults.
+const PP_DEF = { sueldo: 907000, bono: 1800000, alquiler: 925000, expensas: 523319, servicios: 97000, otrosFijos: 51000, creditoMP: 206296, creditoMPSig: 15000, abl: 0, usdMes: 130, pesosMes: 150000, aguinaldo: 1750000, mamaHasta: 202703, techo: 1000000 };
 const PP_CAMPOS = [
   ['sueldo', 'Sueldo neto por mes'], ['bono', 'Bono de desempeño por mes (conservador)'], ['alquiler', 'Alquiler'], ['expensas', 'Expensas'],
   ['servicios', 'Wifi + luz'], ['otrosFijos', 'Otros fijos (Silvina)'], ['creditoMP', 'Crédito Mercado Pago, este mes (cuota)'], ['creditoMPSig', 'Crédito Mercado Pago, desde el 2.º pago (cuota)'], ['abl', 'ABL (pendiente de cargar)'],
@@ -8436,11 +8927,14 @@ try {
 } catch (e){}
 function ppGuardar(){ try { localStorage.setItem('zar_plan_pagos', JSON.stringify(PP)); } catch (e){} cfgPush(); }
 function ppInput(k, el){
-  const v = parseFloat(el.value);
-  PP[k] = isFinite(v) && v >= 0 ? v : PP_DEF[k];
+  // BG-55: campo vacío o a medio escribir ("1.") no pisa el valor: se ignora hasta que haya un número válido.
+  if (String(el.value).trim() === '') return;
+  const v = numAR(el.value);
+  if (!isFinite(v) || v < 0) return;
+  PP[k] = v;
   ppGuardar(); renderPlanPagos();
 }
-function ppReset(){ PP = Object.assign({}, PP_DEF); ppGuardar(); PP_CAMPOS.forEach(([k]) => { const e = $('pp-' + k); if (e) e.value = PP[k]; }); renderPlanPagos(); }
+function ppReset(){ PP = Object.assign({}, PP_DEF); ppGuardar(); PP_CAMPOS.forEach(([k]) => { const e = $('pp-' + k); if (e) e.value = String(PP[k]).replace('.', ','); }); renderPlanPagos(); }
 function ppSumMes(iso, n){
   const p = String(iso).split('-').map(Number), y = p[0], m = p[1], d = p[2] || 1;
   const ult = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate();
@@ -8459,8 +8953,10 @@ function ppSimular(b, c, tc, mamaHasta){
   const mamaCubre = idx => +mamaHasta > 0 && ym(vtoDe(idx)) <= +mamaHasta; // la ayuda depende del mes del pago, no de cuántos PDF se cargaron
   const R = idx => PP.sueldo + PP.bono - fijosBase - (idx === 0 ? PP.creditoMP : PP.creditoMPSig) - (mamaCubre(idx) ? 0 : PP.expensas);
   const filas = []; let U = saldo0, interesTot = 0, pagoTot = 0, cero = null;
-  const pago0 = Math.max(0, Math.min(R(0), U)); U -= pago0; pagoTot += pago0;
-  filas.push({ cierre: b.r.cierre, vto: b.r.vencimiento, stmt: saldo0, interes: 0, cuotas: 0, pago: pago0, queda: U, capacidad: R(0) });
+  // BG-47: si el resumen ya tiene un pago registrado, la primera fila usa ese pago REAL (no la capacidad teórica).
+  const pgReal = _pagoDe(b.r), real0 = !!(pgReal && pgReal.monto != null);
+  const pago0 = real0 ? Math.max(0, Math.min(pgReal.monto, saldo0)) : Math.max(0, Math.min(R(0), U)); U -= pago0; pagoTot += pago0;
+  filas.push({ cierre: b.r.cierre, vto: b.r.vencimiento, stmt: saldo0, interes: 0, cuotas: 0, pago: pago0, queda: U, capacidad: R(0), real: real0 });
   for (let i = 0; i < 14 && U > 1; i++){
     const interes = U * (f - 1); interesTot += interes; U *= f;
     const vto = ppSumMes(c.pVto, i), k = ppSumMes(c.pCierre, i).slice(0, 7);
@@ -8488,10 +8984,10 @@ function renderPlanPagosCore(){
   PP_CAMPOS.forEach(([k, lbl]) => {
     const cont = $('pp-inputs'); if (cont && !$('pp-' + k)){
       const w = document.createElement('div'); w.className = 'sim-field'; w.style.cssText = 'flex:1;min-width:150px;';
-      w.innerHTML = `<span class="sim-lbl">${lbl}</span><input class="sim-input" type="number" min="0" id="pp-${k}" oninput="ppInput('${k}',this)">`;
+      w.innerHTML = `<span class="sim-lbl">${lbl}</span><input class="sim-input" type="text" inputmode="decimal" id="pp-${k}" oninput="ppInput('${k}',this)">`;
       cont.appendChild(w);
     }
-    const e = $('pp-' + k); if (e && document.activeElement !== e) e.value = PP[k];
+    const e = $('pp-' + k); if (e && document.activeElement !== e) e.value = String(PP[k]).replace('.', ',');
   });
   try {
     const x = ppCtx();
@@ -8500,7 +8996,8 @@ function renderPlanPagosCore(){
       cuerpo.style.display = 'none'; return;
     }
     const { b, c, tc } = x;
-    aviso.innerHTML = b.r.pagado ? '<div style="padding:8px 10px;border-radius:8px;background:var(--amber-l);border-left:3px solid var(--amber);font-size:12px;margin-bottom:8px;">El resumen más reciente figura como pagado: el plan parte de su saldo completo. Si pagaste menos que el total, el saldo inicial está sobreestimado hasta que cargues el próximo resumen.</div>' : '';
+    const pgB = _pagoDe(b.r);
+    aviso.innerHTML = pgB ? ('<div style="padding:8px 10px;border-radius:8px;background:var(--amber-l);border-left:3px solid var(--amber);font-size:12px;margin-bottom:8px;">El resumen más reciente tiene un pago registrado: ' + _pagoTxtIA(b.r) + '. ' + (pgB.monto != null ? 'La primera fila usa ese pago real y lo que quede se financia con interés.' : 'No tiene monto: el plan asume que se pagó según tu capacidad; cargá el monto desde la columna de pago de Resúmenes.') + '</div>') : '';
     cuerpo.style.display = '';
     const S = ppSimular(b, c, tc, PP.mamaHasta), S0 = ppSimular(b, c, tc, 0);
     const chip = (a, v, col) => `<div style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;font-size:11px;"><span style="color:var(--text3);">${a}</span> <strong${col ? ' style="color:' + col + ';"' : ''}>${v}</strong></div>`;
@@ -8513,7 +9010,7 @@ function renderPlanPagosCore(){
       const sobre = r.pago > PP.techo;
       h += `<tr style="border-top:1px solid var(--border2);"><td style="padding:4px 6px;white-space:nowrap;">${fD(r.vto)}${idx === 0 ? ' <span style="color:var(--text3);">(resumen ' + fD(b.r.cierre) + ')</span>' : ''}${r.aguinaldo ? ' <span title="Incluye aguinaldo" style="color:var(--green);">+aguinaldo</span>' : ''}</td>`
         + `<td ${td}>${fmt(r.stmt)}</td><td ${td}>${idx ? fmt(r.interes) : '—'}</td><td ${td}>${idx ? fmt(r.cuotas) : '—'}</td>`
-        + `<td ${td}><strong${sobre ? ' style="color:var(--amber);"' : ''}>${fmt(r.pago)}</strong></td><td ${td}>${r.queda > 1 ? fmt(r.queda) : '<span style="color:var(--green);">$0</span>'}</td></tr>`;
+        + `<td ${td}><strong${sobre ? ' style="color:var(--amber);"' : ''}>${fmt(r.pago)}</strong>${r.real ? ' <span title="Pago real registrado" style="color:var(--green);">✓ real</span>' : ''}</td><td ${td}>${r.queda > 1 ? fmt(r.queda) : '<span style="color:var(--green);">$0</span>'}</td></tr>`;
     });
     $('pp-tabla').innerHTML = h + '</tbody></table>';
     const dif = S0.interesTot - S.interesTot;
@@ -8549,7 +9046,7 @@ function comercioCategoria(detalle){
   try { const n = comercioNombre(detalle); if (!n) return null; const c = COMERCIOS_LIVE[comercioKey(n)]; return (c && c.categoria) || null; }
   catch (e){ return null; }
 }
-function comercioHoy(){ return new Date().toISOString().slice(0, 10); }
+function comercioHoy(){ return _hoyISO(); }
 // Pasa a 'cat' las compras guardadas con categoría 'varios' del mismo comercio (en todos los resúmenes). Devuelve cuántas.
 async function comercioAplicarAVarios(key, cat){
   const mapa = {}; let n = 0;
@@ -9098,10 +9595,12 @@ function setMedio(m){
     const c=$(id); if(!c) return;
     c.querySelectorAll('[data-medio]').forEach(b=>b.classList.toggle('on', b.dataset.medio===m));
   });
+  prgSyncForm('mv'); prgSyncForm('p');
 }
 function syncMedioVisible(){
   const show = S.type==='g';
   ['p-mediowrap','mv-mediowrap'].forEach(id=>{ const e=$(id); if(e) e.style.display = show?'':'none'; });
+  prgSyncForm('mv'); prgSyncForm('p');
 }
 
 function setType(t){
@@ -9146,6 +9645,16 @@ async function submit(pfx){
   if(!S.cat){ _pulse(sbtn,'Seleccioná categoría'); return; }
   if(S.type==='g' && !S.medio){ _pulse(sbtn,'Elegí el medio de pago'); return; }
   const fecha=(fechaInput&&fechaInput.value)?fechaInput.value:_defaultFecha();
+  // Pago programado: con "Vence" el gasto NO se escribe; queda en config hasta marcarlo ✓ Pagado.
+  const vcEl=$(isMV?'mv-vc':'p-vc');
+  const vence=(S.type==='g' && vcEl && vcEl.value)?vcEl.value:'';
+  if(vence){
+    if(S.cur!=='ARS'){ _pulse(sbtn,'Programar: solo ARS'); return; }
+    if(S.medio==='credito'){ _pulse(sbtn,'Crédito no se programa'); return; }
+    const itp=prgAgregarDesdeForm(pfx,monto,vence,note.value.trim());
+    if(isMV) _flash('🗓️ '+itp.n,'Programado para '+_fmtDM(vence)+' · '+fmt(monto)); else closePanel();
+    _reset(); prgSyncForm(pfx); return;
+  }
   sbtn.disabled=true; sbtn.textContent='Guardando…';
   try{
     await window._writeDate(S.type==='g'?'gasto':'ingreso',monto,S.cur,S.cat,note.value.trim(),fecha,S.type==='g'?S.medio:null);
@@ -9154,7 +9663,7 @@ async function submit(pfx){
     else closePanel();
     _reset();
   }catch(e){ alert(e.message); }
-  finally{ sbtn.disabled=false; sbtn.textContent=isMV?'Registrar':`Registrar ${S.type==='g'?'gasto':'ingreso'}`; }
+  finally{ sbtn.disabled=false; sbtn.textContent=isMV?'Registrar':`Registrar ${S.type==='g'?'gasto':'ingreso'}`; prgSyncForm(pfx); }
 }
 
 function _reset(){
@@ -9163,6 +9672,7 @@ function _reset(){
   ['mv-nt','p-nt'].forEach(id=>{const e=$(id);if(e)e.value='';});
   S.cat=null; S.medio=null; setMedio(null); renderCatGrid('mv'); renderCatGrid('p');
   syncFechaInputs();
+  prgResetForm('mv'); prgResetForm('p');
 }
 function _flash(lbl,sub){
   $('fl-lbl').textContent=lbl; $('fl-sub').textContent=sub;
